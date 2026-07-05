@@ -1,0 +1,23 @@
+{
+  "intended_chunks": 300,
+  "completed_chunks": 300,
+  "crashed": false,
+  "speaking_chunks": 155,
+  "listen_latency_head_mean_ms": 201.6,
+  "listen_latency_tail_mean_ms": 368.7,
+  "listen_latency_drift_ms": 167.1,
+  "speak_latency_mean_ms": 942.3,
+  "speak_latency_max_ms": 1659.2,
+  "real_time_violation_chunks": 72,
+  "kv_start": 169,
+  "kv_end": 25557,
+  "kv_tokens_per_chunk": 84.9,
+  "kv_bounded": null,
+  "vram_mb_start": 23892.0,
+  "vram_mb_end": 28182.8,
+  "vram_growth_mb": 4290.8,
+  "_probe": "p8_long_horizon",
+  "_capability": "Long-Horizon Streaming (stability over time)",
+  "_n_chunks": 300,
+  "_wall_s": 183.9
+}

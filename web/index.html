@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MiniCPM-o Live · Watch &amp; Listen</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#fff; --ink:#141922; --ink-2:#4b5563; --ink-3:#8a94a6;
+    --line:#e6e9ef; --line-2:#d7dce4; --accent:#3b5bdb; --accent-ink:#fff; --accent-soft:#eef2ff;
+    --ok:#0f9d58; --ok-soft:#e7f5ee; --warn:#c47f00; --warn-soft:#fbf1dd;
+    --err:#c0392b; --err-soft:#fdeceb; --focus:#748ffc; --radius:16px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(20,25,34,.04), 0 8px 30px rgba(20,25,34,.06);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0e1116;--panel:#161b22;--ink:#e8ebf0;--ink-2:#aab2c0;--ink-3:#6b7482;
+      --line:#232a34;--line-2:#2d3542;--accent:#5c7cfa;--accent-soft:#1a2333;
+      --ok:#3fbf7f;--ok-soft:#12241b;--warn:#e0a336;--warn-soft:#2a2113;--err-soft:#2a1614;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 34px rgba(0,0,0,.35);}
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    min-height:100vh;background:radial-gradient(1200px 600px at 100% -10%, color-mix(in srgb,var(--accent) 8%,transparent), transparent 60%), var(--bg);}
+  .wrap{max-width:1180px;margin:0 auto;padding:clamp(16px,3vw,40px)}
+  header.top{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .logo{width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;color:var(--accent-ink);
+    background:linear-gradient(140deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000));box-shadow:var(--shadow)}
+  .brand h1{font-size:1.12rem;margin:0;letter-spacing:-.01em;line-height:1.15}
+  .brand p{margin:2px 0 0;font-size:.82rem;color:var(--ink-3)}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-2);background:var(--panel);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;box-shadow:var(--shadow);white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3);flex:none}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)}
+  .dot.live{background:var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  .studio{display:grid;grid-template-columns:1.05fr 1fr;gap:22px;align-items:start}
+  @media (max-width:880px){.studio{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+  .card h2{font-size:.95rem;margin:0 0 4px;letter-spacing:-.01em}
+  .card .hint{font-size:.82rem;color:var(--ink-3);margin:0 0 16px}
+
+  .stagevid{position:relative;width:100%;aspect-ratio:4/3;border-radius:var(--radius-sm);overflow:hidden;
+    background:#000;display:grid;place-items:center;border:1px solid var(--line)}
+  .stagevid video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .stagevid .off{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--ink-3);gap:8px;padding:20px}
+  .badge{position:absolute;left:12px;top:12px;display:flex;align-items:center;gap:7px;font-size:.74rem;color:#fff;
+    background:rgba(0,0,0,.5);border-radius:999px;padding:5px 10px;backdrop-filter:blur(6px)}
+  .meter{position:absolute;left:12px;right:12px;bottom:12px;height:6px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden}
+  .meter > i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s linear}
+
+  .actions{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}
+  .btn{font:inherit;font-weight:650;border-radius:var(--radius-sm);border:1px solid transparent;padding:12px 20px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:9px;transition:transform .06s,filter .15s,background .15s,border-color .15s}
+  .btn:active{transform:translateY(1px)}
+  .btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .btn.primary{background:var(--accent);color:var(--accent-ink)} .btn.primary:hover{filter:brightness(1.06)}
+  .btn.primary:disabled{background:var(--line-2);color:var(--ink-3);cursor:not-allowed;filter:none}
+  .btn.stop{background:var(--err);color:#fff} .btn.stop:hover{filter:brightness(1.05)}
+  .btn.ghost{background:transparent;color:var(--ink-2);border-color:var(--line-2)} .btn.ghost:hover{background:var(--bg)}
+  .spin{width:16px;height:16px;flex:none;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+
+  details.adv{margin-top:16px;border-top:1px solid var(--line);padding-top:6px}
+  details.adv>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:600;color:var(--ink-2);padding:8px 2px}
+  details.adv>summary::-webkit-details-marker{display:none}
+  details.adv .chev{transition:transform .2s;color:var(--ink-3)} details.adv[open] .chev{transform:rotate(90deg)}
+  textarea{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:11px 13px;resize:vertical;min-height:70px}
+  textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .tip{font-size:.78rem;color:var(--ink-3);margin-top:10px;display:flex;gap:8px;align-items:flex-start}
+
+  /* right column */
+  .convo-status{display:flex;align-items:center;gap:12px;padding:12px 15px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--bg);margin-bottom:14px}
+  .convo-status .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--accent-soft);color:var(--accent)}
+  .convo-status.speaking .ic{background:var(--ok-soft);color:var(--ok)}
+  .convo-status b{font-size:.9rem} .convo-status span{font-size:.8rem;color:var(--ink-3);display:block}
+  .barwrap{display:flex;gap:3px;align-items:center;height:20px}
+  .barwrap i{width:3px;height:6px;background:var(--ok);border-radius:2px;opacity:.5}
+  .convo-status.speaking .barwrap i{animation:eq .9s ease-in-out infinite}
+  .barwrap i:nth-child(2){animation-delay:.15s}.barwrap i:nth-child(3){animation-delay:.3s}.barwrap i:nth-child(4){animation-delay:.45s}
+  @keyframes eq{0%,100%{height:6px;opacity:.5}50%{height:18px;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.barwrap i{animation:none!important}.dot.live{animation:none}}
+
+  .transcript{min-height:280px;max-height:56vh;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;gap:12px}
+  .turn{padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word;font-size:.98rem}
+  .turn.cur{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .empty{color:var(--ink-3);font-size:.9rem;text-align:center;padding:40px 10px}
+  .err{color:var(--err);background:var(--err-soft);border:1px solid color-mix(in srgb,var(--err) 30%,transparent);
+    border-radius:var(--radius-sm);padding:10px 13px;font-size:.86rem;margin-top:12px}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .chip{font-size:.74rem;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div>
+        <h1>MiniCPM-o Live</h1>
+        <p>Real-time full-duplex — it watches your camera and hears your voice.</p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">Idle</span></div>
+  </header>
+
+  <div class="studio">
+    <!-- LEFT: camera + mic -->
+    <section class="card">
+      <h2>Camera &amp; microphone</h2>
+      <p class="hint">Start a session, allow camera + mic, and just talk. The model streams a reply as you speak.</p>
+
+      <div class="stagevid">
+        <video id="cam" playsinline muted></video>
+        <div class="off" id="camOff">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          <div>Camera preview appears here</div>
+        </div>
+        <div class="badge" id="camBadge" hidden><span class="dot live"></span> LIVE</div>
+        <div class="meter" id="meterWrap" hidden><i id="meter"></i></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="startBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+          Start session
+        </button>
+        <button class="btn stop" id="stopBtn" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          Stop
+        </button>
+      </div>
+
+      <details class="adv">
+        <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg> Advanced</summary>
+        <label style="display:block;font-size:.82rem;font-weight:600;color:var(--ink-2);margin:10px 0 7px">System prompt</label>
+        <textarea id="sysp"></textarea>
+      </details>
+
+      <div class="tip">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;margin-top:1px;color:var(--warn)"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span>Use <b>headphones</b> so the model doesn't hear its own voice. First start after idle cold-starts the H100 (~60s).</span>
+      </div>
+    </section>
+
+    <!-- RIGHT: conversation -->
+    <section class="card">
+      <h2>Conversation</h2>
+      <p class="hint">The model's reply streams here and plays aloud in real time.</p>
+
+      <div class="convo-status" id="cstatus">
+        <div class="ic" id="cIcon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+        </div>
+        <div style="flex:1">
+          <b id="cTitle">Not connected</b>
+          <span id="cSub">Press “Start session” to begin.</span>
+        </div>
+        <div class="barwrap" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+
+      <div class="transcript" id="transcript">
+        <div class="empty" id="emptyState">Your conversation will appear here.</div>
+      </div>
+      <div id="errBox"></div>
+      <div class="meta" id="meta" hidden>
+        <div class="chip">state <b id="mState">—</b></div>
+        <div class="chip">turns <b id="mTurns">0</b></div>
+        <div class="chip">ticks <b id="mTicks">0</b></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<canvas id="grab" width="448" height="448" hidden></canvas>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var DEFAULT_SYS =
+    "你是一个实时视频助手。请自然地和用户对话、回答用户的问题；" +
+    "当用户没有说话时，可以简短地描述你看到的画面。用户用什么语言，你就用什么语言回答。";
+  $("sysp").value = DEFAULT_SYS;
+
+  var ws=null, media=null, capCtx=null, playCtx=null, node=null;
+  var streaming=false, running=false, playHead=0, outSr=24000;
+  var acc=new Float32Array(0), ticks=0, turns=0;
+  var curTurn=null, wasListen=true;
+
+  function setStatus(cls, txt){ $("statusDot").className = "dot "+cls; $("statusText").textContent = txt; }
+  function setConvo(mode, title, sub){
+    $("cstatus").classList.toggle("speaking", mode==="speaking");
+    $("cTitle").textContent = title; $("cSub").textContent = sub;
+    $("mState").textContent = mode;
+  }
+  function showErr(msg){ $("errBox").innerHTML = ""; var d=document.createElement("div"); d.className="err"; d.textContent="⚠ "+msg; $("errBox").appendChild(d); }
+  function clearErr(){ $("errBox").innerHTML=""; }
+
+  function b64FromBytes(buf){
+    var bytes=new Uint8Array(buf), s="", CH=0x8000;
+    for(var i=0;i<bytes.length;i+=CH){ s+=String.fromCharCode.apply(null, bytes.subarray(i,i+CH)); }
+    return btoa(s);
+  }
+  function bytesFromB64(b64){
+    var bin=atob(b64), n=bin.length, buf=new ArrayBuffer(n), v=new Uint8Array(buf);
+    for(var i=0;i<n;i++) v[i]=bin.charCodeAt(i);
+    return buf;
+  }
+
+  // ---- audio capture -> 1s @ 16k int16 ------------------------------------
+  function resampleTo16k(x, rate){
+    if(rate===16000) return x.slice(0,16000);
+    var ratio=rate/16000, out=new Float32Array(16000);
+    for(var i=0;i<16000;i++){ var t=i*ratio, i0=t|0, f=t-i0, a=x[i0]||0, b=x[i0+1]||0; out[i]=a+(b-a)*f; }
+    return out;
+  }
+  function grabFrame(){
+    var v=$("cam");
+    if(!v || !v.videoWidth) return null;
+    var c=$("grab"), g=c.getContext("2d");
+    // mirror to match the preview
+    g.save(); g.translate(448,0); g.scale(-1,1);
+    var vw=v.videoWidth, vh=v.videoHeight, s=Math.min(vw,vh);
+    g.drawImage(v, (vw-s)/2,(vh-s)/2,s,s, 0,0,448,448); g.restore();
+    return c.toDataURL("image/jpeg",0.6).split(",")[1];
+  }
+  function onAudio(e){
+    if(!running) return;
+    var inp=e.inputBuffer.getChannelData(0);
+    // level meter (rms)
+    var sum=0; for(var k=0;k<inp.length;k++) sum+=inp[k]*inp[k];
+    var rms=Math.sqrt(sum/inp.length); $("meter").style.width=Math.min(100,rms*260)+"%";
+    // accumulate to 1s
+    var merged=new Float32Array(acc.length+inp.length); merged.set(acc); merged.set(inp,acc.length); acc=merged;
+    var need=capCtx.sampleRate;
+    while(acc.length>=need){
+      var oneSec=acc.slice(0,need); acc=acc.slice(need);
+      if(streaming && ws && ws.readyState===1) sendTick(oneSec, capCtx.sampleRate);
+    }
+  }
+  function sendTick(samples, rate){
+    var f=resampleTo16k(samples, rate), pcm=new Int16Array(16000);
+    for(var i=0;i<16000;i++){ var s=Math.max(-1,Math.min(1,f[i])); pcm[i]=s<0?s*32768:s*32767; }
+    ticks++; $("mTicks").textContent=ticks;
+    ws.send(JSON.stringify({type:"tick", audio:b64FromBytes(pcm.buffer), image:grabFrame()}));
+  }
+
+  // ---- model audio playback (float32 @ outSr, gapless) --------------------
+  function playAudio(b64){
+    try{
+      var f32=new Float32Array(bytesFromB64(b64));
+      if(!f32.length) return;
+      var ab=playCtx.createBuffer(1, f32.length, outSr); ab.copyToChannel(f32,0);
+      var src=playCtx.createBufferSource(); src.buffer=ab; src.connect(playCtx.destination);
+      var now=playCtx.currentTime; if(playHead<now) playHead=now+0.04;
+      src.start(playHead); playHead+=ab.duration;
+    }catch(e){ /* ignore a bad chunk */ }
+  }
+
+  // ---- transcript ----------------------------------------------------------
+  function appendText(t){
+    if(!t) return;
+    $("emptyState").hidden=true;
+    if(!curTurn){ curTurn=document.createElement("div"); curTurn.className="turn cur"; $("transcript").appendChild(curTurn); turns++; $("mTurns").textContent=turns; }
+    curTurn.textContent += t;
+    $("transcript").scrollTop = $("transcript").scrollHeight;
+  }
+  function endTurn(){ if(curTurn){ curTurn.classList.remove("cur"); curTurn=null; } }
+
+  function onStep(m){
+    if(m.audio) playAudio(m.audio);
+    if(m.is_listen){
+      if(!wasListen) endTurn();
+      setConvo("listening","Listening…","Speak — the model is watching and listening.");
+      setStatus("live","Live · listening");
+    }else{
+      setConvo("speaking","Speaking…","The model is responding.");
+      setStatus("live","Live · speaking");
+      appendText(m.text||"");
+    }
+    if(m.eot) endTurn();
+    wasListen=!!m.is_listen;
+  }
+
+  // ---- session lifecycle ---------------------------------------------------
+  async function start(){
+    clearErr();
+    $("startBtn").disabled=true;
+    setStatus("warn","Requesting camera + mic…");
+    try{
+      media=await navigator.mediaDevices.getUserMedia({
+        video:{width:{ideal:640},height:{ideal:480},facingMode:"user"},
+        audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+      });
+    }catch(err){
+      showErr("Camera/microphone permission is required: "+err.message);
+      setStatus("err","Permission denied"); $("startBtn").disabled=false; return;
+    }
+    $("cam").srcObject=media; try{ await $("cam").play(); }catch(e){}
+    $("camOff").hidden=true; $("camBadge").hidden=false; $("meterWrap").hidden=false; $("meta").hidden=false;
+
+    // capture graph @ 16k (fallback: resample from actual rate)
+    capCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    var srcNode=capCtx.createMediaStreamSource(media);
+    node=capCtx.createScriptProcessor(4096,1,1);
+    var sink=capCtx.createGain(); sink.gain.value=0;   // silent sink (no mic feedback)
+    srcNode.connect(node); node.connect(sink); sink.connect(capCtx.destination);
+    node.onaudioprocess=onAudio;
+    playCtx=new (window.AudioContext||window.webkitAudioContext)(); playHead=0;
+    running=true; acc=new Float32Array(0); ticks=0; turns=0; wasListen=true; curTurn=null;
+
+    openWs();
+    $("stopBtn").hidden=false;
+  }
+
+  function openWs(){
+    var url=(location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws";
+    setStatus("warn","Connecting…"); setConvo("listening","Connecting…","Opening the stream.");
+    ws=new WebSocket(url);
+    ws.onopen=function(){ ws.send(JSON.stringify({type:"start", system_prompt:$("sysp").value||""})); };
+    ws.onmessage=function(ev){
+      var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+      if(m.type==="loading"){ setStatus("warn","Waking the H100…"); setConvo("listening","Waking model…","Cold start — loading the 20GB model (~60s)."); }
+      else if(m.type==="ready"){ outSr=m.out_sr||24000; streaming=true; setStatus("live","Live · listening"); setConvo("listening","Listening…","Go ahead and speak."); }
+      else if(m.type==="busy"){ showErr("The GPU is serving another live session. Try again in a moment."); stop(); }
+      else if(m.type==="error"){ showErr(m.message||"stream error"); }
+      else if(m.type==="step"){ onStep(m); }
+    };
+    ws.onerror=function(){ showErr("WebSocket error — connection interrupted."); };
+    ws.onclose=function(){ if(running){ setStatus("warn","Disconnected"); } streaming=false; };
+  }
+
+  function stop(){
+    running=false; streaming=false;
+    try{ if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:"stop"})); } }catch(e){}
+    try{ if(ws) ws.close(); }catch(e){}
+    try{ if(node){ node.disconnect(); node.onaudioprocess=null; } }catch(e){}
+    try{ if(capCtx) capCtx.close(); }catch(e){}
+    try{ if(playCtx) playCtx.close(); }catch(e){}
+    try{ if(media) media.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+    endTurn();
+    $("cam").srcObject=null; $("camOff").hidden=false; $("camBadge").hidden=true; $("meterWrap").hidden=true;
+    $("meter").style.width="0%";
+    $("startBtn").disabled=false; $("stopBtn").hidden=true;
+    setStatus("","Idle"); setConvo("listening","Session ended","Press “Start session” to begin again.");
+  }
+
+  $("startBtn").addEventListener("click", start);
+  $("stopBtn").addEventListener("click", stop);
+  window.addEventListener("beforeunload", function(){ try{ stop(); }catch(e){} });
+  setConvo("listening","Not connected","Press “Start session” to begin.");
+})();
+</script>
+</body>
+</html>

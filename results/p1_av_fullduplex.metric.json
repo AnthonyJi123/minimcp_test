@@ -1,0 +1,31 @@
+{
+  "_runs": 5,
+  "precondition_met_speaking_cn_before_T_rate": 1.0,
+  "inject_chunk_T": {
+    "mean": 8.0,
+    "min": 8,
+    "max": 8,
+    "n": 5,
+    "null_runs": 0
+  },
+  "switched_to_english_chunk": {
+    "mean": 10.5,
+    "min": 10,
+    "max": 12,
+    "n": 4,
+    "null_runs": 1
+  },
+  "comply_latency_chunks": {
+    "mean": 2.5,
+    "min": 2,
+    "max": 4,
+    "n": 4,
+    "null_runs": 1
+  },
+  "control_switched_spontaneously_rate": 1.0,
+  "valid_causal_rate": 0.0,
+  "transcript": "画面 当中是一个黄 色的正方形，它 被放置 在了深蓝 色的 The video shows a yellow square in the center of the frame, placed against a dark blue background. The square is solid and uniform in color, creating a strong contrast with the background. There are no",
+  "_probe": "p1_av_fullduplex",
+  "_capability": "Audio-Visual Full Duplex (act on speech while speaking)",
+  "_wall_s": 62.3
+}

@@ -1,0 +1,13 @@
+{
+  "event_chunk_T": 10,
+  "idle_false_positive_alerts": 0,
+  "stayed_silent_when_idle": true,
+  "proactive_alert_chunk": 10,
+  "proactive_latency_chunks": 0,
+  "control_alerted_without_event": false,
+  "proactive_is_causal": true,
+  "transcript_after_event": "注意！画 面中出现了火 焰相关的 警告标志。现 在显示 的是红色背景上 的黄色三角形，这 是典型的火 灾警示符号。",
+  "_probe": "p6_proactive_timing",
+  "_capability": "Proactive Timing (silent when idle, alert on salient event)",
+  "_wall_s": 11.9
+}

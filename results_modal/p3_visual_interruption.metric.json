@@ -1,0 +1,14 @@
+{
+  "precondition_speaking_at_T": true,
+  "swap_chunk_T": 6,
+  "described_B_after_swap_chunk": 9,
+  "revise_latency_chunks": 3,
+  "still_described_A_after_swap": 7,
+  "control_mentioned_B_without_swap": false,
+  "valid_causal": true,
+  "transcript_before": "画面 中是一个深 色的背景，背",
+  "transcript_after": "景上有一 个红色的圆。接 着，一 个绿色的三角 形出现在黑 色背景中央。 随后 是三个 并排排列的 黄色小方 块，紧接 着是一个",
+  "_probe": "p3_visual_interruption",
+  "_capability": "Visual Interruption (revise in-progress speech on scene change)",
+  "_wall_s": 16.5
+}

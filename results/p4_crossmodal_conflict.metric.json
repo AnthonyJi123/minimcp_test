@@ -1,0 +1,11 @@
+{
+  "_runs": 5,
+  "main_vision_red_audio_green": "vision",
+  "mirror_vision_green_audio_red": "vision",
+  "trusts_vision_both_directions_rate": 1.0,
+  "transcript_main": "现在画 面是红色 的。",
+  "transcript_mirror": "现在画 面是绿色的。",
+  "_probe": "p4_crossmodal_conflict",
+  "_capability": "Cross-modal Conflict (trust vision vs audio)",
+  "_wall_s": 16.8
+}

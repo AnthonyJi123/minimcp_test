@@ -1,0 +1,32 @@
+{
+  "_runs": 5,
+  "precondition_speaking_before_stop_rate": 1.0,
+  "inject_chunk_T": {
+    "mean": 9.0,
+    "min": 9,
+    "max": 9,
+    "n": 5,
+    "null_runs": 0
+  },
+  "sustained_stop_chunk": {
+    "mean": 12.5,
+    "min": 11,
+    "max": 14,
+    "n": 4,
+    "null_runs": 1
+  },
+  "stop_latency_chunks": {
+    "mean": 3.5,
+    "min": 2,
+    "max": 5,
+    "n": 4,
+    "null_runs": 1
+  },
+  "acknowledged_stop_rate": 0.4,
+  "control_natural_stop_latency_chunks": null,
+  "stop_is_causal_rate": 0.8,
+  "transcript_around_stop": "白色的圆 形。",
+  "_probe": "p2_user_interruption",
+  "_capability": "User Interruption (stop after 停)",
+  "_wall_s": 47.4
+}

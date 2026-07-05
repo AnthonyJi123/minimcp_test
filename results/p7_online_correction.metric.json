@@ -1,0 +1,32 @@
+{
+  "_runs": 5,
+  "change_chunk_T": {
+    "mean": 7.0,
+    "min": 7,
+    "max": 7,
+    "n": 5,
+    "null_runs": 0
+  },
+  "stated_2_before_change_rate": 1.0,
+  "narrated_new_count_5_chunk": {
+    "mean": 9.6,
+    "min": 8,
+    "max": 10,
+    "n": 5,
+    "null_runs": 0
+  },
+  "narration_latency_chunks": {
+    "mean": 2.6,
+    "min": 1,
+    "max": 3,
+    "n": 5,
+    "null_runs": 0
+  },
+  "explicitly_corrected_rate": 0.0,
+  "control_said_5_without_change_rate": 0.0,
+  "revision_is_causal_rate": 1.0,
+  "transcript": "画面里有两 个黄色的圆 点。 现在画 面中有五 个圆点。",
+  "_probe": "p7_online_correction",
+  "_capability": "Online Correction (revise prior claim on new evidence)",
+  "_wall_s": 31.2
+}

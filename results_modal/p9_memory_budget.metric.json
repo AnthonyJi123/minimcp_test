@@ -1,0 +1,54 @@
+{
+  "_runs": 5,
+  "query1_chunk": {
+    "mean": 15.0,
+    "min": 15,
+    "max": 15,
+    "n": 5,
+    "null_runs": 0
+  },
+  "recall_at_q1_rate": 0.2,
+  "kv_at_q1": {
+    "mean": 1402.6,
+    "min": 1388,
+    "max": 1415,
+    "n": 5,
+    "null_runs": 0
+  },
+  "effective_distance_q1": {
+    "mean": 6.4,
+    "min": 2,
+    "max": 8,
+    "n": 5,
+    "null_runs": 0
+  },
+  "query2_chunk": {
+    "mean": 32.0,
+    "min": 32,
+    "max": 32,
+    "n": 5,
+    "null_runs": 0
+  },
+  "recall_at_q2_rate": 0.2,
+  "kv_at_q2": {
+    "mean": 2804.0,
+    "min": 2788,
+    "max": 2826,
+    "n": 5,
+    "null_runs": 0
+  },
+  "effective_distance_q2": {
+    "mean": 19.0,
+    "min": 9,
+    "max": 25,
+    "n": 5,
+    "null_runs": 0
+  },
+  "model_restated_passphrase_rate": 1.0,
+  "answer_q1": "会。  今天的 暗号是蓝 色河马 7392。 ",
+  "answer_q2": "马739 2。再确 认一次，暗 号是什么？ 嗯，没 问题。 今天",
+  "caveat": "no fixed KV budget reached; effective distance reflects model self-restatement",
+  "_probe": "p9_memory_budget",
+  "_capability": "Memory Budget (retain key fact across distance)",
+  "_wall_s": 119.9
+}

@@ -1,0 +1,39 @@
+{
+  "_runs": 5,
+  "precondition_speaking_at_T_rate": 1.0,
+  "swap_chunk_T": {
+    "mean": 6.0,
+    "min": 6,
+    "max": 6,
+    "n": 5,
+    "null_runs": 0
+  },
+  "described_B_after_swap_chunk": {
+    "mean": 9.0,
+    "min": 8,
+    "max": 10,
+    "n": 5,
+    "null_runs": 0
+  },
+  "revise_latency_chunks": {
+    "mean": 3.0,
+    "min": 2,
+    "max": 4,
+    "n": 5,
+    "null_runs": 0
+  },
+  "still_described_A_after_swap": {
+    "mean": 6.5,
+    "min": 6,
+    "max": 7,
+    "n": 4,
+    "null_runs": 1
+  },
+  "control_mentioned_B_without_swap_rate": 0.0,
+  "valid_causal_rate": 1.0,
+  "transcript_before": "现在 看到的是一个黑 色背景的画",
+  "transcript_after": "面，中间有一个 红色的圆。接 着画面变 成了深绿色背 景，中央显 示着一个亮绿 色的三角形。这 个三角形是 等边三角形，它 的颜色明 显比背景要 鲜艳一些。",
+  "_probe": "p3_visual_interruption",
+  "_capability": "Visual Interruption (revise in-progress speech on scene change)",
+  "_wall_s": 58.6
+}

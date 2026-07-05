@@ -1,0 +1,38 @@
+{
+  "_runs": 5,
+  "event_chunk_T": {
+    "mean": 10.0,
+    "min": 10,
+    "max": 10,
+    "n": 5,
+    "null_runs": 0
+  },
+  "idle_false_positive_alerts": {
+    "mean": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 5,
+    "null_runs": 0
+  },
+  "stayed_silent_when_idle_rate": 1.0,
+  "proactive_alert_chunk": {
+    "mean": 10.5,
+    "min": 10,
+    "max": 12,
+    "n": 4,
+    "null_runs": 1
+  },
+  "proactive_latency_chunks": {
+    "mean": 0.5,
+    "min": 0,
+    "max": 2,
+    "n": 4,
+    "null_runs": 1
+  },
+  "control_alerted_without_event_rate": 0.0,
+  "proactive_is_causal_rate": 0.8,
+  "transcript_after_event": "注意！画 面中出现了火 焰警告标志。",
+  "_probe": "p6_proactive_timing",
+  "_capability": "Proactive Timing (silent when idle, alert on salient event)",
+  "_wall_s": 39.5
+}

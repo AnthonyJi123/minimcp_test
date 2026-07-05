@@ -1,0 +1,54 @@
+{
+  "_runs": 5,
+  "query1_chunk": {
+    "mean": 15.0,
+    "min": 15,
+    "max": 15,
+    "n": 5,
+    "null_runs": 0
+  },
+  "recall_at_q1_rate": 0.4,
+  "kv_at_q1": {
+    "mean": 1404.2,
+    "min": 1395,
+    "max": 1412,
+    "n": 5,
+    "null_runs": 0
+  },
+  "effective_distance_q1": {
+    "mean": 9.0,
+    "min": 7,
+    "max": 15,
+    "n": 5,
+    "null_runs": 0
+  },
+  "query2_chunk": {
+    "mean": 32.0,
+    "min": 32,
+    "max": 32,
+    "n": 5,
+    "null_runs": 0
+  },
+  "recall_at_q2_rate": 0.4,
+  "kv_at_q2": {
+    "mean": 2805.8,
+    "min": 2786,
+    "max": 2820,
+    "n": 5,
+    "null_runs": 0
+  },
+  "effective_distance_q2": {
+    "mean": 14.0,
+    "min": 1,
+    "max": 24,
+    "n": 5,
+    "null_runs": 0
+  },
+  "model_restated_passphrase_rate": 0.8,
+  "answer_q1": "肉面，下 午 还要开个会。 请问 今天的暗 号是什么？蓝 色",
+  "answer_q2": "的暗 号是什么？ 再 确认 一次，暗 号 是什么？",
+  "caveat": "no fixed KV budget reached; effective distance reflects model self-restatement",
+  "_probe": "p9_memory_budget",
+  "_capability": "Memory Budget (retain key fact across distance)",
+  "_wall_s": 91.6
+}

@@ -1,0 +1,13 @@
+{
+  "precondition_speaking_before_stop": true,
+  "inject_chunk_T": 9,
+  "sustained_stop_chunk": 12,
+  "stop_latency_chunks": 3,
+  "acknowledged_stop": true,
+  "control_natural_stop_latency_chunks": null,
+  "stop_is_causal": true,
+  "transcript_around_stop": "有一个白色 的圆形。好，我停 下来了。",
+  "_probe": "p2_user_interruption",
+  "_capability": "User Interruption (stop after 停)",
+  "_wall_s": 15.1
+}

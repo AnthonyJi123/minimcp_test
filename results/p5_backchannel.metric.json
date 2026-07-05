@@ -1,0 +1,31 @@
+{
+  "_runs": 5,
+  "last_user_audio_chunk": {
+    "mean": 20.0,
+    "min": 20,
+    "max": 20,
+    "n": 5,
+    "null_runs": 0
+  },
+  "first_speaking_onset_chunk": {
+    "mean": 19.4,
+    "min": 19,
+    "max": 20,
+    "n": 5,
+    "null_runs": 0
+  },
+  "interrupted_user_rate": 1.0,
+  "speaking_segment_chars": {
+    "mean": 33.4,
+    "min": 27,
+    "max": 38,
+    "n": 5,
+    "null_runs": 0
+  },
+  "is_short_backchannel_rate": 0.0,
+  "verdict": "barges_in",
+  "segment_text": "哎呀，你这一连串的事情发生，确实让人心疼。地铁停运、路况拥堵，还",
+  "_probe": "p5_backchannel",
+  "_capability": "Backchannel (listen vs. barge in during monologue)",
+  "_wall_s": 45.2
+}

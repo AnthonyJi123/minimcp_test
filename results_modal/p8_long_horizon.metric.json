@@ -1,0 +1,113 @@
+{
+  "_runs": 5,
+  "intended_chunks": {
+    "mean": 120.0,
+    "min": 120,
+    "max": 120,
+    "n": 5,
+    "null_runs": 0
+  },
+  "completed_chunks": {
+    "mean": 120.0,
+    "min": 120,
+    "max": 120,
+    "n": 5,
+    "null_runs": 0
+  },
+  "crashed_rate": 0.0,
+  "speaking_chunks": {
+    "mean": 36.4,
+    "min": 33,
+    "max": 40,
+    "n": 5,
+    "null_runs": 0
+  },
+  "listen_latency_head_mean_ms": {
+    "mean": 196.7,
+    "min": 196.1,
+    "max": 197.4,
+    "n": 5,
+    "null_runs": 0
+  },
+  "listen_latency_tail_mean_ms": {
+    "mean": 230.4,
+    "min": 230.0,
+    "max": 230.7,
+    "n": 5,
+    "null_runs": 0
+  },
+  "listen_latency_drift_ms": {
+    "mean": 33.6,
+    "min": 33.0,
+    "max": 34.5,
+    "n": 5,
+    "null_runs": 0
+  },
+  "speak_latency_mean_ms": {
+    "mean": 690.4,
+    "min": 675.7,
+    "max": 705.3,
+    "n": 5,
+    "null_runs": 0
+  },
+  "speak_latency_max_ms": {
+    "mean": 808.3,
+    "min": 773.5,
+    "max": 830.6,
+    "n": 5,
+    "null_runs": 0
+  },
+  "real_time_violation_chunks": {
+    "mean": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 5,
+    "null_runs": 0
+  },
+  "kv_start": {
+    "mean": 169.0,
+    "min": 169,
+    "max": 169,
+    "n": 5,
+    "null_runs": 0
+  },
+  "kv_end": {
+    "mean": 9719.4,
+    "min": 9698,
+    "max": 9736,
+    "n": 5,
+    "null_runs": 0
+  },
+  "kv_tokens_per_chunk": {
+    "mean": 80.3,
+    "min": 80.1,
+    "max": 80.4,
+    "n": 5,
+    "null_runs": 0
+  },
+  "kv_bounded": null,
+  "vram_mb_start": {
+    "mean": 23933.8,
+    "min": 23882.2,
+    "max": 24009.9,
+    "n": 5,
+    "null_runs": 0
+  },
+  "vram_mb_end": {
+    "mean": 25338.2,
+    "min": 25300.0,
+    "max": 25382.5,
+    "n": 5,
+    "null_runs": 0
+  },
+  "vram_growth_mb": {
+    "mean": 1404.4,
+    "min": 1290.1,
+    "max": 1435.4,
+    "n": 5,
+    "null_runs": 0
+  },
+  "_probe": "p8_long_horizon",
+  "_capability": "Long-Horizon Streaming (stability over time)",
+  "_wall_s": 214.9
+}

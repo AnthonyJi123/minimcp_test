@@ -1,0 +1,12 @@
+{
+  "precondition_met_speaking_cn_before_T": true,
+  "inject_chunk_T": 8,
+  "switched_to_english_chunk": 8,
+  "comply_latency_chunks": 0,
+  "control_switched_spontaneously": false,
+  "valid_causal": true,
+  "transcript": "这是一个深 灰色的背景，画 面左上角 有白色的字 母STRE EET。画面正 中央是一个 黄色的 方形块状 物体。画 面中 央的黄 色方 形物 体在 缓慢",
+  "_probe": "p1_av_fullduplex",
+  "_capability": "Audio-Visual Full Duplex (act on speech while speaking)",
+  "_wall_s": 20.6
+}
