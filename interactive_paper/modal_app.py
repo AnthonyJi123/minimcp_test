@@ -80,6 +80,7 @@ Q_PUBLIC = f"{DATA}/queries_public.jsonl"
 QUERIES = f"{DATA}/queries.jsonl"
 SIGNALS = f"{DATA}/signals.jsonl"
 FEATURES = f"{DATA}/calib_features.parquet"
+GATE_CFG = f"{DATA}/gate_config.json"
 OPENAI = modal.Secret.from_name("openai")
 
 
@@ -664,3 +665,174 @@ def calibrate():
                "GO-WEAK (0.65-0.75; flat tradeoff expected)" if top >= 0.65 else
                "NO-GO (<0.65) — STOP, report failure analysis")
     print(f"\n>>> PHASE-2 VERDICT: best AUC {top:.3f} → {verdict}", flush=True)
+
+
+# ============================ Phase 3: online gate =========================
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def fit_gate():
+    """Phase 3: fit the deployable probe and pick 3 thresholds. CALIB ONLY.
+
+    calibrate() measures AUC via CV but fits nothing shippable. This fits the ONE
+    LogisticRegression on calib h_prompt that the online gate ships with, then
+    picks three operating points and persists gate_config.json.
+
+    Two deviations from the plan's naive recipe, both forced by the data:
+      1. C-regularization sweep. With 4096 dims / n=360 the C=1.0 probe MEMORIZES
+         (in-sample AUC 1.000), so its shipped score scale wouldn't match the OOF
+         scale the thresholds live on. We pick C by 5-fold OOF AUC (tie -> smaller
+         C = more regularization), which de-memorizes so thresholds transfer.
+      2. Tiers by ESCALATION BUDGET, not precision target. At base rate 0.32 and
+         AUC 0.82 the plan's "precision >= 0.80" is only reachable at ~0 recall
+         (degenerate). Escalation rate is the real cost knob and the exact axis
+         Phase 5 sweeps, so tiers = target escalate rate {.15/.30/.50}.
+
+    Test split stays frozen (Phase 5 only). Thresholds are chosen on OOF scores;
+    gate_eval() reports the realized precision/recall per tier.
+    """
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+
+    df = pd.read_parquet(FEATURES)
+    df = df[df["escalate_label"].notna()]
+    calib = df[df["split"] == "calib"].reset_index(drop=True)
+    y = calib["escalate_label"].astype(int).values
+    X = np.array([list(v) for v in calib["h_prompt"]], float)
+    print(f">>> fit_gate: calib n={len(calib)} escalate_rate={y.mean():.3f}",
+          flush=True)
+
+    # 1. pick C by OOF AUC (iterate ascending; strict-improve keeps smaller C on ties)
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+    best = None  # (C, oof_auc, oof_scores)
+    for C in (0.001, 0.01, 0.1, 1.0):
+        oof = cross_val_predict(LogisticRegression(max_iter=2000, C=C), X, y,
+                                cv=cv, method="predict_proba")[:, 1]
+        auc = roc_auc_score(y, oof)
+        ins = roc_auc_score(y, LogisticRegression(max_iter=2000, C=C)
+                            .fit(X, y).predict_proba(X)[:, 1])
+        print(f"    C={C:<6g} OOF AUC={auc:.3f}  in-sample={ins:.3f}  "
+              f"gap={ins - auc:.3f}", flush=True)
+        if best is None or auc > best[1]:
+            best = (C, auc, oof)
+    C, oof_auc, scores = best
+    lr = LogisticRegression(max_iter=2000, C=C).fit(X, y)
+    insample_auc = roc_auc_score(y, lr.predict_proba(X)[:, 1])
+    print(f">>> selected C={C} OOF AUC={oof_auc:.3f} in-sample={insample_auc:.3f}",
+          flush=True)
+
+    # 2. tiers by target escalation rate (threshold = OOF-score quantile)
+    def by_rate(rate):
+        return float(np.quantile(scores, 1.0 - rate))
+    tiers = {
+        "conservative": by_rate(0.15),
+        "balanced": by_rate(0.30),
+        "aggressive": by_rate(0.50),
+    }
+
+    cfg = {
+        "signal": "probe_h_prompt",
+        "probe": {
+            "weight": lr.coef_[0].tolist(),
+            "bias": float(lr.intercept_[0]),
+            "dim": int(X.shape[1]),
+            "C": float(C),
+            "fit": f"calib-only LogisticRegression(C={C}, max_iter=2000) on h_prompt",
+        },
+        "thresholds": tiers,
+        "tier_target_rate": {"conservative": 0.15, "balanced": 0.30, "aggressive": 0.50},
+        "gate": {
+            "mode": "pre_decode_single_shot",
+            "k_consecutive": 1,
+            "ema_alpha": 1.0,
+            "cooldown_steps": 64,
+        },
+        "calib": {
+            "n": int(len(calib)),
+            "escalate_rate": float(y.mean()),
+            "oof_auc": float(oof_auc),
+            "insample_auc": float(insample_auc),
+            "threshold_basis": "5-fold OOF scores (seed 42), tiers by escalation budget",
+        },
+    }
+    with open(GATE_CFG, "w") as fh:
+        _json.dump(cfg, fh, indent=2)
+    gate_data.commit()
+    print(">>> thresholds:", {k: round(v, 3) for k, v in tiers.items()}, flush=True)
+    print(f">>> gate config → {GATE_CFG} (probe dim {cfg['probe']['dim']}, "
+          f"OOF AUC {cfg['calib']['oof_auc']:.3f})", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def gate_eval():
+    """Phase 3: report the gate's realized operating points + per-pool trigger
+    rates on the calib split. CPU only — h_prompt is already stored, so scoring
+    is a deterministic replay; no GPU decode is needed to validate trigger logic.
+
+    Two score paths, both honest:
+      - the pure-Python Probe scores calib IN-SAMPLE — reported only to show it
+        memorizes (AUC ~1.0), which is WHY thresholds live on OOF scores. This
+        also exercises the deployment scorer (Probe.score) on real 4096-d states.
+      - 5-fold OOF scores (same CV as fit_gate) give the deployment-like operating
+        points the thresholds were chosen for.
+    Also asserts the shipped EscalationGate (single-shot) reproduces
+    `score >= threshold` on every calib row.
+    """
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    sys.path.insert(0, "/workspace/gate")
+    from gate import EscalationGate, Probe
+
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    df = pd.read_parquet(FEATURES)
+    df = df[(df["escalate_label"].notna()) & (df["split"] == "calib")].reset_index(drop=True)
+    y = df["escalate_label"].astype(int).values
+    X = np.array([list(v) for v in df["h_prompt"]], float)
+
+    # deployment scorer (pure Python) on real hiddens — the shipped probe's own
+    # in-sample scores (regularized, so no longer fully memorized):
+    insample = np.array([probe.score(list(h)) for h in df["h_prompt"]])
+    # deployment-like generalization: OOF scores at the shipped C (thresholds
+    # were picked on these).
+    C = cfg["probe"].get("C", 1.0)
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+    scores = cross_val_predict(
+        LogisticRegression(max_iter=2000, C=C), X, y, cv=cv,
+        method="predict_proba")[:, 1]
+    print(f">>> gate_eval: calib n={len(df)} escalate_rate={y.mean():.3f} | C={C} | "
+          f"Probe in-sample AUC={roc_auc_score(y, insample):.3f} | "
+          f"OOF AUC={roc_auc_score(y, scores):.3f} (deployment-like)", flush=True)
+
+    def one_shot(gate, s):
+        gate.reset()
+        return gate.update(float(s))
+
+    for tier in ("conservative", "balanced", "aggressive"):
+        t = cfg["thresholds"][tier]
+        pred = scores >= t
+        # the shipped class (single-shot) must match the vectorized threshold
+        gate = EscalationGate.from_config(cfg, tier)
+        gpred = np.array([one_shot(gate, s) for s in scores])
+        assert (gpred == pred).all(), f"EscalationGate != threshold at {tier}"
+
+        tp = int(((pred == 1) & (y == 1)).sum())
+        fp = int(((pred == 1) & (y == 0)).sum())
+        fn = int(((pred == 0) & (y == 1)).sum())
+        prec = tp / (tp + fp) if tp + fp else float("nan")
+        rec = tp / (tp + fn) if tp + fn else float("nan")
+        print(f"\n[{tier}] thr={t:.3f} escalate_rate={pred.mean():.3f} "
+              f"precision={prec:.3f} recall={rec:.3f}", flush=True)
+        for pool, g in df.groupby("pool"):
+            idx = g.index.values
+            print(f"    {pool:16s} n={len(g):3d} esc={y[idx].mean():.2f} "
+                  f"trigger_rate={pred[idx].mean():.3f}", flush=True)
+
+    print("\n>>> gate_eval OK — EscalationGate reproduces the threshold decision "
+          "on all calib rows; single-shot online gate validated.", flush=True)

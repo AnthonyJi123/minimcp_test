@@ -294,6 +294,84 @@ Findings vs expectations:
 Per PLAN discipline #5: **stopped here and reported to the user.** Phase 3
 (threshold gate) is unblocked on a GO.
 
+## Phase 3 — online threshold gate ✅ (2026-07-09)
+
+**Goal**: turn the Phase-2 probe into a real-time trigger + pick deployable
+thresholds. Done entirely on **CPU** — every `h_prompt` is already in
+`calib_features.parquet`, so the online score is a deterministic replay; no GPU
+decode was spent to validate the trigger logic.
+
+### Design decisions (both forced by the data, deviating from PLAN §Phase-3)
+
+1. **Pre-decode single-shot, not streaming EMA.** PLAN designed the gate as
+   EMA + k-consecutive hysteresis over per-step scores — sensible for a scalar
+   that evolves during decode (entropy/margin). But Phase 2 found the winning
+   signal is the probe on `h_prompt`, a **single score available at prefill**
+   (h_prompt 0.828 > decode-time h_mean8 0.776). So the headline gate fires
+   **before the first token** from one score. `src/gate.py::EscalationGate` still
+   implements the full EMA/hysteresis/cooldown machinery (pure-Python, unit-tested,
+   needed for the duplex Phase 6); the headline runs it in single-shot mode
+   (`k_consecutive=1, ema_alpha=1.0`), where it degenerates to `score >= threshold`.
+2. **Tiers by escalation BUDGET, not precision target.** At base rate 0.322 and
+   AUC 0.83, PLAN's "precision >= 0.80 default" is only reachable at ~0 recall
+   (degenerate — first two attempts pinned all thresholds to 1.0). Escalation rate
+   is the real cost knob and the exact axis Phase 5 sweeps, so tiers are set at
+   target escalate rates {conservative .15 / balanced .30 / aggressive .50}.
+
+### Overfit-aware threshold calibration (the non-obvious part)
+
+The shipped probe is fit on all 360 calib rows, but with 4096 dims / n=360 the
+data is **linearly separable → in-sample AUC 1.000 at every C** (regularization
+shrinks score magnitudes, not in-sample ranking). Picking thresholds on in-sample
+scores is therefore meaningless. Fixes in `modal_app.py::fit_gate`:
+
+- **thresholds live on 5-fold OOF scores** (seed 42), which reflect deployment
+  generalization (~0.83), not the memorized 1.0.
+- **C-regularization sweep** picks C by OOF AUC (tie → smaller C):
+  C=0.001 (OOF **0.828**) > 0.01 (.822) > 1.0 (.821) > 0.1 (.818). Heavy L2 both
+  maximizes OOF AUC *and* compresses the shipped probe's score scale so an
+  OOF-quantile threshold transfers to it.
+
+`gate_config.json` (pulled to repo, 4096-float probe + 3 thresholds) is the
+artifact Phases 4–5 load. `src/gate.py` = `Probe` (sigmoid(w·h+b), one dot
+product) + `EscalationGate`; `src/test_gate.py` = 28 pure-Python checks (pass).
+
+### Realized operating points on calib (OOF scores, `gate_eval`)
+
+| tier | thr | escalate | precision | recall |
+|------|----:|---------:|----------:|-------:|
+| conservative | 0.933 | 0.150 | 0.722 | 0.336 |
+| balanced     | 0.475 | 0.300 | 0.657 | 0.612 |
+| aggressive   | 0.070 | 0.500 | 0.539 | 0.836 |
+
+Per-pool trigger rate (conservative / balanced / aggressive):
+
+| pool | esc-rate | cons | bal | aggr |
+|------|---------:|-----:|----:|-----:|
+| **trap** (SimpleQA, 100% fail) | 1.00 | **0.80** | 1.00 | 1.00 |
+| hard-knowledge | 0.40 | 0.18 | 0.42 | 0.73 |
+| easy-fact | 0.23 | 0.08 | 0.22 | 0.43 |
+| hard-math | 0.22 | 0.09 | 0.20 | 0.32 |
+| easy-chat | 0.18 | 0.01 | 0.10 | 0.32 |
+
+Reads exactly as hoped: even the **conservative** tier catches **80% of the
+100%-fail trap questions** while false-triggering easy-chat only 1%. Trigger rate
+tracks pool failure rate everywhere **except hard-math** (under-caught: 0.09/0.20/
+0.32, below its difficulty) — the same "probe reads knowledge-difficulty better
+than math-difficulty" weakness the Phase-2 LOPO audit exposed, now visible
+in-distribution too. Caveat carries to the paper.
+
+**Validation**: `EscalationGate.from_config` (single-shot) reproduced the
+`score >= threshold` decision on all 360 calib rows → deployment trigger logic
+is correct. Phase-3 cost ≈ $0 (3 short CPU runs).
+
+**Next (Phase 4)**: escalation chain E2E — trigger → distilled query → GPT-5.5 →
+inject/paraphrase. `chat_gated` (live pre-decode stop on the H100) is deferred to
+Phase 4, where the escalation chain actually consumes the trigger; Phase 3's CPU
+replay already validates the gate numerically.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
