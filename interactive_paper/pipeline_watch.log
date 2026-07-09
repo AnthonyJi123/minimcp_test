@@ -1,0 +1,71 @@
+[15:49:25] supervisor started; waiting for run_signals (task b32359yjr)
+[15:50:25] signals complete (600/600)
+[15:50:25] running label (gpt-5.4-mini judge, 600 calls)...
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-TuZFsPLpVshjKUAHZRSgpp
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+└── 🔨 Created function label.
+>>> 600 rows from 4 shards; judging...
+>>> labeled 600 (0 judge errors)
+escalate_label by pool (mean = small-model failure rate):
+   easy-chat        n= 150  escalate_rate=0.207
+   easy-fact        n= 100  escalate_rate=0.340
+   hard-knowledge   n= 150  escalate_rate=0.480
+   hard-math        n= 150  escalate_rate=0.187
+   trap             n=  50  escalate_rate=1.000
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-TuZFsPLpVshjKUAHZRSgpp
+[15:52:24] running calibrate...
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-vdrzL2Y3TajayKqu5FynRj
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function build_public_queries.
+├── 🔨 Created function finalize_queries.
+├── 🔨 Created function _load_queries.
+├── 🔨 Created function calibrate.
+├── 🔨 Created function smoke.
+├── 🔨 Created function signal_check.
+└── 🔨 Created function collect_signals.
+>>> 600 labeled | calib=360 test=240 | overall escalate_rate=0.358
+
+=== ROC-AUC (predicting escalate_label = small-model fails) ===
+   probe_h_prompt       AUC=0.828
+   combined             AUC=0.823
+   probe_h_mean8        AUC=0.776
+   max_entropy@4        AUC=0.696
+   max_entropy@8        AUC=0.688
+   max_entropy@16       AUC=0.688
+   mean_entropy@4       AUC=0.671
+   mean_entropy@8       AUC=0.646
+   mean_entropy@16      AUC=0.614
+   min_margin@4         AUC=0.605
+   min_margin@8         AUC=0.581
+   mean_margin@8        AUC=0.574
+   min_margin@16        AUC=0.560
+   mean_margin@4        AUC=0.553
+   mean_margin@16       AUC=0.547
+
+>>> BEST signal: probe_h_prompt = 0.828
+
+=== per-pool: does the probe beat entropy where entropy fails? ===
+   easy-chat        n= 150 esc=0.21 | max_entropy@16 AUC=0.644 | probe AUC=0.535
+   easy-fact        n= 100 esc=0.34 | max_entropy@16 AUC=0.845 | probe AUC=0.762
+   hard-knowledge   n= 150 esc=0.48 | max_entropy@16 AUC=0.679 | probe AUC=0.779
+   hard-math        n= 150 esc=0.19 | max_entropy@16 AUC=0.860 | probe AUC=0.891
+   trap             n=  50 (single class — AUC n/a, escalate_rate=1.00)
+
+>>> ROC figure → /data/roc.png
+
+>>> PHASE-2 VERDICT: best AUC 0.828 → GO (>=0.75)
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-vdrzL2Y3TajayKqu5FynRj
+[15:52:45] pulling roc.png...
+✓ Finished downloading files to local!
+[15:52:47] === SUPERVISOR DONE ===
+[15:52:47] summary written to interactive_paper/pipeline_watch.log.summary

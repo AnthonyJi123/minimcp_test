@@ -1,0 +1,28 @@
+   easy-chat        n= 150  escalate_rate=0.207
+   easy-fact        n= 100  escalate_rate=0.340
+   hard-knowledge   n= 150  escalate_rate=0.480
+   hard-math        n= 150  escalate_rate=0.187
+   trap             n=  50  escalate_rate=1.000
+>>> 600 labeled | calib=360 test=240 | overall escalate_rate=0.358
+   probe_h_prompt       AUC=0.828
+   combined             AUC=0.823
+   probe_h_mean8        AUC=0.776
+   max_entropy@4        AUC=0.696
+   max_entropy@8        AUC=0.688
+   max_entropy@16       AUC=0.688
+   mean_entropy@4       AUC=0.671
+   mean_entropy@8       AUC=0.646
+   mean_entropy@16      AUC=0.614
+   min_margin@4         AUC=0.605
+   min_margin@8         AUC=0.581
+   mean_margin@8        AUC=0.574
+   min_margin@16        AUC=0.560
+   mean_margin@4        AUC=0.553
+   mean_margin@16       AUC=0.547
+>>> BEST signal: probe_h_prompt = 0.828
+   easy-chat        n= 150 esc=0.21 | max_entropy@16 AUC=0.644 | probe AUC=0.535
+   easy-fact        n= 100 esc=0.34 | max_entropy@16 AUC=0.845 | probe AUC=0.762
+   hard-knowledge   n= 150 esc=0.48 | max_entropy@16 AUC=0.679 | probe AUC=0.779
+   hard-math        n= 150 esc=0.19 | max_entropy@16 AUC=0.860 | probe AUC=0.891
+   trap             n=  50 (single class — AUC n/a, escalate_rate=1.00)
+>>> PHASE-2 VERDICT: best AUC 0.828 → GO (>=0.75)
