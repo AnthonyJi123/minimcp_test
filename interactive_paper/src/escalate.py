@@ -25,6 +25,18 @@ JUDGE_MODEL = "gpt-5.4-mini"
 JUDGE_EFFORT = "low"        # reasoning_effort for GPT-5.x judge calls
 JUDGE_MAX_TOKENS = 4096     # room for reasoning tokens + the small JSON verdict
 
+# Escalation target (Phase 4/5): the big cloud model the gate escalates to.
+EXPERT_MODEL = "gpt-5.5"
+EXPERT_EFFORT = "medium"    # reasoning depth for the expert answer
+EXPERT_MAX_TOKENS = 8192    # generous: hidden reasoning bills as output and can
+                           # eat the budget before the visible answer (a 4096 cap
+                           # hit finish_reason=length → empty content on hard Qs)
+EXPERT_SYSTEM = (
+    "You are an expert assistant. Answer the user's question correctly, directly, "
+    "and concisely. For a multiple-choice question, state the correct option "
+    "letter and its content."
+)
+
 # Fixed judge prompt — stored in repo for reproducibility (PLAN Phase 2.2).
 JUDGE_SYSTEM = (
     "You are a strict, fair grader of a small language model's answers. "
@@ -133,3 +145,67 @@ async def judge_many(rows: list[dict], concurrency: int = 8) -> list[dict]:
             return row
 
     return await asyncio.gather(*(one(r) for r in rows))
+
+
+# ============================ escalation target (gpt-5.5) ==================
+def _usage(resp) -> dict:
+    u = getattr(resp, "usage", None)
+    if not u:
+        return {"prompt_tokens": None, "completion_tokens": None}
+    return {"prompt_tokens": u.prompt_tokens, "completion_tokens": u.completion_tokens}
+
+
+def ask_expert(query: str, effort: str = EXPERT_EFFORT) -> dict:
+    """Synchronous single escalation to gpt-5.5 → {answer, latency_s, usage...}.
+
+    Never raises: a failure returns answer=None + error=str (matches
+    ask_expert_many) so one bad call can't crash a demo or eval loop.
+    """
+    import time
+    t0 = time.time()
+    try:
+        resp = _client().chat.completions.create(
+            model=EXPERT_MODEL, reasoning_effort=effort,
+            max_completion_tokens=EXPERT_MAX_TOKENS,
+            messages=[{"role": "system", "content": EXPERT_SYSTEM},
+                      {"role": "user", "content": query}],
+        )
+        return {"answer": _content(resp), "latency_s": time.time() - t0,
+                "error": None, **_usage(resp)}
+    except Exception as e:
+        return {"answer": None, "latency_s": time.time() - t0, "error": str(e),
+                "prompt_tokens": None, "completion_tokens": None}
+
+
+async def ask_expert_many(queries: list[str], concurrency: int = 6,
+                          effort: str = EXPERT_EFFORT) -> list[dict]:
+    """Escalate a list of queries to gpt-5.5 concurrently.
+
+    Each result: {answer|None, latency_s, error|None, prompt_tokens, completion_tokens}.
+    Failures are captured per-row (answer=None, error=str) so one bad call doesn't
+    sink the batch.
+    """
+    import asyncio
+    import time
+
+    client = _async_client()
+    sem = asyncio.Semaphore(concurrency)
+
+    async def one(q):
+        async with sem:
+            t0 = time.time()
+            try:
+                resp = await client.chat.completions.create(
+                    model=EXPERT_MODEL, reasoning_effort=effort,
+                    max_completion_tokens=EXPERT_MAX_TOKENS,
+                    messages=[{"role": "system", "content": EXPERT_SYSTEM},
+                              {"role": "user", "content": q}],
+                )
+                return {"answer": _content(resp), "latency_s": time.time() - t0,
+                        "error": None, **_usage(resp)}
+            except Exception as e:
+                return {"answer": None, "latency_s": time.time() - t0,
+                        "error": str(e), "prompt_tokens": None,
+                        "completion_tokens": None}
+
+    return await asyncio.gather(*(one(q) for q in queries))

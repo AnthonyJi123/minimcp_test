@@ -68,6 +68,14 @@ def _chat_kwargs(model, tok):
     return kw
 
 
+def generate(model, tok, user_text: str, max_new_tokens: int = 512) -> str:
+    """Plain greedy generation (no signal capture) — for the distill/inject steps."""
+    kw = _chat_kwargs(model, tok)
+    out = model.chat(msgs=[{"role": "user", "content": [user_text]}],
+                     max_new_tokens=max_new_tokens, **kw)
+    return out.strip() if isinstance(out, str) else out
+
+
 def chat_with_signals(model, tok, query: str, k: int = 16,
                       max_new_tokens: int = 512) -> dict:
     """Greedy-generate an answer to `query` and return text + first-K signals.

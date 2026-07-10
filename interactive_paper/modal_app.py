@@ -81,6 +81,8 @@ QUERIES = f"{DATA}/queries.jsonl"
 SIGNALS = f"{DATA}/signals.jsonl"
 FEATURES = f"{DATA}/calib_features.parquet"
 GATE_CFG = f"{DATA}/gate_config.json"
+EVAL_EXPERT = f"{DATA}/eval_expert.parquet"
+EVAL_PARA = f"{DATA}/eval_paraphrase.parquet"
 OPENAI = modal.Secret.from_name("openai")
 
 
@@ -836,3 +838,259 @@ def gate_eval():
 
     print("\n>>> gate_eval OK — EscalationGate reproduces the threshold decision "
           "on all calib rows; single-shot online gate validated.", flush=True)
+
+
+# ============================ Phase 4: escalation chain E2E ================
+@gen_app.function(image=image, gpu="H100", volumes=GPU_VOL, secrets=[OPENAI],
+                  timeout=60 * 30)
+def e2e_demo(n: int = 9):
+    """Phase 4: full escalation chain on a few hard TEST queries, printed as a
+    readable trace: small answer + gate score/decision → distilled query →
+    gpt-5.5 expert answer → small-model paraphrase. Human-checks distill quality
+    and paraphrase faithfulness (PLAN Phase-4 go/no-go)."""
+    import json as _json
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+    import distill
+    import escalate
+    import inject
+    from gate import Probe
+
+    model, tok = _load_model()
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    thr = cfg["thresholds"]["balanced"]
+
+    qs = [q for q in _read_jsonl(QUERIES) if q["split"] == "test"
+          and q["pool"] in ("hard-knowledge", "hard-math", "trap")]
+    # a few from each hard pool
+    pick, seen = [], {}
+    for q in qs:
+        c = seen.get(q["pool"], 0)
+        if c < n // 3:
+            pick.append(q); seen[q["pool"]] = c + 1
+    print(f">>> e2e_demo on {len(pick)} hard test queries (balanced thr={thr:.3f})\n",
+          flush=True)
+
+    for q in pick:
+        s = decode.chat_with_signals(model, tok, q["query"], k=16, max_new_tokens=512)
+        score = probe.score(s["h_prompt"])
+        fired = score >= thr
+        dq = distill.distill_query(model, tok, q["query"])
+        exp = escalate.ask_expert(dq)                       # escalate the DISTILLED query
+        ea = exp["answer"]
+        final = (inject.paraphrase(model, tok, q["query"], ea) if ea
+                 else f"[no expert answer: {exp['error']}]")
+        print("=" * 78, flush=True)
+        print(f"[{q['pool']}] {q['id']}  gate_score={score:.3f} → "
+              f"{'ESCALATE' if fired else 'keep small'}", flush=True)
+        print(f"  Q         : {q['query'][:200]}", flush=True)
+        print(f"  ref       : {q.get('reference_answer')}", flush=True)
+        print(f"  small     : {s['text'][:200]}", flush=True)
+        print(f"  distilled : {dq[:200]}", flush=True)
+        print(f"  expert(5.5): {(ea or '['+str(exp['error'])+']')[:220]}  "
+              f"({exp['latency_s']:.1f}s)", flush=True)
+        print(f"  paraphrase: {final[:220]}", flush=True)
+    print("\n>>> e2e_demo done — inspect distilled-query fidelity + paraphrase "
+          "faithfulness above.", flush=True)
+
+
+# ============================ Phase 5: system evaluation ===================
+@gen_app.function(image=util_image, volumes={DATA: gate_data}, secrets=[OPENAI],
+                  timeout=60 * 60)
+def eval_expert(concurrency: int = 6):
+    """Phase 5 big-only: gpt-5.5 answers every TEST query (original, single-turn
+    → already standalone), judged for adequacy. → eval_expert.parquet."""
+    import asyncio
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    df = pd.read_parquet(FEATURES)
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    print(f">>> eval_expert: {len(test)} test queries → gpt-5.5", flush=True)
+
+    res = asyncio.run(escalate.ask_expert_many(test["query"].tolist(),
+                                               concurrency=concurrency))
+    n_err = sum(1 for r in res if r["error"])
+    print(f">>> expert done ({n_err} errors); judging...", flush=True)
+
+    jrows = [{"query": test["query"][i],
+              "reference_answer": (None if pd.isna(test["reference_answer"][i])
+                                   else test["reference_answer"][i]),
+              "answer": res[i]["answer"] or ""} for i in range(len(test))]
+    labeled = asyncio.run(escalate.judge_many(jrows, concurrency=8))
+
+    out = pd.DataFrame({
+        "id": test["id"], "pool": test["pool"],
+        "expert_answer": [r["answer"] for r in res],
+        "expert_latency": [r["latency_s"] for r in res],
+        "expert_prompt_tokens": [r["prompt_tokens"] for r in res],
+        "expert_completion_tokens": [r["completion_tokens"] for r in res],
+        "expert_error": [r["error"] for r in res],
+        "expert_adequate": [x["adequate"] for x in labeled],
+    })
+    out.to_parquet(EVAL_EXPERT)
+    gate_data.commit()
+    acc = out["expert_adequate"].dropna().astype(bool).mean()
+    print(f">>> big-only accuracy = {acc:.3f}", flush=True)
+    for pool, g in out.groupby("pool"):
+        print(f"    {pool:16s} n={len(g):3d} "
+              f"acc={g['expert_adequate'].dropna().astype(bool).mean():.3f}", flush=True)
+
+
+@gen_app.function(image=image, gpu="H100", volumes=GPU_VOL, secrets=[OPENAI],
+                  timeout=60 * 60)
+def eval_paraphrase():
+    """Phase 5 hybrid outcome: the small model paraphrases each expert answer
+    (inject), judged for adequacy. → eval_paraphrase.parquet. Run after
+    eval_expert. The gap vs big-only accuracy = the faithfulness cost of relaying
+    the expert answer through the small model."""
+    import time
+    import asyncio
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+    import inject
+
+    model, tok = _load_model()
+    exp = pd.read_parquet(EVAL_EXPERT).set_index("id")
+    df = pd.read_parquet(FEATURES)
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    print(f">>> eval_paraphrase: {len(test)} test queries", flush=True)
+
+    finals, lats = [], []
+    for k, r in test.iterrows():
+        ea = exp.loc[r["id"], "expert_answer"]
+        if not isinstance(ea, str) or not ea:
+            finals.append(None); lats.append(0.0); continue
+        t0 = time.time()
+        finals.append(inject.paraphrase(model, tok, r["query"], ea))
+        lats.append(time.time() - t0)
+        if k < 2 or k % 60 == 0:
+            print(f"  [{k}] {r['pool']} :: {str(finals[-1])[:60]!r}", flush=True)
+
+    jrows = [{"query": test["query"][i],
+              "reference_answer": (None if pd.isna(test["reference_answer"][i])
+                                   else test["reference_answer"][i]),
+              "answer": finals[i] or ""} for i in range(len(test))]
+    labeled = asyncio.run(escalate.judge_many(jrows, concurrency=8))
+
+    out = pd.DataFrame({
+        "id": test["id"], "pool": test["pool"],
+        "paraphrase_answer": finals, "paraphrase_latency": lats,
+        "paraphrase_adequate": [x["adequate"] for x in labeled],
+    })
+    out.to_parquet(EVAL_PARA)
+    gate_data.commit()
+    acc = out["paraphrase_adequate"].dropna().astype(bool).mean()
+    print(f">>> hybrid(paraphrase) accuracy @ full-escalation = {acc:.3f}", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def eval_assemble():
+    """Phase 5 RQ2: assemble the accuracy-vs-escalation-rate tradeoff from the
+    stored small answers (calib_features), expert answers (eval_expert), and
+    paraphrases (eval_paraphrase). Sweeps the gate threshold to draw the hybrid
+    curve, compares to the random-escalation baseline, prints latency/cost, and
+    writes figures/tradeoff.png."""
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    sys.path.insert(0, "/workspace/gate")
+    from gate import Probe
+
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    df = pd.read_parquet(FEATURES)
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    exp = pd.read_parquet(EVAL_EXPERT).set_index("id")
+    para = pd.read_parquet(EVAL_PARA).set_index("id")
+
+    ids = test["id"].values
+    def b(x):  # None/NaN → 0 (unjudged or failed = not adequate)
+        return 1 if x is True or x == 1 else 0
+    s = np.array([b(x) for x in test["adequate"].values])          # small-only
+    e = np.array([b(exp.loc[i, "expert_adequate"]) for i in ids])  # expert (raw)
+    p = np.array([b(para.loc[i, "paraphrase_adequate"]) for i in ids])  # paraphrased
+    scores = np.array([probe.score(list(h)) for h in test["h_prompt"]])
+    pools = test["pool"].values
+
+    small_acc, big_acc, para_full = s.mean(), e.mean(), p.mean()
+    print(f">>> TEST n={len(test)} | small-only={small_acc:.3f} | "
+          f"big-only(expert)={big_acc:.3f} | full-escalate(paraphrase)={para_full:.3f}",
+          flush=True)
+
+    # --- hybrid-gate curve: sweep threshold over observed scores --------------
+    def hybrid_acc(escalated, outcome):
+        return np.where(escalated, outcome, s).mean()
+    ts = np.concatenate([[np.inf], np.unique(scores)[::-1], [-np.inf]])
+    curve = []  # (rate, acc_expert_inject, acc_paraphrase)
+    for t in ts:
+        esc = scores >= t
+        curve.append((esc.mean(), hybrid_acc(esc, e), hybrid_acc(esc, p)))
+    curve = np.array(curve)
+
+    # --- named tiers ----------------------------------------------------------
+    print("\n=== hybrid-gate operating points (test) ===", flush=True)
+    print(f"{'tier':13s} {'thr':>6s} {'esc':>6s} {'acc(expert)':>12s} "
+          f"{'acc(parashr)':>13s}", flush=True)
+    tier_pts = {}
+    for tier in ("conservative", "balanced", "aggressive"):
+        t = cfg["thresholds"][tier]
+        esc = scores >= t
+        ae, ap = hybrid_acc(esc, e), hybrid_acc(esc, p)
+        tier_pts[tier] = (esc.mean(), ae, ap)
+        print(f"{tier:13s} {t:6.3f} {esc.mean():6.3f} {ae:12.3f} {ap:13.3f}",
+              flush=True)
+
+    # --- random baseline (expectation lines) + empirical area gap -------------
+    # random escalation at rate r: E[acc] = (1-r)*small + r*overall_expert(or para)
+    def rand_line(overall):
+        r = np.linspace(0, 1, 101)
+        return r, (1 - r) * small_acc + r * overall
+    # area between gate curve and random line (expert-inject), trapezoid over rate
+    order = np.argsort(curve[:, 0])
+    rate_s, acc_e_s = curve[order, 0], curve[order, 1]
+    rand_e = (1 - rate_s) * small_acc + rate_s * big_acc
+    lift_area = float(np.trapz(acc_e_s - rand_e, rate_s))
+    print(f"\n>>> gate-vs-random area (expert-inject, ∫(acc_gate−acc_rand)d(rate)) "
+          f"= {lift_area:+.4f}", flush=True)
+
+    # --- latency + cost -------------------------------------------------------
+    el = exp["expert_latency"].values
+    pl = para["paraphrase_latency"].replace(0.0, np.nan).dropna().values
+    print(f"\n=== latency (s) ===\n  expert(gpt-5.5) P50={np.percentile(el,50):.1f} "
+          f"P95={np.percentile(el,95):.1f}\n  paraphrase(small) P50="
+          f"{np.percentile(pl,50):.1f} P95={np.percentile(pl,95):.1f}", flush=True)
+    pt = exp["expert_prompt_tokens"].dropna().sum()
+    ct = exp["expert_completion_tokens"].dropna().sum()
+    # gpt-5.5 price: $5 / $30 per 1M in/out (July-2026)
+    expert_cost = (pt * 5 + ct * 30) / 1e6
+    print(f"\n=== cost (expert only; judge extra) ===\n  gpt-5.5 tokens "
+          f"in={int(pt)} out={int(ct)} → ${expert_cost:.2f} for {len(exp)} queries "
+          f"= ${expert_cost/len(exp)*100:.2f}/100q (big-only). Hybrid scales with "
+          f"escalation rate.", flush=True)
+
+    # --- figure ---------------------------------------------------------------
+    plt.figure(figsize=(7, 6))
+    plt.plot(curve[:, 0], curve[:, 1], "-o", ms=3, label="hybrid-gate (expert-inject)")
+    plt.plot(curve[:, 0], curve[:, 2], "-o", ms=3, label="hybrid-gate (paraphrase)")
+    rr, rl = rand_line(big_acc)
+    plt.plot(rr, rl, "k--", alpha=.5, label="random escalate (expert)")
+    for tier, (r, ae, ap) in tier_pts.items():
+        plt.annotate(tier, (r, ae), fontsize=8,
+                     textcoords="offset points", xytext=(4, 4))
+        plt.scatter([r], [ae], c="red", zorder=5, s=20)
+    plt.axhline(small_acc, color="gray", ls=":", alpha=.5)
+    plt.axhline(big_acc, color="green", ls=":", alpha=.5)
+    plt.xlabel("escalation rate"); plt.ylabel("accuracy (judge-adequate)")
+    plt.title("Accuracy vs escalation rate — hybrid gate vs random\nMiniCPM-o 4.5 + gpt-5.5")
+    plt.legend(loc="lower right"); plt.grid(alpha=.3); plt.tight_layout()
+    fig = f"{DATA}/tradeoff.png"
+    plt.savefig(fig, dpi=120)
+    gate_data.commit()
+    print(f"\n>>> tradeoff figure → {fig}", flush=True)
