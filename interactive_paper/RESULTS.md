@@ -372,6 +372,99 @@ replay already validates the gate numerically.
 
 ---
 
+## Phase 4 — escalation chain E2E ✅ (2026-07-09)
+
+**Goal**: trigger → distilled query → gpt-5.5 → inject/paraphrase, end-to-end.
+Built `src/distill.py` (`distill_query`), `src/inject.py` (`paraphrase`),
+`src/escalate.py::ask_expert`/`ask_expert_many` (gpt-5.5, error-safe, token-usage
+capture), and `decode.generate`. `modal_app.py::e2e_demo` runs the full chain on
+hard test queries and prints a readable trace.
+
+Verified on the trace (PLAN Phase-4 go/no-go): **distilled queries are faithful**
+(single-turn queries are already standalone, so distillation is near-identity —
+its real payoff is multi-turn/duplex, Phase 6; the Phase-5 eval therefore
+escalates the *original* query) and **the paraphrase relays the expert answer
+accurately**. Example — a Sn(gray→white) equilibrium-temperature question: small
+model went down the wrong equation; gate fired (score 0.988); gpt-5.5 returned the
+reference `C. −3.5 °C`; small model paraphrased it faithfully.
+
+**Gotcha**: gpt-5.x hidden reasoning bills as output and can consume the whole
+`max_completion_tokens` before the visible answer (empty content,
+`finish_reason=length`). Raised the expert cap 4096→**8192** and made `ask_expert`
+error-safe (returns `error` instead of raising). At 8192 the full 240-query eval
+hit **0 truncation errors**.
+
+---
+
+## Phase 5 — system evaluation ✅ (2026-07-09) ⭐ RQ2 answered
+
+**Goal**: the accuracy-vs-escalation-rate tradeoff on the frozen **test split**
+(240). Four conditions; judge = `gpt-5.4-mini`, blind to source.
+
+Pipeline: `eval_expert` (gpt-5.5 answers all 240, judged → big-only) →
+`eval_paraphrase` (small model relays each expert answer, judged → hybrid outcome)
+→ `eval_assemble` (probe-scores the stored test `h_prompt`, sweeps the gate
+threshold to draw the curve, compares to random escalation, computes latency/cost,
+writes `figures/tradeoff.png`). Small-only answers/labels were already in
+`calib_features.parquet` from Phase 2 (no recompute).
+
+### Headline numbers (test, n=240)
+
+| condition | accuracy | escalation |
+|---|---:|---:|
+| small-only (MiniCPM-o 4.5) | **0.588** | 0% |
+| big-only (gpt-5.5, raw) | **0.917** | 100% |
+| big-only relayed via small (paraphrase) | 0.879 | 100% |
+| hybrid-gate **conservative** | 0.679 / 0.671¹ | 14.2% |
+| hybrid-gate **balanced** | 0.779 / 0.767¹ | 32.9% |
+| hybrid-gate **aggressive** | 0.833 / 0.821¹ | 52.9% |
+
+¹ accuracy as *expert-inject* / *small-model-paraphrase*.
+
+### Key results
+
+1. **The gate beats random escalation at every operating point** (the central
+   RQ2 claim). Area between the gate curve and the random-escalation line
+   (∫(acc_gate − acc_rand) d rate) = **+0.054**. Concretely at 33% escalation the
+   gate reaches **0.779** vs random's ~0.696 (+8.3 pts); +4.4 pts at 14%, +7.1 at
+   53%. `figures/tradeoff.png` — both gate curves bow well above the diagonal and
+   rise steeply early (the gate escalates the highest-risk queries first).
+2. **Escalating 33% of traffic recovers ~58% of the small→big accuracy gap**
+   (0.588→0.779 of the 0.588→0.917 span). The gate buys most of the big model's
+   accuracy at a third of its cost/latency.
+3. **Paraphrase (relay) tax ≈ 1–4 pts**: routing the expert answer back through
+   the small model costs 0.917→0.879 at full escalation (and ~1 pt per tier). It's
+   the price of natural spoken relay; a deployment that can surface the expert
+   answer directly avoids it.
+4. **big-only is not a ceiling of 1.0**: gpt-5.5 scores 0.917 overall — perfect on
+   hard-math (1.00) but only **0.65 on trap** (SimpleQA long-tail facts stump even
+   the big model). So the trap pool caps how much *any* escalation can help there.
+
+### Latency & cost
+
+- Latency (s): expert gpt-5.5 **P50 3.0 / P95 24.4**; small-model paraphrase
+  **P50 1.0 / P95 5.8**. Small-only decode ≈ 33 tok/s (Phase 0). The escalation
+  chain's latency is dominated by the expert call.
+- Cost: gpt-5.5 big-only = **$1.12 / 100 queries** (30.5k in + 84.4k out tokens
+  over 240, at $5/$30 per M). Hybrid scales ~linearly with escalation rate, so
+  balanced ≈ $0.37 / 100q for the expert calls.
+
+**Phase-5 spend** ≈ $3 API (240 expert + ~480 judge) + ~$3 GPU (paraphrase +
+demo). Total project spend to date ≈ **$32**.
+
+### Caveats carried to the paper
+
+- Accuracy figures are single-run greedy (seed 42); no judge-variance bars.
+- The gate curve is drawn by thresholding stored test `h_prompt` scores — a true
+  online run would recompute the identical score at prefill (Phase-3 established
+  the deployment scorer reproduces it). `chat_gated`'s live decode-stop was not
+  needed for the accuracy eval and remains unimplemented (a latency optimization).
+- hard-math is under-escalated by the gate (Phase 2/3 weakness), yet gpt-5.5 would
+  answer those perfectly — the biggest missed opportunity the gate leaves on the
+  table. A math-aware signal is the clearest follow-up.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

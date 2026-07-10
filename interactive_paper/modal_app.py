@@ -1056,7 +1056,8 @@ def eval_assemble():
     order = np.argsort(curve[:, 0])
     rate_s, acc_e_s = curve[order, 0], curve[order, 1]
     rand_e = (1 - rate_s) * small_acc + rate_s * big_acc
-    lift_area = float(np.trapz(acc_e_s - rand_e, rate_s))
+    diff = acc_e_s - rand_e
+    lift_area = float(np.sum((diff[1:] + diff[:-1]) / 2 * np.diff(rate_s)))
     print(f"\n>>> gate-vs-random area (expert-inject, ∫(acc_gate−acc_rand)d(rate)) "
           f"= {lift_area:+.4f}", flush=True)
 
