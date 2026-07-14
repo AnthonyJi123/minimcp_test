@@ -465,6 +465,172 @@ demo). Total project spend to date ≈ **$32**.
 
 ---
 
+## Phase 5b — audit deep-dive + p(True) baseline ⭐ (2026-07-14)
+
+User unblocked budget ("$2000 Modal credit, use at your own discretion").
+Three experiments closing the report's biggest holes. All numbers below.
+
+### audit2 — math-inversion root cause + evidence-chain closure + CIs (CPU, ~$0)
+
+`modal_app.py::audit2`, calib-only (360), test untouched except pre-stored
+Phase-5 outcomes for CIs.
+
+**[A] Math LOPO inversion root-caused.** Within math calib (n=90): gsm8k
+fail=0.04, math500 fail=0.55 — failure ≈ "is it MATH-500" (corr +0.592). The
+LOPO probe (trained without math) scores MATH-500 *lower* risk than GSM8K
+(corr(score, is_math500) = −0.246): trained on knowledge/fact/chat/trap, it
+reads terse symbolic competition problems as "safe" and verbose GSM8K stories
+as riskier. Not length-driven (corr ≈ 0). Within-source LOPO AUC: math500
+0.704 (OK!), gsm8k 0.455 — the inversion is mostly a *between-source* ranking
+error. Confirms: the probe reads surface style, not solve-ability.
+
+**[B] Evidence chain closed: h_prompt ⊇ pool identity.** 5-way pool classifier
+on h_prompt: **95.8%** 5-fold accuracy. Dummies-only OOF AUC 0.678; h_prompt
+0.822; **dummies+h_prompt 0.821 — adding explicit pool identity to the probe
+adds NOTHING**, i.e. h_prompt already contains the full type shortcut.
+Within-pool AUC of the probe's OOF scores (type shortcut controlled):
+easy-chat .693 / easy-fact .793 / hard-knowledge .634 / hard-math .847,
+macro-mean **0.742** vs aggregate 0.822.
+
+**[C] Bootstrap 95% CIs (2000 resamples).** calib OOF AUC 0.822 [.777, .863].
+Test headline: small 0.588 [.525, .650], big 0.917 [.879, .950], paraphrase
+0.879 [.833, .917]; hybrid cons/bal/aggr 0.679 [.617, .733] / 0.779 [.725,
+.829] / 0.833 [.783, .879]. **Gate-vs-random area +0.0541 [+0.0399, +0.0677]**
+— significantly > 0. (Judge variance still unbounded — single judge.)
+
+### ⭐ p(True) verbalized self-eval — the probe was reading the wrong signal
+
+`collect_ptrue` (4×H100, ~$1): two zero-training, zero-calibration signals per
+query, both = P(Yes) read off the first-token logits (Yes/No token mass;
+median mass 1.0, so the read is clean):
+- **ptrue_pre**: "Would you answer this correctly?" *before* answering.
+- **ptrue_post**: "Is this proposed answer correct?" given its stored answer.
+
+`ptrue_analyze` (calib rows for probe comparability):
+
+| signal | AUC | needs training? |
+|---|---:|---|
+| **ptrue_post** | **0.899** | no |
+| pre+post mean | 0.877 | no |
+| probe OOF | 0.821 | probe fit on calib |
+| **ptrue_pre** | 0.807 | no |
+
+Per-pool (the transfer test — p(True) has no calibration pool, so this IS its
+LOPO): easy-chat .708/.812 (pre/post), easy-fact .764/.855, hard-knowledge
+.688/.797, **hard-math .809/.944 (probe LOPO: 0.377)**. No inversion anywhere.
+
+**Trap (100%-fail SimpleQA): ptrue_pre mean score 0.945** vs 0.309 non-trap —
+100% of traps rank above the non-trap P70. The probe-LOPO scored them 0.328
+(would not escalate). **The model KNOWS it doesn't know these long-tail facts
+— you just have to ask it before it answers.** ptrue_post degrades on traps
+(0.360): after generating a confident-wrong answer the model starts believing
+it. Introspect BEFORE answering.
+
+### p(True) tradeoff on frozen test (n=240) — better AUC → better curve
+
+`ptrue_gate_eval` (CPU; thresholds = calib score quantiles, no fitting):
+
+| signal | area vs random | acc @ ~30% esc | thr transfer calib→test |
+|---|---:|---:|---|
+| probe | +0.0541 | 0.667 (esc 0.12!) | poor (rates drift) |
+| ptrue_pre | +0.0594 | 0.779 (esc 0.36) | good |
+| **ptrue_post** | **+0.0682** | **0.821 (esc 0.38)** | good |
+
+`figures/tradeoff_ptrue.png`. Deployment note: ptrue_pre costs one extra short
+prefill pre-decode (fits the streaming design); ptrue_post needs the full
+small answer first (draft-then-check — natural for the System-1/2 loop, and
+what step-2 injection consumes anyway).
+
+**Step-1 conclusion REVISED**: genuine zero-training self-knowledge EXISTS and
+is verbalizable; the h_prompt linear probe was reading query-type familiarity
+instead. The gate should be built on verbalized self-eval (pre-answer for
+pre-decode firing, post-answer check where latency allows), with the probe as
+a free auxiliary at best.
+
+### Cross-backbone replication (in flight)
+
+`run_signals_hf` / `label_hf` / `run_ptrue_hf` / `xmodel_report` added
+(`src/hf_decode.py` = vanilla-HF hook mirror of decode.py). Backbones:
+qwen3-8b (MiniCPM's family, raw; thinking disabled) + mistral-7b-instruct-v0.3
+(different family). Judge = same gpt-5.4-mini rubric; same 600 queries.
+
+**qwen3-8b (600/600 signals, 0 judge errors).** Fail rates: chat .387,
+fact .470, knowledge .507, math .180, trap .980 (49/50 — one success, so trap
+AUC computable). Raw no-think Qwen3-8B fails much MORE on the easy pools than
+MiniCPM (.387 vs .207 chat) — omni fine-tune + system prompt differences.
+
+| check | MiniCPM-o 4.5 | qwen3-8b | replicates? |
+|---|---:|---:|---|
+| probe OOF AUC (calib) | 0.822 | **0.838** | ✅ |
+| pool-oracle AUC | 0.715 | 0.704 | ✅ type shortcut |
+| pool-classifier acc | 0.958 | 0.958 | ✅ |
+| max_entropy@4 AUC | 0.696 | **0.468 (useless)** | ❌ entropy is fragile |
+| LOPO hard-math | **0.372 (inverts)** | **0.961 (fine!)** | ❌ **does NOT replicate** |
+| LOPO trap | score 0.23 (miss) | AUC 0.966 | ❌ |
+| LOPO chat/fact/knowledge | .70/.72/.61 | .78/.60/.73 | ~ |
+| ptrue_post AUC | 0.899 | **0.897** | ✅ almost exactly |
+| ptrue_pre AUC | 0.807 | 0.736 (knowledge .563 weak) | ~ |
+| ptrue_pre on trap | 0.945 mean score | **AUC 0.939** | ✅ knows-it-doesn't-know |
+
+**The headline surprise: the LOPO transfer failure is MiniCPM-SPECIFIC.** On
+raw Qwen3-8B the h_prompt probe transfers fine across pools (math 0.961, trap
+0.966) — no inversion anywhere. So "linear probes can't transfer across query
+types" is NOT a universal law; MiniCPM's omni fine-tuning (or its different
+failure profile — qwen fails 37–51% on every non-math pool, giving LOPO
+training much broader positive coverage) restructures what the probe can read.
+Caveat: the two models' label distributions differ a lot, so representation
+vs. label-coverage explanations are confounded — resolved by `lopo_matched`
+below.
+
+**`lopo_matched` — confound resolved: it's the REPRESENTATION.** Subsampling
+qwen's LOPO training pools to MiniCPM's exact per-pool fail rates (chat .21,
+fact .34, knowledge .48, trap 1.0; matched train n=246) leaves qwen's
+LOPO-math at **0.962–0.968 over 5 subsample seeds** (unmatched 0.961). Label
+coverage is ruled out; raw Qwen3-8B's h_prompt linearly encodes transferable
+difficulty that MiniCPM-o's (same architecture, omni fine-tuned) does not.
+
+**What replicates cleanly: p(True).** ptrue_post ≈ 0.90 on BOTH backbones, and
+pre-answer trap introspection holds (0.939 AUC) — the "model knows it doesn't
+know long-tail facts if you ask before it answers" finding is now 2-for-2.
+Entropy, meanwhile, collapsed to chance on qwen (0.468) — scalar uncertainty
+is the least portable signal of all.
+
+**mistral-7b (600/600, 0 judge errors).** Much weaker model (fail .519
+overall; knowledge .711, math .556). Download fought back (unauthenticated
+Xet stall → partial snapshot → 403 on `consolidated.safetensors` → missing
+sentencepiece; fixes: HF_HUB_DISABLE_XET=1, no config.json short-circuit,
+ignore `consolidated*`, sentencepiece in the GPU image).
+
+| check | MiniCPM-o | qwen3-8b | mistral-7b |
+|---|---:|---:|---:|
+| probe OOF AUC | 0.822 | 0.838 | 0.758 |
+| pool-oracle AUC | 0.715 | 0.704 | **0.730 (probe adds only +.03!)** |
+| pool-classifier acc | 0.958 | 0.958 | 0.953 |
+| max_entropy@4 | 0.696 | 0.468 | 0.501 |
+| LOPO math / fact | .372 / .717 | .961 / .596 | .817 / **.445** |
+| ptrue_post AUC | **0.899** | **0.897** | **0.814** |
+| ptrue_pre AUC | 0.807 | 0.736 | 0.723 |
+| ptrue on trap | pre .945 score | pre .939 AUC | post .901 AUC |
+
+### Cross-backbone synthesis (3 models)
+
+1. **ptrue_post is the most portable signal**: 0.899/0.897/0.814 — beats the
+   trained probe on ALL THREE backbones, with zero training/calibration.
+2. **The type shortcut is universal**: h_prompt encodes pool identity at ~95%
+   on all three; oracle AUC 0.70–0.73. On mistral the probe's aggregate edge
+   over the oracle is a mere +0.028 — the probe ≈ a type classifier there.
+3. **Probe transferability is a property of the BACKBONE, not the method**:
+   LOPO transfer is fine on qwen (all ≥ .60, math .96), partial on mistral
+   (fact .445 inverts), catastrophic on MiniCPM (math .372, trap missed).
+   `lopo_matched` rules out label coverage — it's the representation.
+4. **Entropy is the least portable signal**: ≈ chance on 2 of 3 backbones.
+5. **Pre-answer trap introspection holds on all three** — "the model knows it
+   doesn't know long-tail facts if asked before answering" is now 3-for-3.
+
+Phase-5b total spend ≈ $12 GPU + $6 API. Project total ≈ **$50**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

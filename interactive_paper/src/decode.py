@@ -76,6 +76,28 @@ def generate(model, tok, user_text: str, max_new_tokens: int = 512) -> str:
     return out.strip() if isinstance(out, str) else out
 
 
+def first_token_logits(model, tok, prompt: str):
+    """Full logits over the FIRST generated token (captured at prefill).
+
+    Used by the p(True) verbalized-self-eval baseline: ask a Yes/No question,
+    read P(Yes) straight off the first-token distribution — zero training, no
+    calibration. Returns a cpu float32 [vocab] tensor.
+    """
+    store = {}
+
+    def head_hook(_m, _inp, out):
+        if "logits" not in store:                    # keep the prefill forward only
+            store["logits"] = out[0, -1, :].detach().float().cpu()
+
+    h = model.llm.lm_head.register_forward_hook(head_hook)
+    try:
+        model.chat(msgs=[{"role": "user", "content": [prompt]}],
+                   max_new_tokens=1, **_chat_kwargs(model, tok))
+    finally:
+        h.remove()
+    return store["logits"]
+
+
 def chat_with_signals(model, tok, query: str, k: int = 16,
                       max_new_tokens: int = 512) -> dict:
     """Greedy-generate an answer to `query` and return text + first-K signals.

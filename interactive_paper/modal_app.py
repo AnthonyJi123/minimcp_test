@@ -60,6 +60,7 @@ image = (
         "pandas",
         "pyarrow",
         "openai",
+        "sentencepiece",   # mistral tokenizer (cross-backbone replication)
     )
     .add_local_dir(os.path.join(HERE, "src"), "/workspace/gate")
 )
@@ -559,6 +560,727 @@ def audit():
         pte = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]).predict_proba(X[te])[:, 1]
         print(f"    {pl:16s} n={te.sum():3d} esc={y[te].mean():.2f} "
               f"LOPO-AUC={roc_auc_score(y[te], pte):.3f}", flush=True)
+
+
+# ===================== Phase 2.3c: audit deep-dive =========================
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def audit2():
+    """Deep-dive on the audit's two open questions + bootstrap CIs. CPU, ~free.
+
+    A. math LOPO inversion root cause — what drives AUC 0.372: source
+       (gsm8k vs math500), prompt length, and score-by-outcome breakdowns.
+    B. pool-classifier evidence chain — can h_prompt identify the pool (5-way)?
+       Plus pool-controlled residual: dummies-only vs dummies+h_prompt OOF AUC
+       and within-pool AUC of the plain probe's OOF scores.
+    C. bootstrap CIs (2000 resamples, seed 42) for the calib OOF AUC and the
+       Phase-5 test headline numbers (small/big/paraphrase/tier accuracies).
+    """
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_val_score
+    from sklearn.metrics import roc_auc_score
+    sys.path.insert(0, "/workspace/gate")
+    from gate import Probe
+
+    df = pd.read_parquet(FEATURES)
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    calib = df[df["split"] == "calib"].reset_index(drop=True)
+    y = calib["escalate_label"].astype(int).to_numpy()
+    X = np.array([list(v) for v in calib["h_prompt"]], float)
+    pools = np.array(calib["pool"].tolist())
+    rng = np.random.RandomState(42)
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+
+    # ---------- A. math LOPO inversion root cause ------------------------------
+    print("=== [A] math LOPO inversion root cause (calib only) ===", flush=True)
+    tr, te = pools != "hard-math", pools == "hard-math"
+    lopo = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]).predict_proba(X[te])[:, 1]
+    oof = cross_val_predict(LogisticRegression(max_iter=2000), X, y, cv=cv,
+                            method="predict_proba")[:, 1]        # in-distribution ref
+    m = calib[te].reset_index(drop=True)
+    ym, oofm = y[te], oof[te]
+    qlen = m["query"].str.len().to_numpy(float)
+    print(f"  math calib n={len(m)} fail_rate={ym.mean():.3f} | "
+          f"LOPO AUC={roc_auc_score(ym, lopo):.3f} | in-dist OOF AUC={roc_auc_score(ym, oofm):.3f}",
+          flush=True)
+    for src in sorted(set(m["source"])):
+        s = (m["source"] == src).to_numpy()
+        line = (f"  {src:8s} n={s.sum():3d} fail={ym[s].mean():.2f} "
+                f"len(mean)={qlen[s].mean():5.0f} | LOPO score "
+                f"fail={lopo[s & (ym == 1)].mean() if (s & (ym == 1)).any() else float('nan'):.3f} "
+                f"pass={lopo[s & (ym == 0)].mean() if (s & (ym == 0)).any() else float('nan'):.3f}")
+        if len(set(ym[s])) == 2:
+            line += (f" | LOPO AUC={roc_auc_score(ym[s], lopo[s]):.3f}"
+                     f" OOF AUC={roc_auc_score(ym[s], oofm[s]):.3f}")
+        print(line, flush=True)
+    # is the inversion just "source" (surface style) or within-source too?
+    src01 = (m["source"] == "math500").astype(int).to_numpy()
+    print(f"  corr(LOPO score, is_math500)={np.corrcoef(lopo, src01)[0,1]:+.3f} | "
+          f"corr(LOPO score, len)={np.corrcoef(lopo, qlen)[0,1]:+.3f} | "
+          f"corr(fail, is_math500)={np.corrcoef(ym, src01)[0,1]:+.3f} | "
+          f"corr(fail, len)={np.corrcoef(ym, qlen)[0,1]:+.3f}", flush=True)
+    print(f"  len(chars): fail={qlen[ym==1].mean():.0f} pass={qlen[ym==0].mean():.0f}",
+          flush=True)
+
+    # ---------- B. pool-classifier evidence chain ------------------------------
+    print("\n=== [B] does h_prompt encode the pool? ===", flush=True)
+    acc = cross_val_score(LogisticRegression(max_iter=2000),
+                          X, pools, cv=5, scoring="accuracy")
+    print(f"  5-way pool classifier 5-fold acc = {acc.mean():.3f} "
+          f"(folds: {np.round(acc, 3).tolist()})", flush=True)
+
+    dum = pd.get_dummies(pools).values.astype(float)
+    oof_dum = cross_val_predict(LogisticRegression(max_iter=2000), dum, y, cv=cv,
+                                method="predict_proba")[:, 1]
+    both = np.hstack([dum * 10.0, X])   # scale dummies so L2 doesn't drown them
+    oof_both = cross_val_predict(LogisticRegression(max_iter=2000), both, y, cv=cv,
+                                 method="predict_proba")[:, 1]
+    print(f"  OOF AUC: pool-dummies-only={roc_auc_score(y, oof_dum):.3f} | "
+          f"h_prompt={roc_auc_score(y, oof):.3f} | "
+          f"dummies+h_prompt={roc_auc_score(y, oof_both):.3f}", flush=True)
+    print("  within-pool AUC of plain-probe OOF scores (type shortcut removed):",
+          flush=True)
+    wp = []
+    for pl in sorted(set(pools)):
+        s = pools == pl
+        if len(set(y[s])) < 2:
+            print(f"    {pl:16s} single-class (fail={y[s].mean():.2f}) — n/a", flush=True)
+            continue
+        a = roc_auc_score(y[s], oof[s]); wp.append(a)
+        print(f"    {pl:16s} n={s.sum():3d} within-AUC={a:.3f}", flush=True)
+    print(f"    macro-mean within-pool AUC = {np.mean(wp):.3f} "
+          f"(vs aggregate {roc_auc_score(y, oof):.3f})", flush=True)
+
+    # ---------- C. bootstrap CIs ------------------------------------------------
+    print("\n=== [C] bootstrap 95% CIs (2000 resamples) ===", flush=True)
+
+    def bs_ci(fn, n, B=2000):
+        vals = []
+        for _ in range(B):
+            idx = rng.randint(0, n, n)
+            v = fn(idx)
+            if v is not None:
+                vals.append(v)
+        return np.percentile(vals, [2.5, 97.5])
+
+    lo, hi = bs_ci(lambda i: roc_auc_score(y[i], oof[i])
+                   if len(set(y[i])) == 2 else None, len(y))
+    print(f"  calib OOF probe AUC = {roc_auc_score(y, oof):.3f} [{lo:.3f}, {hi:.3f}]",
+          flush=True)
+
+    # Phase-5 test headline CIs (reuses eval_assemble's merge)
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    exp = pd.read_parquet(EVAL_EXPERT).set_index("id")
+    para = pd.read_parquet(EVAL_PARA).set_index("id")
+    ids = test["id"].values
+    b = lambda x: 1 if x is True or x == 1 else 0
+    s = np.array([b(x) for x in test["adequate"].values])
+    e = np.array([b(exp.loc[i, "expert_adequate"]) for i in ids])
+    p = np.array([b(para.loc[i, "paraphrase_adequate"]) for i in ids])
+    sc = np.array([probe.score(list(h)) for h in test["h_prompt"]])
+    n = len(test)
+    for name, acc_fn in [("small-only", lambda i: s[i].mean()),
+                         ("big-only(expert)", lambda i: e[i].mean()),
+                         ("full-paraphrase", lambda i: p[i].mean())]:
+        lo, hi = bs_ci(acc_fn, n)
+        print(f"  {name:18s} = {acc_fn(np.arange(n)):.3f} [{lo:.3f}, {hi:.3f}]", flush=True)
+    for tier in ("conservative", "balanced", "aggressive"):
+        t = cfg["thresholds"][tier]
+        hyb = lambda i, t=t: np.where(sc[i] >= t, e[i], s[i]).mean()
+        lo, hi = bs_ci(hyb, n)
+        print(f"  hybrid {tier:12s} = {hyb(np.arange(n)):.3f} [{lo:.3f}, {hi:.3f}] "
+              f"(esc={float((sc >= t).mean()):.3f})", flush=True)
+
+    # area-vs-random CI: recompute the whole sweep per resample
+    def area(i):
+        si, ei, sci = s[i], e[i], sc[i]
+        ts = np.concatenate([[np.inf], np.unique(sci)[::-1], [-np.inf]])
+        pts = np.array([[(sci >= t).mean(),
+                         np.where(sci >= t, ei, si).mean()] for t in ts])
+        o = np.argsort(pts[:, 0])
+        rate, accs = pts[o, 0], pts[o, 1]
+        randl = (1 - rate) * si.mean() + rate * ei.mean()
+        d = accs - randl
+        return float(np.sum((d[1:] + d[:-1]) / 2 * np.diff(rate)))
+    lo, hi = bs_ci(area, n, B=500)   # sweep per resample — keep B moderate
+    print(f"  gate-vs-random area = {area(np.arange(n)):+.4f} [{lo:+.4f}, {hi:+.4f}]",
+          flush=True)
+
+
+# ==================== p(True) verbalized self-eval baseline ================
+PTRUE_PRE = ("I am going to show you a question. Do NOT answer it. "
+             "Judge honestly whether you yourself would answer it correctly.\n\n"
+             "Question:\n{q}\n\n"
+             "Would you answer this question correctly? "
+             "Reply with exactly one word: Yes or No.")
+PTRUE_POST = ("Here is a question and a proposed answer.\n\n"
+              "Question:\n{q}\n\n"
+              "Proposed answer:\n{a}\n\n"
+              "Is the proposed answer correct? "
+              "Reply with exactly one word: Yes or No.")
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def _load_ptrue_rows() -> list:
+    """id/query/answer rows from the feature store (answers already generated)."""
+    import pandas as pd
+    df = pd.read_parquet(FEATURES)
+    return [{"id": r["id"], "query": r["query"],
+             "answer": r["answer"] if isinstance(r["answer"], str) else ""}
+            for _, r in df.iterrows()]
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_ptrue(shard: list, shard_id: int) -> int:
+    """p(True) self-eval per query: pre-answer ("would you get this right?") and
+    post-answer ("is this answer correct?"), each = P(Yes) read off the first
+    generated token's logits. Zero training, zero calibration."""
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+
+    model, tok = _load_model()
+
+    def tok_ids(words):
+        ids = set()
+        for w in words:
+            enc = tok.encode(w, add_special_tokens=False)
+            if len(enc) == 1:
+                ids.add(enc[0])
+        return sorted(ids)
+
+    YES = tok_ids(["Yes", "yes", "YES", " Yes", " yes", "是", "能", "对", "会"])
+    NO = tok_ids(["No", "no", "NO", " No", " no", "否", "不", "错"])
+    print(f">>> shard {shard_id}: {len(shard)} queries | "
+          f"|YES|={len(YES)} |NO|={len(NO)}", flush=True)
+
+    def p_yes(prompt):
+        logits = decode.first_token_logits(model, tok, prompt)
+        p = torch.softmax(logits, dim=-1)
+        py, pn = float(p[YES].sum()), float(p[NO].sum())
+        arg = tok.decode([int(logits.argmax())])
+        return py / (py + pn) if (py + pn) > 0 else 0.5, py + pn, arg
+
+    rows = []
+    for k, q in enumerate(shard):
+        pre, pre_mass, pre_arg = p_yes(PTRUE_PRE.format(q=q["query"]))
+        post, post_mass, post_arg = p_yes(
+            PTRUE_POST.format(q=q["query"], a=q["answer"][:4000]))
+        rows.append({"id": q["id"], "p_yes_pre": pre, "p_yes_post": post,
+                     "mass_pre": pre_mass, "mass_post": post_mass})
+        if k < 3 or k % 50 == 0:
+            print(f"  [{k}] pre={pre:.3f} (mass {pre_mass:.2f}, argmax {pre_arg!r}) "
+                  f"post={post:.3f} (mass {post_mass:.2f}, argmax {post_arg!r})",
+                  flush=True)
+    out = f"{DATA}/ptrue.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out} ({len(rows)} rows)", flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_ptrue(workers: int = 4):
+    """Collect p(True) self-eval signals for all queries across H100 workers."""
+    qs = _load_ptrue_rows.remote()
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {len(qs)} queries / {workers} H100 workers")
+    total = sum(collect_ptrue.starmap([(shards[i], i) for i in range(workers)]))
+    print(f">>> collected p(True) for {total} queries")
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def ptrue_analyze():
+    """Compare p(True) self-eval vs the linear probe — overall, per-pool, and on
+    the probe's failure cases (math, trap). p(True) needs NO calibration pool,
+    so its per-pool AUC is already the 'transfer' condition the probe fails."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.metrics import roc_auc_score
+
+    df = pd.read_parquet(FEATURES)
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    pt = pd.concat([pd.read_parquet(s) for s in
+                    sorted(glob.glob(f"{DATA}/ptrue.shard*.parquet"))],
+                   ignore_index=True)
+    df = df.merge(pt, on="id", validate="one_to_one")
+    y = df["escalate_label"].astype(int).to_numpy()
+    pools = np.array(df["pool"].tolist())
+    # escalation score = P(model says it CAN'T) = 1 - P(Yes)
+    s_pre = 1.0 - df["p_yes_pre"].to_numpy()
+    s_post = 1.0 - df["p_yes_post"].to_numpy()
+    print(f">>> n={len(df)} | Yes/No mass: pre median={df['mass_pre'].median():.3f} "
+          f"post median={df['mass_post'].median():.3f}", flush=True)
+
+    calib = (df["split"] == "calib").to_numpy()
+    X = np.array([list(v) for v in df["h_prompt"]], float)
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+    oof = np.full(len(df), np.nan)
+    oof[calib] = cross_val_predict(LogisticRegression(max_iter=2000),
+                                   X[calib], y[calib], cv=cv,
+                                   method="predict_proba")[:, 1]
+
+    print("\n=== overall AUC (calib rows, so probe OOF is comparable) ===", flush=True)
+    yc = y[calib]
+    for name, sc in [("probe OOF", oof[calib]), ("ptrue_pre", s_pre[calib]),
+                     ("ptrue_post", s_post[calib]),
+                     ("pre+post mean", (s_pre + s_post)[calib] / 2)]:
+        print(f"  {name:14s} AUC={roc_auc_score(yc, sc):.3f}", flush=True)
+    print(f"  (all 600, no-training signals) ptrue_pre={roc_auc_score(y, s_pre):.3f} "
+          f"ptrue_post={roc_auc_score(y, s_post):.3f}", flush=True)
+
+    print("\n=== per-pool AUC — the transfer test ===", flush=True)
+    print(f"  {'pool':16s} {'n':>4s} {'fail':>5s} {'probeOOF':>9s} {'LOPO':>6s} "
+          f"{'ptrue_pre':>10s} {'ptrue_post':>11s}", flush=True)
+    for pl in sorted(set(pools)):
+        s = pools == pl
+        scb = calib & s
+        # probe LOPO score for this pool (train on other calib pools)
+        trm = calib & (pools != pl)
+        lopo = LogisticRegression(max_iter=2000).fit(X[trm], y[trm]) \
+            .predict_proba(X[s])[:, 1]
+        def a(scores, mask):
+            return (f"{roc_auc_score(y[mask], scores[mask]):.3f}"
+                    if len(set(y[mask])) == 2 else "  n/a")
+        def a_arr(scores):
+            return (f"{roc_auc_score(y[s], scores):.3f}"
+                    if len(set(y[s])) == 2 else "  n/a")
+        probecell = a(oof, scb) if scb.any() else "  n/a"
+        print(f"  {pl:16s} {s.sum():4d} {y[s].mean():5.2f} {probecell:>9s} "
+              f"{a_arr(lopo):>6s} {a(s_pre, s):>10s} {a(s_post, s):>11s}", flush=True)
+
+    print("\n=== trap pool (100% fail): would each signal escalate? ===", flush=True)
+    s = pools == "trap"
+    trm = calib & (pools != "trap")
+    lopo_trap = LogisticRegression(max_iter=2000).fit(X[trm], y[trm]) \
+        .predict_proba(X[s])[:, 1]
+    nontrap_pre = s_pre[~s]
+    print(f"  probe-LOPO mean score on trap = {lopo_trap.mean():.3f} (known: ~0.23)",
+          flush=True)
+    print(f"  ptrue_pre  mean score on trap = {s_pre[s].mean():.3f} "
+          f"(vs non-trap mean {nontrap_pre.mean():.3f})", flush=True)
+    print(f"  ptrue_post mean score on trap = {s_post[s].mean():.3f} "
+          f"(vs non-trap mean {s_post[~s].mean():.3f})", flush=True)
+    # rank check: share of trap queries above the non-trap 70th percentile
+    thr = np.quantile(nontrap_pre, 0.7)
+    print(f"  ptrue_pre: {float((s_pre[s] >= thr).mean()):.2f} of trap above "
+          f"non-trap P70 (probe-LOPO puts ~0 there)", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def ptrue_gate_eval():
+    """RQ2 rerun with p(True) gates: does the better AUC translate into a better
+    accuracy-vs-escalation curve on the frozen test split? Same protocol as
+    eval_assemble (stored outcomes, threshold sweep); tier thresholds are score
+    quantiles on CALIB rows (no fitting — p(True) needs none). Writes
+    figures/tradeoff_ptrue.png."""
+    import glob
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    sys.path.insert(0, "/workspace/gate")
+    from gate import Probe
+
+    df = pd.read_parquet(FEATURES)
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    pt = pd.concat([pd.read_parquet(s) for s in
+                    sorted(glob.glob(f"{DATA}/ptrue.shard*.parquet"))],
+                   ignore_index=True)
+    df = df.merge(pt, on="id", validate="one_to_one")
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    df["probe_score"] = [probe.score(list(h)) for h in df["h_prompt"]]
+    df["ptrue_pre_score"] = 1.0 - df["p_yes_pre"]
+    df["ptrue_post_score"] = 1.0 - df["p_yes_post"]
+
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    calib = df[df["split"] == "calib"]
+    exp = pd.read_parquet(EVAL_EXPERT).set_index("id")
+    ids = test["id"].values
+    b = lambda x: 1 if x is True or x == 1 else 0
+    s = np.array([b(x) for x in test["adequate"].values])
+    e = np.array([b(exp.loc[i, "expert_adequate"]) for i in ids])
+    small_acc, big_acc = s.mean(), e.mean()
+    print(f">>> TEST n={len(test)} small={small_acc:.3f} big={big_acc:.3f}",
+          flush=True)
+
+    def curve(scores):
+        ts = np.concatenate([[np.inf], np.unique(scores)[::-1], [-np.inf]])
+        pts = np.array([[(scores >= t).mean(),
+                         np.where(scores >= t, e, s).mean()] for t in ts])
+        o = np.argsort(pts[:, 0])
+        return pts[o]
+
+    def area(c):
+        randl = (1 - c[:, 0]) * small_acc + c[:, 0] * big_acc
+        d = c[:, 1] - randl
+        return float(np.sum((d[1:] + d[:-1]) / 2 * np.diff(c[:, 0])))
+
+    plt.figure(figsize=(7, 6))
+    print(f"\n{'signal':16s} {'area':>8s} | hybrid acc @ esc rate "
+          f"{{.15/.30/.50}} (thr from calib quantiles)", flush=True)
+    for name, col in [("probe", "probe_score"), ("ptrue_pre", "ptrue_pre_score"),
+                      ("ptrue_post", "ptrue_post_score")]:
+        sc = test[col].to_numpy()
+        c = curve(sc)
+        accs = []
+        for rate in (0.15, 0.30, 0.50):
+            t = float(np.quantile(calib[col].to_numpy(), 1 - rate))
+            esc = sc >= t
+            accs.append(f"{np.where(esc, e, s).mean():.3f}(esc {esc.mean():.2f})")
+        print(f"{name:16s} {area(c):+.4f} | " + "  ".join(accs), flush=True)
+        plt.plot(c[:, 0], c[:, 1], "-", lw=2, label=f"{name} (area {area(c):+.3f})")
+
+    r = np.linspace(0, 1, 101)
+    plt.plot(r, (1 - r) * small_acc + r * big_acc, "k--", lw=1,
+             label="random escalation")
+    plt.xlabel("escalation rate"); plt.ylabel("accuracy (expert-inject)")
+    plt.title("Gate signals on frozen test (n=240)")
+    plt.legend(); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(f"{DATA}/tradeoff_ptrue.png", dpi=140)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/tradeoff_ptrue.png", flush=True)
+
+
+# ================= cross-backbone replication (generality) ================
+# Does the Phase-2/audit finding (probe AUC high in-distribution, but driven by
+# type shortcut + no LOPO transfer) replicate on other backbones?
+HF_MODELS = {
+    "qwen3-8b": "Qwen/Qwen3-8B",                       # MiniCPM's backbone family, raw
+    "mistral-7b": "mistralai/Mistral-7B-Instruct-v0.3",  # different family, ungated
+}
+
+
+@app.function(image=util_image, volumes={"/workspace/models": weights},
+              timeout=60 * 60)
+def download_hf_model(tag: str) -> str:
+    """Snapshot-download an HF backbone onto the weights volume (idempotent)."""
+    import os as _os
+    _os.environ["HF_HUB_DISABLE_XET"] = "1"   # unauthenticated Xet stalls (2026-07-14)
+    from huggingface_hub import snapshot_download
+    repo = HF_MODELS[tag]
+    dest = f"/workspace/models/{tag}"
+    # no config.json short-circuit: a killed run can leave a partial snapshot;
+    # snapshot_download itself verifies existing files and fills the gaps.
+    snapshot_download(repo, local_dir=dest,
+                      ignore_patterns=["*.pth", "original/*", "*.gguf",
+                                       "consolidated*"])  # 403s via public xet
+    weights.commit()
+    print(f">>> downloaded {repo} -> {dest}", flush=True)
+    return dest
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60 * 2)
+def collect_signals_hf(shard: list, shard_id: int, tag: str) -> int:
+    """collect_signals for a vanilla HF backbone (hf_decode hooks)."""
+    import pandas as pd
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model_dir = f"/workspace/models/{tag}"
+    model = AutoModelForCausalLM.from_pretrained(
+        model_dir, torch_dtype=torch.bfloat16,
+        attn_implementation="sdpa").eval().cuda()
+    tok = AutoTokenizer.from_pretrained(model_dir)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+
+    rows = []
+    for k, q in enumerate(shard):
+        s = hf_decode.chat_with_signals(model, tok, q["query"], k=16,
+                                        max_new_tokens=512)
+        rows.append({**{f: q[f] for f in
+                        ("id", "pool", "source", "query", "reference_answer", "split")},
+                     "answer": s["text"], "n_forward": s["n_forward"],
+                     "entropy": s["entropy"], "margin": s["margin"],
+                     "h_prompt": s["h_prompt"], "h_mean8": s["h_mean8"]})
+        if k < 2 or k % 50 == 0:
+            print(f"  [{k}] {q['pool']} :: {s['text'][:60]!r}", flush=True)
+    out = f"{DATA}/signals_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out} ({len(rows)} rows)", flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_signals_hf(tag: str, workers: int = 4, limit: int = 0):
+    """Download the backbone (if needed) + collect signals for all queries."""
+    download_hf_model.remote(tag)
+    qs = _load_queries.remote()
+    if limit:
+        qs = qs[:limit]
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} H100 workers")
+    total = sum(collect_signals_hf.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected signals for {total} queries")
+
+
+@gen_app.function(image=util_image, volumes={DATA: gate_data},
+                  secrets=[OPENAI], timeout=60 * 60)
+def label_hf(tag: str, concurrency: int = 8):
+    """Judge the backbone's answers (same rubric/judge as Phase 2) →
+    features_{tag}.parquet."""
+    import asyncio
+    import glob
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    shards = sorted(glob.glob(f"{DATA}/signals_{tag}.shard*.parquet"))
+    df = pd.concat([pd.read_parquet(s) for s in shards], ignore_index=True)
+    print(f">>> {tag}: {len(df)} rows from {len(shards)} shards; judging...",
+          flush=True)
+    rows = [{"query": r["query"],
+             "reference_answer": (None if pd.isna(r["reference_answer"])
+                                  else r["reference_answer"]),
+             "answer": r["answer"]} for _, r in df.iterrows()]
+    labeled = asyncio.run(escalate.judge_many(rows, concurrency=concurrency))
+    df["adequate"] = [x["adequate"] for x in labeled]
+    df["judge_reason"] = [x["judge_reason"] for x in labeled]
+    df["escalate_label"] = [x["escalate_label"] for x in labeled]
+    n_err = sum(1 for x in labeled if x["adequate"] is None)
+    df.to_parquet(f"{DATA}/features_{tag}.parquet")
+    gate_data.commit()
+    ok = df[df["adequate"].notna()]
+    print(f">>> labeled {len(df)} ({n_err} judge errors)", flush=True)
+    for pool, g in ok.groupby("pool"):
+        print(f"   {pool:16s} n={len(g):4d} escalate_rate="
+              f"{g['escalate_label'].mean():.3f}", flush=True)
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_ptrue_hf(shard: list, shard_id: int, tag: str) -> int:
+    """p(True) self-eval for an HF backbone (same prompts as collect_ptrue)."""
+    import pandas as pd
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model_dir = f"/workspace/models/{tag}"
+    model = AutoModelForCausalLM.from_pretrained(
+        model_dir, torch_dtype=torch.bfloat16,
+        attn_implementation="sdpa").eval().cuda()
+    tok = AutoTokenizer.from_pretrained(model_dir)
+
+    def tok_ids(words):
+        ids = set()
+        for w in words:
+            enc = tok.encode(w, add_special_tokens=False)
+            if len(enc) == 1:
+                ids.add(enc[0])
+        return sorted(ids)
+
+    YES = tok_ids(["Yes", "yes", "YES", " Yes", " yes", "是", "能", "对", "会"])
+    NO = tok_ids(["No", "no", "NO", " No", " no", "否", "不", "错"])
+    print(f">>> {tag} shard {shard_id}: {len(shard)} | |YES|={len(YES)} "
+          f"|NO|={len(NO)}", flush=True)
+
+    def p_yes(prompt):
+        logits = hf_decode.first_token_logits(model, tok, prompt)
+        p = torch.softmax(logits, dim=-1)
+        py, pn = float(p[YES].sum()), float(p[NO].sum())
+        arg = tok.decode([int(logits.argmax())])
+        return py / (py + pn) if (py + pn) > 0 else 0.5, py + pn, arg
+
+    rows = []
+    for k, q in enumerate(shard):
+        pre, pre_mass, pre_arg = p_yes(PTRUE_PRE.format(q=q["query"]))
+        post, post_mass, post_arg = p_yes(
+            PTRUE_POST.format(q=q["query"], a=q["answer"][:4000]))
+        rows.append({"id": q["id"], "p_yes_pre": pre, "p_yes_post": post,
+                     "mass_pre": pre_mass, "mass_post": post_mass})
+        if k < 3 or k % 50 == 0:
+            print(f"  [{k}] pre={pre:.3f} (mass {pre_mass:.2f}, {pre_arg!r}) "
+                  f"post={post:.3f} (mass {post_mass:.2f}, {post_arg!r})", flush=True)
+    out = f"{DATA}/ptrue_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out}", flush=True)
+    return len(rows)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def _load_ptrue_rows_hf(tag: str) -> list:
+    import pandas as pd
+    df = pd.read_parquet(f"{DATA}/features_{tag}.parquet")
+    return [{"id": r["id"], "query": r["query"],
+             "answer": r["answer"] if isinstance(r["answer"], str) else ""}
+            for _, r in df.iterrows()]
+
+
+@app.local_entrypoint()
+def run_ptrue_hf(tag: str, workers: int = 4):
+    qs = _load_ptrue_rows_hf.remote(tag)
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} workers")
+    total = sum(collect_ptrue_hf.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected p(True) for {total} queries")
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def xmodel_report(tag: str):
+    """Replication report for a backbone: headline AUCs + oracle + LOPO
+    (mirrors audit/audit2's key checks, calib rows only)."""
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_val_score
+    from sklearn.metrics import roc_auc_score
+
+    df = pd.read_parquet(f"{DATA}/features_{tag}.parquet")
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    calib = df[df["split"] == "calib"].reset_index(drop=True)
+    y = calib["escalate_label"].astype(int).to_numpy()
+    X = np.array([list(v) for v in calib["h_prompt"]], float)
+    pools = np.array(calib["pool"].tolist())
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+    print(f"=== {tag} replication (calib n={len(calib)}, "
+          f"fail_rate={y.mean():.3f}) ===", flush=True)
+    for pl in sorted(set(pools)):
+        s = pools == pl
+        print(f"   {pl:16s} n={s.sum():3d} fail_rate={y[s].mean():.3f}", flush=True)
+
+    oof = cross_val_predict(LogisticRegression(max_iter=2000), X, y, cv=cv,
+                            method="predict_proba")[:, 1]
+    ent = np.array([max(list(v)[:4]) if len(list(v)) else np.nan
+                    for v in calib["entropy"]], float)
+    ent_auc = roc_auc_score(y[~np.isnan(ent)], ent[~np.isnan(ent)])
+    rate = {pl: y[pools == pl].mean() for pl in set(pools)}
+    oracle = np.array([rate[pl] for pl in pools])
+    acc = cross_val_score(LogisticRegression(max_iter=2000), X, pools, cv=5)
+    print(f"\n  probe OOF AUC      = {roc_auc_score(y, oof):.3f}", flush=True)
+    print(f"  max_entropy@4 AUC  = {ent_auc:.3f}", flush=True)
+    print(f"  pool-oracle AUC    = {roc_auc_score(y, oracle):.3f}", flush=True)
+    print(f"  pool-classifier acc= {acc.mean():.3f}", flush=True)
+
+    print("\n  LOPO (trained WITHOUT that pool):", flush=True)
+    for pl in sorted(set(pools)):
+        tr, te = pools != pl, pools == pl
+        sc = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]) \
+            .predict_proba(X[te])[:, 1]
+        if len(set(y[te])) < 2:
+            print(f"    {pl:16s} single-class (fail={y[te].mean():.2f}) "
+                  f"mean score={sc.mean():.3f}", flush=True)
+        else:
+            print(f"    {pl:16s} LOPO-AUC={roc_auc_score(y[te], sc):.3f} "
+                  f"(fail={y[te].mean():.2f})", flush=True)
+
+    # --- p(True) comparison (if collected for this backbone) ------------------
+    import glob
+    shards = sorted(glob.glob(f"{DATA}/ptrue_{tag}.shard*.parquet"))
+    if not shards:
+        print("\n  (no p(True) shards for this tag yet)", flush=True)
+        return
+    pt = pd.concat([pd.read_parquet(s) for s in shards], ignore_index=True)
+    mall = df.merge(pt, on="id", validate="one_to_one")
+    ya = mall["escalate_label"].astype(int).to_numpy()
+    pa = np.array(mall["pool"].tolist())
+    s_pre = 1.0 - mall["p_yes_pre"].to_numpy()
+    s_post = 1.0 - mall["p_yes_post"].to_numpy()
+    print(f"\n  p(True) (all {len(mall)} rows): "
+          f"pre AUC={roc_auc_score(ya, s_pre):.3f} "
+          f"post AUC={roc_auc_score(ya, s_post):.3f}", flush=True)
+    for pl in sorted(set(pa)):
+        sm = pa == pl
+        if len(set(ya[sm])) < 2:
+            print(f"    {pl:16s} single-class fail={ya[sm].mean():.2f} | "
+                  f"pre mean={s_pre[sm].mean():.3f} (non-pool {s_pre[~sm].mean():.3f})",
+                  flush=True)
+            continue
+        print(f"    {pl:16s} pre AUC={roc_auc_score(ya[sm], s_pre[sm]):.3f} "
+              f"post AUC={roc_auc_score(ya[sm], s_post[sm]):.3f}", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def lopo_matched():
+    """Disambiguate WHY qwen3-8b's LOPO transfers but MiniCPM's inverts.
+
+    Confound: qwen fails 37–51% on every non-math pool (broad positive
+    coverage) while MiniCPM fails 19–48%. Subsample qwen's LOPO *training*
+    pools to MiniCPM's per-pool fail rates and re-test LOPO-math:
+      - stays high  -> representation difference (omni fine-tune) is the story
+      - collapses   -> label coverage was the story, not the representation
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    rng = np.random.RandomState(42)
+    mini_rate = {"easy-chat": 0.207, "easy-fact": 0.340,
+                 "hard-knowledge": 0.480, "trap": 1.00}
+
+    df = pd.read_parquet(f"{DATA}/features_qwen3-8b.parquet")
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    calib = df[df["split"] == "calib"].reset_index(drop=True)
+    y = calib["escalate_label"].astype(int).to_numpy()
+    X = np.array([list(v) for v in calib["h_prompt"]], float)
+    pools = np.array(calib["pool"].tolist())
+    te = pools == "hard-math"
+
+    # baseline (unmatched) for reference
+    lr = LogisticRegression(max_iter=2000)
+    base = lr.fit(X[~te], y[~te]).predict_proba(X[te])[:, 1]
+    print(f">>> qwen LOPO-math unmatched: AUC={roc_auc_score(y[te], base):.3f} "
+          f"(train n={int((~te).sum())}, fail={y[~te].mean():.3f})", flush=True)
+
+    # matched: subsample each training pool to MiniCPM's fail rate
+    keep = np.zeros(len(calib), bool)
+    for pl, r in mini_rate.items():
+        s = np.where(pools == pl)[0]
+        fails, passes = s[y[s] == 1], s[y[s] == 0]
+        if r >= 1.0:                       # trap: keep fails only (MiniCPM: all fail)
+            keep[fails] = True
+            continue
+        n_fail = min(len(fails), int(round(r / (1 - r) * len(passes))))
+        keep[passes] = True
+        keep[rng.choice(fails, n_fail, replace=False)] = True
+    tr = keep & ~te
+    print(f">>> matched train n={int(tr.sum())} fail={y[tr].mean():.3f} "
+          f"(per-pool:", flush=True)
+    for pl in mini_rate:
+        s = tr & (pools == pl)
+        print(f"      {pl:16s} n={int(s.sum()):3d} fail={y[s].mean():.3f} "
+              f"(target {mini_rate[pl]:.2f})", flush=True)
+    sc = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]).predict_proba(X[te])[:, 1]
+    print(f">>> qwen LOPO-math MATCHED: AUC={roc_auc_score(y[te], sc):.3f}",
+          flush=True)
+    # repeat 5× with different subsample seeds for stability
+    aucs = []
+    for seed in range(5):
+        r2 = np.random.RandomState(100 + seed)
+        keep2 = np.zeros(len(calib), bool)
+        for pl, r in mini_rate.items():
+            s = np.where(pools == pl)[0]
+            fails, passes = s[y[s] == 1], s[y[s] == 0]
+            if r >= 1.0:
+                keep2[fails] = True
+                continue
+            n_fail = min(len(fails), int(round(r / (1 - r) * len(passes))))
+            keep2[passes] = True
+            keep2[r2.choice(fails, n_fail, replace=False)] = True
+        t2 = keep2 & ~te
+        sc2 = LogisticRegression(max_iter=2000).fit(X[t2], y[t2]) \
+            .predict_proba(X[te])[:, 1]
+        aucs.append(roc_auc_score(y[te], sc2))
+    print(f">>> matched LOPO-math over 5 seeds: mean={np.mean(aucs):.3f} "
+          f"min={min(aucs):.3f} max={max(aucs):.3f}", flush=True)
 
 
 # ============================ Phase 2.3: calibration =======================
