@@ -631,6 +631,77 @@ Phase-5b total spend ≈ $12 GPU + $6 API. Project total ≈ **$50**.
 
 ---
 
+## Phase 5c — duplex-generalization matched pairs ⭐ (2026-07-17)
+
+**Framing correction (user):** this project is FOR full-duplex models —
+qwen3-8b/mistral-7b (and every model below) are **controls for the RQ1 signal
+findings, never system baselines**. Question: does "the omni fine-tune
+destroys probe transferability" generalize across duplex models, or is it
+MiniCPM-specific? Design: matched pairs — one raw backbone vs its own
+audio/omni/duplex fine-tunes, so each pair is its own control.
+
+**Models** (all ungated, downloaded to the weights volume): Qwen2.5-7B family
+= raw `qwen2.5-7b` vs `qwen2.5-omni-7b` (streaming talker–thinker omni FT) vs
+`minicpm-o26` (true duplex FT, same Qwen2.5-7B base). Second pair:
+`qwen2-7b` raw vs `qwen2-audio-7b` (audio-understanding FT, no duplex).
+Second family raw: `glm4-9b-chat-hf`. Rejected: Moshi (no raw counterpart,
+can't answer text queries); deferred: Kimi-Audio (dual-stream forward breaks
+vanilla generate), GLM-4-Voice (ChatGLM custom layout + likely capability
+confound, see below). New plumbing: `omni_image` (transformers 4.57.6) +
+`run_signals_omni`/`run_ptrue_omni` (Qwen2.5-Omni Thinker, Qwen2-Audio
+`.language_model`), `run_signals_mo`/`run_ptrue_mo` (o2.6 via decode.py;
+needs pre-seeding the transformers_modules cache — 4.51's copier misses
+image_processing_minicpmv.py), `lopo_matched2` (generalized fail-rate
+matching, both directions).
+
+### Headline: LOPO transfer degrades with duplex-ness of the fine-tune
+
+| LOPO (h_prompt probe) | qwen2.5-7b raw | qwen2.5-omni | minicpm-o26 | [o4.5, Qwen3 base] |
+|---|---:|---:|---:|---:|
+| hard-math | **0.809** | 0.745 | **0.538 (≈chance)** | 0.372 (inverts) |
+| hard-knowledge | 0.680 | 0.613 | **0.526 (≈chance)** | 0.61 |
+| probe OOF AUC | 0.798 | 0.724 | 0.752 | 0.822 |
+| ptrue pre/post | .744/.857 | .749/.703 | .604/.777 | .807/.899 |
+
+Gradient on ONE backbone: raw > omni-streaming > duplex. It is not the audio
+modality per se — the closer the fine-tune is to full-duplex training, the
+more transferable difficulty info is washed out of h_prompt.
+
+**`lopo_matched2` deconfound (CPU, ~$0):** subsampling raw qwen2.5-7b's LOPO
+training pools to o2.6's exact fail rates leaves math at **0.825 [.801,.840]**
+(unmatched 0.809; o2.6 actual 0.538); knowledge 0.667 vs o2.6's 0.526. Label
+coverage is ruled out on a SECOND backbone — representation damage is now
+deconfounded 2-for-2 (Qwen3 pair in 5b, Qwen2.5 pair here).
+
+### Honest complications
+
+1. **Raw baselines vary a lot** (LOPO math: qwen2 .552, glm4 .670, qwen2.5
+   .809, mistral .817, qwen3 .961) — the defensible statistic is the
+   within-pair Δ, not absolute AUC. "Inversion" (<0.5) remains duplex-only;
+   raw models are 5-for-5 non-inverted (mistral fact .445 the one exception).
+2. **Qwen2-Audio pair is confounded and uninformative**: the audio FT crushed
+   capability itself (math fail .256→.744, knowledge .60→.79), so the failure
+   distribution changed under the probe (math LOPO .552→.672, chat .777→.533;
+   matched rerun unstable [.34,.61]). Capability collapse ≈ floor effect —
+   documented as a negative, not evidence either way. GLM-4-Voice was skipped
+   for the same expected confound + adaptation cost.
+3. **GLM-4 breaks the p(True) streak**: glm4-9b-chat-hf ptrue_post 0.685 <
+   probe 0.798 (was 4-for-4 the other way). "p(True) beats the probe" softens
+   to "on most backbones; it depends on self-eval calibration quality."
+   Also qwen2.5-omni is the first model with ptrue pre (.749) > post (.703),
+   and o2.6 inverts o4.5's trap pattern (pre .604 weak, post .875 strong).
+
+**Step-1 narrative upgrade:** for the paper's target audience (duplex-model
+builders) this is a directly actionable caution — hidden-state probes that
+work on a raw backbone degrade to chance after duplex fine-tuning (matched-
+pair, label-matched evidence on 2 backbones), while verbalized self-eval,
+though also dented, stays usable. Gate design conclusion unchanged: behavior-
+level signals (p(True)) over representation-level probes for duplex targets.
+
+Phase-5c spend ≈ $25 GPU + $8 API. Project total ≈ **$85**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

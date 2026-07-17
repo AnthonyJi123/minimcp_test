@@ -170,15 +170,24 @@ def smoke():
     print("\n>>> smoke OK", flush=True)
 
 
-def _load_model():
+def _load_model(model_dir: str = MODEL_DIR):
+    import glob as _glob
+    import shutil
     import torch
     from transformers import AutoModel, AutoTokenizer
+    # Pre-seed the dynamic-module cache: 4.51's relative-import copier misses
+    # image_processing_minicpmv.py on the o2.6 snapshot (chain written for 4.44).
+    cache = os.path.expanduser("~/.cache/huggingface/modules/transformers_modules/"
+                               + os.path.basename(model_dir))
+    os.makedirs(cache, exist_ok=True)
+    for f in _glob.glob(f"{model_dir}/*.py"):
+        shutil.copy(f, cache)
     model = AutoModel.from_pretrained(
-        MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+        model_dir, trust_remote_code=True, attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
         init_vision=False, init_audio=False, init_tts=False,
     ).eval().cuda()
-    tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
+    tok = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     return model, tok
 
 
@@ -959,6 +968,22 @@ def ptrue_gate_eval():
 HF_MODELS = {
     "qwen3-8b": "Qwen/Qwen3-8B",                       # MiniCPM's backbone family, raw
     "mistral-7b": "mistralai/Mistral-7B-Instruct-v0.3",  # different family, ungated
+    # --- duplex/omni generalization (2026-07-17): does the omni fine-tune
+    # destroying probe transfer generalize? Matched pairs: one raw backbone vs
+    # its audio/omni/duplex fine-tunes (all Qwen2.5-7B-based), + a 2nd family.
+    "qwen2.5-7b": "Qwen/Qwen2.5-7B-Instruct",          # raw control for the pairs below
+    "qwen2.5-omni-7b": "Qwen/Qwen2.5-Omni-7B",         # omni full-finetune (talker-thinker)
+    "minicpm-o26": "openbmb/MiniCPM-o-2_6",            # true duplex, Qwen2.5-7B base
+    "kimi-audio-7b": "moonshotai/Kimi-Audio-7B-Instruct",  # audio-only finetune (no duplex)
+    # kimi's dual-stream forward (audio input_ids + text_input_ids) breaks
+    # vanilla generate() — deferred. Qwen2-Audio fills the same cell (audio FT,
+    # no duplex) with a native transformers class + its own raw control:
+    "qwen2-audio-7b": "Qwen/Qwen2-Audio-7B-Instruct",  # audio FT of Qwen2-7B
+    "qwen2-7b": "Qwen/Qwen2-7B-Instruct",              # raw control for it
+    "glm4-voice-9b": "zai-org/glm-4-voice-9b",         # 2nd family: voice finetune
+    "glm4-9b-chat-hf": "zai-org/glm-4-9b-chat-hf",     # 2nd family: raw control
+    # (glm-4-9b-chat non-hf was downloaded first but is ChatGLM remote code —
+    #  incompatible with hf_decode's vanilla layout; the -hf port is native.)
 }
 
 
@@ -1133,6 +1158,237 @@ def run_ptrue_hf(tag: str, workers: int = 4):
     print(f">>> collected p(True) for {total} queries")
 
 
+# ====== omni/duplex text-mode collection (duplex-generalization pairs) ======
+# Qwen2.5-Omni's classes need transformers>=4.52; the main GPU image pins 4.51
+# for MiniCPM-o 4.5, so omni collection gets its own image. Text-only: load the
+# Thinker (talker/audio never enter the generate path); hf_decode's hooks fit
+# its layout (model.model.layers[-1] / model.lm_head).
+omni_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("torch==2.8.0")
+    .pip_install("transformers==4.57.6", "accelerate==1.12.0", "pandas",
+                 "pyarrow", "huggingface_hub[hf_transfer]")
+    .add_local_dir(os.path.join(HERE, "src"), "/workspace/gate")
+)
+
+
+def _load_omni_text(tag: str):
+    """Load an omni checkpoint's text path (Thinker) + tokenizer."""
+    import torch
+    from transformers import AutoTokenizer
+    model_dir = f"/workspace/models/{tag}"
+    if tag == "qwen2.5-omni-7b":
+        from transformers import Qwen2_5OmniThinkerForConditionalGeneration
+        model = Qwen2_5OmniThinkerForConditionalGeneration.from_pretrained(
+            model_dir, torch_dtype=torch.bfloat16,
+            attn_implementation="sdpa").eval().cuda()
+    elif tag == "qwen2-audio-7b":
+        # text-only path = the audio-FT'd language_model, a plain
+        # Qwen2ForCausalLM — hf_decode's hooks/generate fit it directly.
+        from transformers import Qwen2AudioForConditionalGeneration
+        full = Qwen2AudioForConditionalGeneration.from_pretrained(
+            model_dir, torch_dtype=torch.bfloat16,
+            attn_implementation="sdpa").eval().cuda()
+        model = full.language_model
+    else:
+        raise ValueError(f"no omni text loader for {tag}")
+    tok = AutoTokenizer.from_pretrained(model_dir)
+    return model, tok
+
+
+@app.function(image=omni_image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60 * 2)
+def collect_signals_omni(shard: list, shard_id: int, tag: str) -> int:
+    """collect_signals_hf for an omni backbone's Thinker."""
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model, tok = _load_omni_text(tag)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+    rows = []
+    for k, q in enumerate(shard):
+        s = hf_decode.chat_with_signals(model, tok, q["query"], k=16,
+                                        max_new_tokens=512)
+        rows.append({**{f: q[f] for f in
+                        ("id", "pool", "source", "query", "reference_answer", "split")},
+                     "answer": s["text"], "n_forward": s["n_forward"],
+                     "entropy": s["entropy"], "margin": s["margin"],
+                     "h_prompt": s["h_prompt"], "h_mean8": s["h_mean8"]})
+        if k < 2 or k % 50 == 0:
+            print(f"  [{k}] {q['pool']} :: {s['text'][:60]!r}", flush=True)
+    out = f"{DATA}/signals_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out} ({len(rows)} rows)", flush=True)
+    return len(rows)
+
+
+@app.function(image=omni_image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_ptrue_omni(shard: list, shard_id: int, tag: str) -> int:
+    """p(True) for an omni backbone's Thinker (same prompts as collect_ptrue)."""
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model, tok = _load_omni_text(tag)
+
+    def tok_ids(words):
+        ids = set()
+        for w in words:
+            enc = tok.encode(w, add_special_tokens=False)
+            if len(enc) == 1:
+                ids.add(enc[0])
+        return sorted(ids)
+
+    YES = tok_ids(["Yes", "yes", "YES", " Yes", " yes", "是", "能", "对", "会"])
+    NO = tok_ids(["No", "no", "NO", " No", " no", "否", "不", "错"])
+    print(f">>> {tag} shard {shard_id}: {len(shard)} | |YES|={len(YES)} "
+          f"|NO|={len(NO)}", flush=True)
+
+    def p_yes(prompt):
+        logits = hf_decode.first_token_logits(model, tok, prompt)
+        p = torch.softmax(logits, dim=-1)
+        py, pn = float(p[YES].sum()), float(p[NO].sum())
+        arg = tok.decode([int(logits.argmax())])
+        return py / (py + pn) if (py + pn) > 0 else 0.5, py + pn, arg
+
+    rows = []
+    for k, q in enumerate(shard):
+        pre, pre_mass, pre_arg = p_yes(PTRUE_PRE.format(q=q["query"]))
+        post, post_mass, post_arg = p_yes(
+            PTRUE_POST.format(q=q["query"], a=q["answer"][:4000]))
+        rows.append({"id": q["id"], "p_yes_pre": pre, "p_yes_post": post,
+                     "mass_pre": pre_mass, "mass_post": post_mass})
+        if k < 3 or k % 50 == 0:
+            print(f"  [{k}] pre={pre:.3f} (mass {pre_mass:.2f}, {pre_arg!r}) "
+                  f"post={post:.3f} (mass {post_mass:.2f}, {post_arg!r})", flush=True)
+    out = f"{DATA}/ptrue_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out}", flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_signals_omni(tag: str, workers: int = 4, limit: int = 0):
+    qs = _load_queries.remote()
+    if limit:
+        qs = qs[:limit]
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} H100 workers")
+    total = sum(collect_signals_omni.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected signals for {total} queries")
+
+
+@app.local_entrypoint()
+def run_ptrue_omni(tag: str, workers: int = 4):
+    qs = _load_ptrue_rows_hf.remote(tag)
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} workers")
+    total = sum(collect_ptrue_omni.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected p(True) for {total} queries")
+
+
+# ---- MiniCPM-o 2.6 (duplex FT of Qwen2.5-7B): same remote-code path as 4.5 ----
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60 * 2)
+def collect_signals_mo(shard: list, shard_id: int, tag: str) -> int:
+    """collect_signals for another MiniCPM-o checkpoint (decode.py hooks)."""
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+
+    model, tok = _load_model(f"/workspace/models/{tag}")
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+    rows = []
+    for k, q in enumerate(shard):
+        s = decode.chat_with_signals(model, tok, q["query"], k=16,
+                                     max_new_tokens=512)
+        rows.append({**{f: q[f] for f in
+                        ("id", "pool", "source", "query", "reference_answer", "split")},
+                     "answer": s["text"], "n_forward": s["n_forward"],
+                     "entropy": s["entropy"], "margin": s["margin"],
+                     "h_prompt": s["h_prompt"], "h_mean8": s["h_mean8"]})
+        if k < 2 or k % 50 == 0:
+            print(f"  [{k}] {q['pool']} :: {s['text'][:60]!r}", flush=True)
+    out = f"{DATA}/signals_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out} ({len(rows)} rows)", flush=True)
+    return len(rows)
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_ptrue_mo(shard: list, shard_id: int, tag: str) -> int:
+    """p(True) for another MiniCPM-o checkpoint (decode.first_token_logits)."""
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+
+    model, tok = _load_model(f"/workspace/models/{tag}")
+
+    def tok_ids(words):
+        ids = set()
+        for w in words:
+            enc = tok.encode(w, add_special_tokens=False)
+            if len(enc) == 1:
+                ids.add(enc[0])
+        return sorted(ids)
+
+    YES = tok_ids(["Yes", "yes", "YES", " Yes", " yes", "是", "能", "对", "会"])
+    NO = tok_ids(["No", "no", "NO", " No", " no", "否", "不", "错"])
+    print(f">>> {tag} shard {shard_id}: {len(shard)} | |YES|={len(YES)} "
+          f"|NO|={len(NO)}", flush=True)
+
+    def p_yes(prompt):
+        logits = decode.first_token_logits(model, tok, prompt)
+        p = torch.softmax(logits, dim=-1)
+        py, pn = float(p[YES].sum()), float(p[NO].sum())
+        arg = tok.decode([int(logits.argmax())])
+        return py / (py + pn) if (py + pn) > 0 else 0.5, py + pn, arg
+
+    rows = []
+    for k, q in enumerate(shard):
+        pre, pre_mass, pre_arg = p_yes(PTRUE_PRE.format(q=q["query"]))
+        post, post_mass, post_arg = p_yes(
+            PTRUE_POST.format(q=q["query"], a=q["answer"][:4000]))
+        rows.append({"id": q["id"], "p_yes_pre": pre, "p_yes_post": post,
+                     "mass_pre": pre_mass, "mass_post": post_mass})
+        if k < 3 or k % 50 == 0:
+            print(f"  [{k}] pre={pre:.3f} (mass {pre_mass:.2f}, {pre_arg!r}) "
+                  f"post={post:.3f} (mass {post_mass:.2f}, {post_arg!r})", flush=True)
+    out = f"{DATA}/ptrue_{tag}.shard{shard_id}.parquet"
+    pd.DataFrame(rows).to_parquet(out)
+    gate_data.commit()
+    print(f">>> wrote {out}", flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_signals_mo(tag: str, workers: int = 4, limit: int = 0):
+    qs = _load_queries.remote()
+    if limit:
+        qs = qs[:limit]
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} H100 workers")
+    total = sum(collect_signals_mo.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected signals for {total} queries")
+
+
+@app.local_entrypoint()
+def run_ptrue_mo(tag: str, workers: int = 4):
+    qs = _load_ptrue_rows_hf.remote(tag)
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} workers")
+    total = sum(collect_ptrue_mo.starmap(
+        [(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> collected p(True) for {total} queries")
+
+
 @app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
 def xmodel_report(tag: str):
     """Replication report for a backbone: headline AUCs + oracle + LOPO
@@ -1205,6 +1461,35 @@ def xmodel_report(tag: str):
             continue
         print(f"    {pl:16s} pre AUC={roc_auc_score(ya[sm], s_pre[sm]):.3f} "
               f"post AUC={roc_auc_score(ya[sm], s_post[sm]):.3f}", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def trap_examples(n: int = 8):
+    """Show trap queries side by side: pre-answer self-eval vs the confident-wrong
+    answer the model actually generated (and its post-answer self-endorsement)."""
+    import glob
+    import pandas as pd
+    df = pd.read_parquet(FEATURES)
+    pt = pd.concat([pd.read_parquet(s) for s in
+                    sorted(glob.glob(f"{DATA}/ptrue.shard*.parquet"))],
+                   ignore_index=True)
+    df = df.merge(pt, on="id")
+    t = df[df["pool"] == "trap"].sort_values("p_yes_pre").reset_index(drop=True)
+    for _, r in t.head(n).iterrows():
+        print("=" * 78, flush=True)
+        print(f"[{r['id']}] Q: {r['query'][:180]}", flush=True)
+        print(f"  REF: {str(r['reference_answer'])[:120]}", flush=True)
+        print(f"  模型答案 (judge: 错): {str(r['answer'])[:220]}", flush=True)
+        print(f"  pre  『你能答对吗?』 P(Yes)={r['p_yes_pre']:.3f}  -> 升级分 {1-r['p_yes_pre']:.3f}", flush=True)
+        print(f"  post 『这答案对吗?』 P(Yes)={r['p_yes_post']:.3f} -> 升级分 {1-r['p_yes_post']:.3f}", flush=True)
+    # and the self-persuasion tail: traps where post most endorses a wrong answer
+    print("\n" + "#" * 22 + " 自我说服最严重的 3 条 (post P(Yes) 最高) " + "#" * 22, flush=True)
+    for _, r in t.sort_values("p_yes_post", ascending=False).head(3).iterrows():
+        print("=" * 78, flush=True)
+        print(f"[{r['id']}] Q: {r['query'][:180]}", flush=True)
+        print(f"  REF: {str(r['reference_answer'])[:120]}", flush=True)
+        print(f"  模型答案 (judge: 错): {str(r['answer'])[:220]}", flush=True)
+        print(f"  pre P(Yes)={r['p_yes_pre']:.3f} | post P(Yes)={r['p_yes_post']:.3f}", flush=True)
 
 
 @app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
@@ -1281,6 +1566,73 @@ def lopo_matched():
         aucs.append(roc_auc_score(y[te], sc2))
     print(f">>> matched LOPO-math over 5 seeds: mean={np.mean(aucs):.3f} "
           f"min={min(aucs):.3f} max={max(aucs):.3f}", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
+def lopo_matched2(tag_ref: str, tag_ft: str):
+    """Generalized lopo_matched: subsample tag_ref's LOPO training pools to
+    tag_ft's per-pool fail rates (up- or down-matching), re-test LOPO on
+    hard-math and hard-knowledge. If tag_ref's transfer survives the handicap,
+    the pair's LOPO gap is representational, not label-coverage."""
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    def calib_of(tag):
+        d = pd.read_parquet(f"{DATA}/features_{tag}.parquet")
+        d = d[d["escalate_label"].notna()]
+        return d[d["split"] == "calib"].reset_index(drop=True)
+
+    ref, ft = calib_of(tag_ref), calib_of(tag_ft)
+    yf = ft["escalate_label"].astype(int).to_numpy()
+    fp = np.array(ft["pool"].tolist())
+    ft_rate = {pl: float(yf[fp == pl].mean()) for pl in sorted(set(fp))}
+    print(f"=== match {tag_ref} -> {tag_ft} rates: "
+          + " ".join(f"{p}={r:.2f}" for p, r in ft_rate.items()), flush=True)
+
+    y = ref["escalate_label"].astype(int).to_numpy()
+    X = np.array([list(v) for v in ref["h_prompt"]], float)
+    pools = np.array(ref["pool"].tolist())
+
+    def matched_mask(rng, exclude_pool):
+        keep = np.zeros(len(ref), bool)
+        for pl, r in ft_rate.items():
+            if pl == exclude_pool:
+                continue
+            s = np.where(pools == pl)[0]
+            fails, passes = s[y[s] == 1], s[y[s] == 0]
+            if r >= 1.0 or len(passes) == 0:
+                keep[fails] = True
+                continue
+            if len(fails) == 0:
+                keep[passes] = True
+                continue
+            natural = len(fails) / len(s)
+            if r <= natural:               # down-match: subsample fails
+                n_f = min(len(fails), int(round(r / (1 - r) * len(passes))))
+                keep[passes] = True
+                keep[rng.choice(fails, max(n_f, 1), replace=False)] = True
+            else:                          # up-match: subsample passes
+                n_p = min(len(passes), int(round((1 - r) / r * len(fails))))
+                keep[fails] = True
+                keep[rng.choice(passes, max(n_p, 1), replace=False)] = True
+        return keep
+
+    for test_pool in ("hard-math", "hard-knowledge"):
+        te = pools == test_pool
+        base = LogisticRegression(max_iter=2000).fit(X[~te], y[~te]) \
+            .predict_proba(X[te])[:, 1]
+        aucs = []
+        for seed in range(5):
+            tr = matched_mask(np.random.RandomState(100 + seed), test_pool) & ~te
+            sc = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]) \
+                .predict_proba(X[te])[:, 1]
+            aucs.append(roc_auc_score(y[te], sc))
+        print(f"  {test_pool:16s} unmatched={roc_auc_score(y[te], base):.3f}  "
+              f"matched mean={np.mean(aucs):.3f} "
+              f"[{min(aucs):.3f},{max(aucs):.3f}] (train n≈{int(tr.sum())})",
+              flush=True)
 
 
 # ============================ Phase 2.3: calibration =======================
