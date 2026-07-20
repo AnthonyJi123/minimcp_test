@@ -1635,6 +1635,228 @@ def lopo_matched2(tag_ref: str, tag_ft: str):
               flush=True)
 
 
+# ================= Phase 5d: layer x position sweep (2026-07-20) ============
+# 5c read ONE point of the network (last layer, last prompt token) and found
+# its transfer degrades with duplex-ness. Is the difficulty info DESTROYED, or
+# RELOCATED away from that readout (late layers / last token plausibly get
+# repurposed for streaming turn control)? Prefill-only forward, all layers,
+# last-token + mean-pooled — labels reused from the 5b/5c judge runs, so no
+# generation and no new API spend.
+
+def _collect_layers_loop(shard, shard_id, tag, layer_modules, make_run):
+    """Shared shard loop: capture per-layer prefill hiddens -> npz on volume."""
+    import numpy as np
+    sys.path.insert(0, "/workspace/gate")
+    import layers as layers_mod
+
+    ids, lasts, means = [], [], []
+    for k, q in enumerate(shard):
+        hl, hm = layers_mod.capture_prefill_layers(layer_modules, make_run(q))
+        ids.append(q["id"])
+        lasts.append(hl.numpy().astype(np.float16))
+        means.append(hm.numpy().astype(np.float16))
+        if k < 2 or k % 50 == 0:
+            print(f"  [{k}] {q['pool']} layers={hl.shape[0]} d={hl.shape[1]}",
+                  flush=True)
+    out = f"{DATA}/layers_{tag}.shard{shard_id}.npz"
+    np.savez_compressed(out, ids=np.array(ids), h_last=np.stack(lasts),
+                        h_mean=np.stack(means))
+    gate_data.commit()
+    print(f">>> wrote {out} ({len(ids)} rows)", flush=True)
+    return len(ids)
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_layers_hf(shard: list, shard_id: int, tag: str) -> int:
+    """Layer sweep for a vanilla HF backbone (prefill-only, no generation)."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model_dir = f"/workspace/models/{tag}"
+    model = AutoModelForCausalLM.from_pretrained(
+        model_dir, torch_dtype=torch.bfloat16,
+        attn_implementation="sdpa").eval().cuda()
+    tok = AutoTokenizer.from_pretrained(model_dir)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+
+    def make_run(q):
+        inputs = hf_decode._build_inputs(model, tok, q["query"])
+        return lambda: model(**inputs)
+
+    return _collect_layers_loop(shard, shard_id, tag,
+                                list(model.model.layers), make_run)
+
+
+@app.function(image=omni_image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_layers_omni(shard: list, shard_id: int, tag: str) -> int:
+    """Layer sweep for an omni backbone's text path (Thinker)."""
+    sys.path.insert(0, "/workspace/gate")
+    import hf_decode
+
+    model, tok = _load_omni_text(tag)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+
+    def make_run(q):
+        inputs = hf_decode._build_inputs(model, tok, q["query"])
+        return lambda: model(**inputs)
+
+    return _collect_layers_loop(shard, shard_id, tag,
+                                list(model.model.layers), make_run)
+
+
+@app.function(image=image, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_layers_mo(shard: list, shard_id: int, tag: str) -> int:
+    """Layer sweep for a MiniCPM-o checkpoint (model.chat prefill, remote code
+    builds the prompt — same faithfulness argument as decode.py)."""
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+
+    model_dir = MODEL_DIR if tag == "minicpm-o45" else f"/workspace/models/{tag}"
+    model, tok = _load_model(model_dir)
+    kw = decode._chat_kwargs(model, tok)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+
+    def make_run(q):
+        return lambda: model.chat(msgs=[{"role": "user", "content": [q["query"]]}],
+                                  max_new_tokens=1, **kw)
+
+    return _collect_layers_loop(shard, shard_id, tag,
+                                list(model.llm.model.layers), make_run)
+
+
+def _run_layers(collect_fn, tag: str, workers: int, limit: int):
+    qs = _load_queries.remote()
+    if limit:
+        qs = qs[:limit]
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> {tag}: {len(qs)} queries / {workers} H100 workers")
+    total = sum(collect_fn.starmap([(shards[i], i, tag) for i in range(workers)]))
+    print(f">>> layer-swept {total} queries")
+
+
+@app.local_entrypoint()
+def run_layers_hf(tag: str, workers: int = 2, limit: int = 0):
+    _run_layers(collect_layers_hf, tag, workers, limit)
+
+
+@app.local_entrypoint()
+def run_layers_omni(tag: str, workers: int = 2, limit: int = 0):
+    _run_layers(collect_layers_omni, tag, workers, limit)
+
+
+@app.local_entrypoint()
+def run_layers_mo(tag: str, workers: int = 2, limit: int = 0):
+    _run_layers(collect_layers_mo, tag, workers, limit)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 60 * 2,
+              cpu=8)
+def layer_sweep_report(tag: str):
+    """Per-layer, per-pooling probe metrics on calib rows (mirrors
+    xmodel_report's estimators): OOF AUC + LOPO per pool + trap mean score.
+    Saves curves to layer_sweep_{tag}.json for the cross-model figure."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.metrics import roc_auc_score
+
+    feats = FEATURES if tag == "minicpm-o45" else f"{DATA}/features_{tag}.parquet"
+    df = pd.read_parquet(feats)[["id", "pool", "split", "escalate_label"]]
+
+    shards = sorted(glob.glob(f"{DATA}/layers_{tag}.shard*.npz"))
+    ids, hl, hm = [], [], []
+    for s in shards:
+        z = np.load(s)
+        ids += [str(x) for x in z["ids"]]
+        hl.append(z["h_last"])
+        hm.append(z["h_mean"])
+    hl, hm = np.concatenate(hl), np.concatenate(hm)      # (n, L, d) float16
+    m = pd.DataFrame({"id": ids, "row": range(len(ids))}).merge(df, on="id")
+    m = m[(m["split"] == "calib") & m["escalate_label"].notna()]
+    y = m["escalate_label"].astype(int).to_numpy()
+    pools = m["pool"].to_numpy()
+    rows_idx = m["row"].to_numpy()
+    n_layers = hl.shape[1]
+    print(f"=== {tag} layer sweep (calib n={len(m)}, layers={n_layers}, "
+          f"d={hl.shape[2]}) ===", flush=True)
+
+    cv = StratifiedKFold(5, shuffle=True, random_state=42)
+    curves = []
+    for li in range(n_layers):
+        rec = {"layer": li}
+        for name, H in (("last", hl), ("mean", hm)):
+            X = H[rows_idx, li, :].astype(np.float32)
+            oof = cross_val_predict(LogisticRegression(max_iter=2000), X, y,
+                                    cv=cv, method="predict_proba")[:, 1]
+            rec[f"{name}_oof"] = float(roc_auc_score(y, oof))
+            for pl in sorted(set(pools)):
+                tr, te = pools != pl, pools == pl
+                sc = LogisticRegression(max_iter=2000).fit(X[tr], y[tr]) \
+                    .predict_proba(X[te])[:, 1]
+                if len(set(y[te])) < 2:
+                    rec[f"{name}_lopo_{pl}_meanscore"] = float(sc.mean())
+                else:
+                    rec[f"{name}_lopo_{pl}"] = float(roc_auc_score(y[te], sc))
+        curves.append(rec)
+        print(f"  L{li:02d} last: oof={rec['last_oof']:.3f} "
+              f"math={rec.get('last_lopo_hard-math', float('nan')):.3f} "
+              f"know={rec.get('last_lopo_hard-knowledge', float('nan')):.3f} | "
+              f"mean: oof={rec['mean_oof']:.3f} "
+              f"math={rec.get('mean_lopo_hard-math', float('nan')):.3f} "
+              f"know={rec.get('mean_lopo_hard-knowledge', float('nan')):.3f}",
+              flush=True)
+
+    out = f"{DATA}/layer_sweep_{tag}.json"
+    with open(out, "w") as f:
+        json.dump({"tag": tag, "n_layers": n_layers, "curves": curves}, f)
+    gate_data.commit()
+    print(f">>> wrote {out}", flush=True)
+
+
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 10)
+def layer_sweep_fig(tags: str):
+    """Cross-model figure: LOPO transfer vs relative depth. `tags` comma-sep."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    metrics = [("lopo_hard-math", "LOPO hard-math AUC"),
+               ("lopo_hard-knowledge", "LOPO hard-knowledge AUC"),
+               ("oof", "in-mix OOF AUC")]
+    poolings = [("last", "last prompt token"), ("mean", "mean over prompt")]
+    fig, axes = plt.subplots(len(poolings), len(metrics),
+                             figsize=(14, 7), sharex=True, sharey=True)
+    for ti, tag in enumerate(tags.split(",")):
+        with open(f"{DATA}/layer_sweep_{tag}.json") as f:
+            data = json.load(f)
+        L = data["n_layers"]
+        x = [(li + 1) / L for li in range(L)]
+        for pi, (pool, plabel) in enumerate(poolings):
+            for mi, (met, mlabel) in enumerate(metrics):
+                ax = axes[pi][mi]
+                ys = [c.get(f"{pool}_{met}") for c in data["curves"]]
+                ax.plot(x, ys, label=tag, color=f"C{ti}")
+                if pi == 0:
+                    ax.set_title(mlabel)
+                if mi == 0:
+                    ax.set_ylabel(f"{plabel}\nAUC")
+    for ax in axes.flat:
+        ax.axhline(0.5, color="gray", lw=0.8, ls="--")
+        ax.set_xlabel("relative depth")
+        ax.grid(alpha=0.3)
+    axes[0][0].legend(fontsize=8)
+    fig.suptitle("Probe transfer by layer: is difficulty info destroyed or relocated?")
+    fig.tight_layout()
+    out = f"{DATA}/layer_sweep.png"
+    fig.savefig(out, dpi=150)
+    gate_data.commit()
+    print(f">>> wrote {out}", flush=True)
+
+
 # ============================ Phase 2.3: calibration =======================
 @app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
 def calibrate():

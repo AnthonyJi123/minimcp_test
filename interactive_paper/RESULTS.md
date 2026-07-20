@@ -702,6 +702,76 @@ Phase-5c spend ≈ $25 GPU + $8 API. Project total ≈ **$85**.
 
 ---
 
+## Phase 5d — layer × position sweep: destroyed vs relocated ⭐ (2026-07-20)
+
+5c established that the (last layer, last prompt token) probe's transfer
+degrades with duplex-ness, but read only that ONE point of the network. Rival
+explanations: (a) **destroyed** — duplex training washes difficulty info out
+of the model; (b) **relocated** — duplex training repurposes the late-layer /
+last-token readout (streaming turn control lives there) and the info survives
+elsewhere. User hypothesis going in: (b).
+
+**Method:** prefill-only forward per query (no generation, labels reused from
+the 5b/5c judge runs → $0 API), hooks on EVERY decoder layer capturing both
+the last-prompt-token hidden and the mean over all prompt positions
+(`src/layers.py`, `collect_layers_{hf,omni,mo}`, `layer_sweep_report`,
+float16 npz on the volume). Per layer × pooling: OOF AUC + LOPO, calib rows,
+same estimators as `xmodel_report`. **Faithfulness check passed:** final-layer
+numbers reproduce 5c's generation-time hooks exactly (qwen2.5-7b math .809=.809,
+o2.6 .540≈.538, o4.5 .366≈.372, omni .746≈.745, qwen3 .958≈.961).
+
+### Headline: (b) relocated — more precisely, OVERWRITTEN AT THE READOUT
+
+LOPO hard-math, last-token pooling:
+
+| model | best mid-layer | final layer | shape |
+|---|---:|---:|---|
+| qwen3-8b (raw) | 0.964 (L33/36) | 0.958 | plateau L10→end, no cliff |
+| **minicpm-o45 (duplex)** | **0.931 (L22/36)** | **0.366** | cliff in last 4 layers, INVERTS |
+| qwen2.5-7b (raw) | 0.893 (L21/28) | 0.809 | mild late dip |
+| qwen2.5-omni (streaming) | 0.794 (L16/28) | 0.746 | whole curve depressed, no cliff |
+| **minicpm-o26 (duplex)** | **0.822 (L21/28)** | **0.540** | cliff in last ~5 layers |
+
+- **o4.5's famous math inversion (.372) is a readout artifact.** Mid-network,
+  the duplex model carries near-raw transferable difficulty info (within-pair
+  Δ at best layer −0.03; at final layer −0.59). The collapse is sharply
+  localized: L31 .757 → L32 .654 → L33 .492 → L34 .357.
+- **o2.6 same signature** (L21 .822 → L27 .540); knowledge likewise (L19 .748
+  → L27 .526 ≈ chance).
+- **Mean-pooling survives to the end** on the duplex models (o4.5 math ~.80
+  at L35; o2.6 .674 at L27) → the damage is position-specific (last token)
+  as well as depth-specific (late layers). Both raw models keep last-token
+  transfer through the final layer, so the cliff is a fine-tune effect, not
+  an architecture generic.
+- **Fine-tune types differ in damage profile:** true duplex = severe but
+  LOCAL (mid-layers intact, readout cliff/inversion); omni-streaming =
+  mild but DIFFUSE (all layers depressed ~.1, no cliff). Also of note: even
+  raw backbones peak mid-network, not at the readout (qwen2.5 .893 vs .809).
+- in-mix OOF stays high at the duplex readout (o4.5 L35 .835) — consistent
+  with 5b's "the readout still supports type recognition + in-distribution
+  probing; it's the *transferable self-knowledge* component that's gone".
+
+### Revisions to earlier conclusions
+
+1. 5b's "probe ≈ query-type recognition, math inversion suggests no
+   self-knowledge signal" → **the self-knowledge signal exists and is strong
+   (.93 LOPO math), the standard readout just can't see it on duplex models.**
+2. 5c's "duplex FT washes difficulty info out of h_prompt" → **"duplex FT
+   overwrites the late-layer last-token readout; mid-network info is intact."**
+   (Consistent with the mechanism: that readout is exactly where a streaming
+   head must encode turn-control state.)
+3. Gate design for duplex targets: representation probes are BACK on the
+   table — read a mid-layer (~60% depth) instead of the final layer. p(True)
+   remains the zero-plumbing option; the mid-layer probe is the zero-latency
+   option (no extra forward). Two-stage design unchanged otherwise.
+
+Figure: `figures/layer_sweep.png` (5 models × {last,mean} × {LOPO math,
+LOPO knowledge, OOF}). Curves: `layer_sweep_{tag}.json` on the volume.
+
+Phase-5d spend ≈ $8 GPU + $0 API. Project total ≈ **$93**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
