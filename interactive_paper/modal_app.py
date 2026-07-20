@@ -1857,6 +1857,115 @@ def layer_sweep_fig(tags: str):
     print(f">>> wrote {out}", flush=True)
 
 
+@app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 30,
+              cpu=8)
+def midlayer_gate_eval(layer: int = 22, pooling: str = "last"):
+    """RQ2 rerun with the MID-LAYER probe (Phase 5e): does 5d's finding — the
+    self-knowledge signal survives mid-network on the duplex model — convert
+    into a better accuracy-vs-escalation curve on the frozen test split?
+
+    Layer choice must come from CALIB-only evidence (the 5d sweep used calib
+    rows exclusively); default L22 = calib LOPO-math peak for minicpm-o45.
+    Nearby layers are swept for sensitivity. Same protocol/curve/area code as
+    ptrue_gate_eval; deployed final-layer probe + p(True) reproduced as
+    references on the same rows."""
+    import glob
+    import json as _json
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from sklearn.linear_model import LogisticRegression
+    sys.path.insert(0, "/workspace/gate")
+    from gate import Probe
+
+    df = pd.read_parquet(FEATURES)
+    df = df[df["escalate_label"].notna()].reset_index(drop=True)
+    pt = pd.concat([pd.read_parquet(s) for s in
+                    sorted(glob.glob(f"{DATA}/ptrue.shard*.parquet"))],
+                   ignore_index=True)
+    df = df.merge(pt, on="id", validate="one_to_one")
+    cfg = _json.load(open(GATE_CFG))
+    probe = Probe.from_config(cfg)
+    df["probe_score"] = [probe.score(list(h)) for h in df["h_prompt"]]
+    df["ptrue_pre_score"] = 1.0 - df["p_yes_pre"]
+    df["ptrue_post_score"] = 1.0 - df["p_yes_post"]
+
+    # 5d layer capture (all 600 rows, all layers, float16)
+    ids, H = [], []
+    key = "h_last" if pooling == "last" else "h_mean"
+    for s in sorted(glob.glob(f"{DATA}/layers_minicpm-o45.shard*.npz")):
+        z = np.load(s)
+        ids += [str(x) for x in z["ids"]]
+        H.append(z[key])
+    H = np.concatenate(H)
+    row_of = {i: k for k, i in enumerate(ids)}
+    df["lrow"] = df["id"].map(row_of)
+
+    test = df[df["split"] == "test"].reset_index(drop=True)
+    calib = df[df["split"] == "calib"].reset_index(drop=True)
+    exp = pd.read_parquet(EVAL_EXPERT).set_index("id")
+    b = lambda x: 1 if x is True or x == 1 else 0
+    s = np.array([b(x) for x in test["adequate"].values])
+    e = np.array([b(exp.loc[i, "expert_adequate"]) for i in test["id"].values])
+    small_acc, big_acc = s.mean(), e.mean()
+    print(f">>> TEST n={len(test)} small={small_acc:.3f} big={big_acc:.3f} "
+          f"(pooling={pooling})", flush=True)
+
+    def curve(scores):
+        ts = np.concatenate([[np.inf], np.unique(scores)[::-1], [-np.inf]])
+        pts = np.array([[(scores >= t).mean(),
+                         np.where(scores >= t, e, s).mean()] for t in ts])
+        return pts[np.argsort(pts[:, 0])]
+
+    def area(c):
+        randl = (1 - c[:, 0]) * small_acc + c[:, 0] * big_acc
+        d = c[:, 1] - randl
+        return float(np.sum((d[1:] + d[:-1]) / 2 * np.diff(c[:, 0])))
+
+    def mid_scores(li):
+        y = calib["escalate_label"].astype(int).to_numpy()
+        Xc = H[calib["lrow"].to_numpy(), li, :].astype(np.float32)
+        Xt = H[test["lrow"].to_numpy(), li, :].astype(np.float32)
+        lr = LogisticRegression(max_iter=2000).fit(Xc, y)
+        return lr.predict_proba(Xc)[:, 1], lr.predict_proba(Xt)[:, 1]
+
+    plt.figure(figsize=(7, 6))
+    print(f"\n{'signal':18s} {'area':>8s} | hybrid acc @ esc rate "
+          f"{{.15/.30/.50}} (thr from calib quantiles)", flush=True)
+    rows = [("probe_final(cfg)", calib["probe_score"].to_numpy(),
+             test["probe_score"].to_numpy(), False),
+            ("ptrue_pre", calib["ptrue_pre_score"].to_numpy(),
+             test["ptrue_pre_score"].to_numpy(), True),
+            ("ptrue_post", calib["ptrue_post_score"].to_numpy(),
+             test["ptrue_post_score"].to_numpy(), True)]
+    for li in sorted({layer, 18, 20, 24, 26, 30}):
+        cs, tsc = mid_scores(li)
+        rows.insert(-1, (f"midlayer_L{li}", cs, tsc, li == layer))
+    for name, csc, tsc, plot in rows:
+        c = curve(tsc)
+        accs = []
+        for rate in (0.15, 0.30, 0.50):
+            t = float(np.quantile(csc, 1 - rate))
+            esc = tsc >= t
+            accs.append(f"{np.where(esc, e, s).mean():.3f}(esc {esc.mean():.2f})")
+        print(f"{name:18s} {area(c):+.4f} | " + "  ".join(accs), flush=True)
+        if plot or name.startswith("probe_final"):
+            plt.plot(c[:, 0], c[:, 1], "-", lw=2,
+                     label=f"{name} (area {area(c):+.3f})")
+
+    r = np.linspace(0, 1, 101)
+    plt.plot(r, (1 - r) * small_acc + r * big_acc, "k--", lw=1,
+             label="random escalation")
+    plt.xlabel("escalation rate"); plt.ylabel("accuracy (expert-inject)")
+    plt.title(f"Mid-layer probe (L{layer}, {pooling}) vs deployed gate signals")
+    plt.legend(); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(f"{DATA}/tradeoff_midlayer.png", dpi=140)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/tradeoff_midlayer.png", flush=True)
+
+
 # ============================ Phase 2.3: calibration =======================
 @app.function(image=util_image, volumes={DATA: gate_data}, timeout=60 * 20)
 def calibrate():

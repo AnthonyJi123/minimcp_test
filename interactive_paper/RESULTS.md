@@ -772,6 +772,48 @@ Phase-5d spend ≈ $8 GPU + $0 API. Project total ≈ **$93**.
 
 ---
 
+## Phase 5e — mid-layer probe in the RQ2 tradeoff (2026-07-20)
+
+Does 5d convert into a better gate? `midlayer_gate_eval` (CPU, $0): train a
+probe on CALIB rows at a mid layer of o4.5 (layer chosen from 5d's calib-only
+curves — L22 = calib LOPO-math peak; L18–L30 swept for sensitivity), score
+the frozen test split, same curve/area protocol + the same rows as
+`ptrue_gate_eval`. Deployed final-layer probe and p(True) re-evaluated
+in-run as references.
+
+| signal (test n=240) | area | stage |
+|---|---:|---|
+| probe_final (deployed cfg) | +0.054 | pre-decode |
+| ptrue_pre | +0.059 | pre-decode |
+| **midlayer_L22 (last-token)** | **+0.064** | **pre-decode** |
+| ptrue_post | +0.068 | post-draft |
+
+- **The mid-layer probe is the best PRE-DECODE signal** — beats both the
+  deployed final-layer probe (+0.054→+0.064, closes ~68% of the gap to
+  ptrue_post) and ptrue_pre. ptrue_post keeps the overall crown but needs
+  the full draft answer first (latency = a whole generation) + an extra
+  forward; the mid-layer probe costs literally nothing at prefill.
+- Sensitivity: L20–L30 all ≥ +0.056 (L22 best; L18 +0.053) — not knife-edge.
+  Mean-pooling uniformly worse in-mix (L22 +0.058) — mid-depth **last-token**
+  is the sweet spot, matching 5d.
+- Caveat: quantile-threshold transfer is still probe-weak (esc 0.12 realized
+  at nominal .15; p(True) transfers rates much better) — a deployed mid-layer
+  gate needs Phase-3-style score-scale calibration (C-compression). Area
+  (threshold-free) is the headline metric here.
+- Note the in-mix area ranking compresses the 5d story: test has the same
+  pool mix as calib, where even the damaged readout scores +0.054 via type
+  recognition. The mid-layer probe's LOPO robustness (math .93 vs .37) is
+  the bigger deployment argument and doesn't show in this table.
+
+**Two-stage gate design, final form:** stage 1 (prefill, free) = mid-layer
+probe — now the best zero-latency signal on the duplex target; stage 2
+(post-draft, optional) = ptrue_post draft-check. Figure:
+`figures/tradeoff_midlayer.png`.
+
+Phase-5e spend ≈ $0. Project total ≈ **$93**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
