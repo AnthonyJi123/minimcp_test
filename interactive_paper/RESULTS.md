@@ -814,6 +814,394 @@ Phase-5e spend ≈ $0. Project total ≈ **$93**.
 
 ---
 
+## Phase 6a — audio-input replication ⭐ (2026-07-20)
+
+Does the signal stack survive when the SAME frozen 600-query pool enters
+through o4.5's audio channel? Arm A = TTS matched pairs (user-approved:
+OpenAI `tts-1`, voice `alloy`, en+zh, 0 truncated; query CONTENT unchanged —
+public-benchmark pool, only the modality is synthetic, matching
+Spoken-SQuAD/VoiceBench practice). Arm B (SD-QA real-speech validation) still
+open. New code: `modal_audio.py` (tag `minicpm-o45-audio`, same file formats
+as the text pipeline so `label_hf`/`layer_sweep_report` ran unchanged);
+`audio_report` adds paired fail rates + per-layer cross-modal transfer.
+Smoke: chat accepts raw 16 kHz numpy; **pure-audio content (no text
+instruction) answers the question** (no transcription behavior) → collection
+used `content=[audio]` only. Judge: 0 errors on 600.
+
+### Headline 1: the 5d readout cliff is TEXT-INPUT-SPECIFIC
+
+Audio→audio LOPO hard-math (last-token): mid-layers L12–L16 hit **.93–.96**
+(peak L16 .960) — the self-knowledge signal is fully present on audio input.
+But the final layer **does not invert on audio: L35 = .936** (text input:
+L35 = .366). The duplex fine-tune's late-layer/last-token damage — the
+central 5d finding — appears only when the prompt is text. On the model's
+NATIVE modality the standard readout survives end-to-end. Mechanism note:
+the audio chat template may append wrapper text tokens after the audio
+(last-prompt-token position ≠ last audio token); un-audited — flagged as the
+first follow-up before leaning on this in the paper.
+
+### Headline 2: cross-modal probe transfer works (calibrate on text, deploy on speech)
+
+Per-layer probes trained on TEXT calib rows, scored on AUDIO calib rows
+(audio labels), and vice versa:
+
+| region | text→audio | audio→text |
+|---|---:|---:|
+| early (L00–L08) | .54–.60 | .57–.71 |
+| mid (L19–L25) | **.82–.87** (L23 .867) | .73–.86 (L23 .857) |
+| late (L28–L35) | .84–.86 | .83–.86 |
+| deployed layer L22 | **.855** | .797 |
+
+Early layers are modality-specific; from ~55% depth the representation is
+modality-shared and a text-calibrated probe reads audio hiddens at ~.86 AUC.
+The cheap deployment recipe (calibrate on text data, run on speech) is
+viable at the 5e gate layer.
+
+### Headline 3: the modality tax, and p(True)'s trap introspection collapses
+
+Paired fail rates (same queries, n=600): audio input costs +5 to +15 pts —
+easy-chat .207→.307, easy-fact .340→.390, hard-knowledge .480→.627,
+hard-math .187→.247, trap 1.00→.96. Audio p(True): pre AUC .786 (text .807),
+post .860 (text .899) — mild degradation overall, BUT the 5b trap story does
+not survive the modality: **trap mean p_yes_pre = .556 on audio** (text
+≈ .055, i.e. escalation score .945 → .444). Asked before answering, the
+model no longer knows it doesn't know when the trap question arrives as
+speech — near coin-flip. Role reversal vs the text story: on audio the
+probe is the robust signal and pre-answer p(True) is the fragile one.
+
+Artifacts: `signals_/layers_/features_/ptrue_minicpm-o45-audio.*`,
+`layer_sweep_minicpm-o45-audio.json`, `audio_xmodal_minicpm-o45-audio.json`
+on gate-data; wavs in `/data/audio_pool/`. Pipeline (cwd=interactive_paper,
+PYTHONUTF8=1): tts_pool → run_audio_signals → label_hf --tag
+minicpm-o45-audio → run_audio_ptrue → layer_sweep_report → audio_report.
+Gotcha: Modal auto-mounts only the entry module — modal_audio.py's images
+add modal_app.py via `add_local_file` or containers die on import.
+
+### ASR audit: perception vs introspection (user challenge, same day)
+
+Could the trap collapse just be the model MIS-HEARING the question (rare
+entities + TTS)? Three-arm test (`collect_asr`/`asr_report`): the model
+transcribes each wav, then TEXT ptrue_pre runs on its OWN transcript.
+
+| pool | WER mean/med | p_yes text | transcript | audio |
+|---|---|---:|---:|---:|
+| easy-chat | .077/.000 | .728 | .715 | .800 |
+| easy-fact | .040/.000 | .663 | .632 | .860 |
+| hard-knowledge | .224/.114 | .498 | .410 | .606 |
+| hard-math | .131/.083 | .867 | .771 | .953 |
+| **trap** | **.074/.058** | **.055** | **.074** | **.556** |
+
+**Perception hypothesis REFUTED for trap:** (1) trap WER .074 — heard
+almost perfectly; (2) on its own transcript p_yes snaps back to .074 ≈ text
+.055 — the self-knowledge is THERE and accessible the moment the same heard
+content is re-presented as text; (3) the well-heard subset (WER≤.15, n=43)
+still collapses (audio p_yes .582), the misheard 7 are actually LOWER
+(.394); (4) corr(WER, p_yes_audio) = −.115 ≈ none. → The collapse is in the
+audio-input introspection READOUT, not perception. Elegant symmetry with 5d:
+probe's late readout is text-fragile, p(True)'s verbalized readout is
+audio-fragile — in both cases the knowledge survives, a readout breaks.
+
+Secondary: p_yes_audio > p_yes_text on EVERY pool (+.07 to +.50).
+hard-knowledge is the one pool where perception DOES contribute (WER .224,
+long MCQ options — consistent with its +14.7pt fail-rate jump). Possible
+cheap fix for audio p(True): "repeat-then-judge" (transcribe, then text
+ptrue_pre on the transcript) — recovers trap introspection at
+~question-length extra decode.
+
+**Log-odds decomposition (`ptrue_shift_report`, $0): the audio shift is NOT
+a uniform prior.** Per-query paired Δlogit(p_yes) medians: easy-chat +0.19,
+hard-knowledge +0.63, easy-fact +1.19, hard-math +2.50, **trap +4.37**
+(global median +1.12; trap excess over global **+3.25**; 30/50 traps flip
+from the No side to the Yes side). A single "audio makes it overconfident"
+logit bias is refuted — the shift is graded. Revised mechanism hypothesis:
+in audio context the VERBALIZED self-assessment regresses to TYPE-level
+priors ("chat → easy", "math → I can do math", "factual question → sure"),
+and INSTANCE-level evidence (which specific entity) fails to reach the
+verbal judgment — while instance-level info demonstrably stays in the
+representation (audio LOPO within held-out pools .93+; the probe ranks
+instances fine). Explains the full gradient: shift magnitude tracks how
+much the correct judgment depends on instance vs type (chat: type suffices;
+trap: instance is everything). Discriminating experiments RUN (same day,
+`collect_ptrue_arms`/`arms_report`, n=600):
+
+| trap p_yes | text | filler-audio+text (ctx) | audio+text-dup (dup) | audio |
+|---|---:|---:|---:|---:|
+| | .055 | **.001** | **.034** | .556 |
+
+Δlog-odds vs text: ctx −3.28, dup **−0.44 (full recovery)**, audio +4.37.
+**Both arms land on the binding hypothesis:** (ctx) irrelevant audio in
+context does NOT inflate p_yes — the context-prior/persona story is refuted
+(if anything filler audio depresses p_yes everywhere: fact .663→.268, chat
+.728→.528 — audio context biases toward caution, the opposite of
+overconfidence); (dup) giving the SAME question as text tokens alongside
+the audio fully restores trap introspection (.034 ≈ .055) even though the
+audio is still present. Mechanism, final form: **the verbalized
+self-assessment performs its instance check (do I know THIS entity?) over
+text-token pathways; audio-embedding tokens don't feed it** — while the
+instance evidence demonstrably sits in the shared representation (probe
+reads it at .93+). Practical fix confirmed twice over: any text
+re-presentation of the question (ground-truth dup here, own-transcript in
+the ASR audit at .074) restores the signal.
+
+### TTS-template control: the cliff tracks INPUT MODALITY, not speak mode
+
+Mechanism probe (`collect_layers_ttstpl`, tag `minicpm-o45-ttstpl`): same
+600 TEXT queries, but prefilled under the speak-mode template
+(`use_tts_template=True`, no TTS weights needed). If the 5d cliff came from
+"prepare-to-speak" processing, it should move with the template flag.
+
+LOPO hard-math, last-token, late layers:
+
+| input | L31 | L32 | L33 | L34 | L35 | mid peak |
+|---|---:|---:|---:|---:|---:|---:|
+| text, plain template (5d) | .757 | .654 | .492 | .357 | .366 | .931 (L22) |
+| text, TTS template | .689 | .586 | .519 | .468 | **.362** | .949 (L19) |
+| audio (6a) | .903 | .901 | .918 | .920 | **.936** | .960 (L16) |
+
+**The cliff is unchanged under the speak-mode template (L35 .362 ≈ .366)**
+— it does not track the output-mode flag. Combined with audio's clean L35,
+the operative variable is the modality of the CONTEXT (text tokens vs audio
+embeddings), not the template or the speaking intent. Mean-pooling again
+survives in all three conditions (ttstpl mean L35 math .801). This also
+weighs against the trivial "audio's last position is just a template text
+token" artifact story: if late layers damaged all text-token processing at
+the readout position, the audio template's text wrapper tail would show the
+cliff too — it doesn't. Revised mechanism claim: **the duplex fine-tune
+re-purposed late-layer last-position processing of text-token contexts
+specifically; audio-token contexts (protected by heavy ASR/understanding
+training pressure) retain the faithful readout.** Prompt-tail audit stays
+open but demoted (this control covers its main scenario).
+
+### Judge validation: gpt-5.5 re-judge (user request, 2026-07-21)
+
+Both o4.5 answer sets re-judged with gpt-5.5 (`rejudge`, JUDGE_MODEL
+monkeypatched, max_tokens 8192; 0 errors). **Agreement with gpt-5.4-mini:
+text 0.962, audio 0.945** — disagreement concentrated exactly in easy-chat
+(no-reference subjective pool: .907 text / .853 audio, flips balanced in
+both directions); reference-backed pools ≥ .95, easy-fact and trap at/near
+1.0 (audio trap: 5.5 says 1.000 fail vs mini .960). Escalate rates move
+≤4pts in any pool. `rescore55` under 5.5 labels: audio ptrue pre .786→.794,
+post .860→.864, L22 probe OOF .815→.805 — **every headline number moves
+≤.010; no conclusion changes.** Verdict: mini judge validated, keep
+gpt-5.4-mini as default (5.5 labels stored in features_gpt55_{tag}.parquet).
+Closes the "judge variance" open gap from 5b. Cost ≈ $25.
+
+### Phase-6 streaming feasibility smoke ✅ (2026-07-21)
+
+Headless duplex loop works on our pinned image — NO demo framework needed
+(`streaming_smoke` in modal_audio.py, all 5 stages green):
+
+1. **API surface**: remote code ships `streaming_prefill(session_id, msgs,
+   omni_mode=True, is_last_chunk, ...)`, `streaming_generate(...,
+   teacher_forcing_text='')`, `get_sys_prompt(mode='omni')`,
+   `reset_session()`. **`teacher_forcing_text` = the official control point
+   for the stall-phrase injection** — the biggest Phase-6 unknown, solved.
+2. 14×1s chunks of a TTS wav prefill cleanly (gotcha: tail chunk must be
+   zero-padded to 1s — a <0.1s residual under-fills the apm conv (kernel 3)
+   and crashes; also pass `is_last_chunk=True` on the final chunk).
+3. End-of-turn `streaming_generate` answers the HEARD math question
+   correctly, yielding (text, is_final) increments.
+4. **Gate insertion point verified**: L22 hook fires once per chunk prefill,
+   shape (1, 18, 4096) — ~18 tokens/s of audio; per-chunk mid-layer probe +
+   Phase-3 EMA gate is implementable as designed.
+5. Same-session follow-up TEXT turn works (the `<result>` relay analog) —
+   with a caveat that IS the step-2 problem: injected "expert result: 42"
+   conflicting with the model's own $100 calculation → the model pushed back
+   and asked to reconcile rather than relaying. Naive injection is not a
+   straight relay; the inject prompt (or teacher forcing) must carry
+   authority/formatting. First empirical contact with step 2.
+
+Remaining Phase-6 work is now pure design/engineering (no unknowns):
+per-chunk probe scores → EMA/hysteresis gate → teacher-forced stall phrase →
+expert call → result injection; latency timers per segment.
+
+Open: (a) SD-QA arm B; (b) prompt-tail audit (demoted, see above);
+(c) audio latency numbers (audio prefill is longer — the mid-layer
+early-exit argument gets stronger).
+
+Phase-6a spend ≈ $45 incl. audits (TTS $1 + 4×H100 collection/ptrue/asr/
+ttstpl + judge). Project total ≈ **$138**.
+
+---
+
+## Phase 6b — do the audio findings generalize? (2026-07-21, in progress)
+
+User challenge: o2.6 is same-family — weak generalization evidence. Plan:
+o2.6 = within-family robustness; **qwen2.5-omni = the cross-family test**
+(finding 2 + the finding-3 duplex-vs-generic discriminator); qwen2-audio =
+optional non-duplex control. Moshi/GLM-4-Voice/Kimi documented as blocked
+(no text path / architecture). Pre-registered: finding 1's audio side may
+stay MiniCPM-scoped (no other duplex family is runnable); finding 3's o2.6
+replication has limited power (its TEXT trap introspection was already weak,
+p_yes .196 vs o4.5's .055). `modal_audio.py` parametrized (`mtag`);
+`audio_report` generalized; omni audio path = new `omni_image_au` +
+`Qwen2_5OmniProcessor` (gotchas: needs pillow AND torchvision — the
+processor loads image/video processors too; smoke: audio math answered
+correctly, hooks 28×3584 OK).
+
+### o2.6 replication (same 600 wavs; collection+label+ptrue+sweep, ~$35)
+
+- **Finding 1 ✅ direction replicates:** audio last-token LOPO math — mid
+  peak L22 .761, **final L27 .664** vs text final **.540** (text cliff
+  L21 .822→.540). The text-side cliff is absent on audio (mild −.10 dip,
+  no approach to chance). Signal overall weaker than o4.5 (.76 vs .96
+  peak — weaker model, higher fail rates).
+- **Finding 2 ✅ replicates:** cross-modal transfer onset ~L13/28 (~46%
+  depth), plateau .74–.80 (peak text→audio L18 .799; o4.5 plateau ~.86).
+  Early layers .58–.67. Same shape, lower ceiling.
+- **Finding 3 ✅ broad direction, different signature:** audio ptrue_pre
+  AUC **.491 ≈ chance** (text .604 was already weak); ptrue_post .805.
+  Per-pool p_yes: non-trap pools DROP (chat .712→.585, fact .652→.471,
+  math .699→.511) while trap RISES (.196→.345) — everything compresses
+  toward ~.5: on the weaker duplex model the audio verbal self-assessment
+  loses discrimination entirely, rather than o4.5's trap-specific collapse
+  with preserved type ranking. Unified claim: **audio input degrades
+  pre-answer verbalized self-assessment on both duplex generations** (o4.5:
+  instance component lost; o2.6: all discrimination lost).
+- Modality tax o2.6: chat +4.7, fact +4.0, knowledge +14.0, **math +16.0**,
+  trap .96→1.00 — larger than o4.5's, consistent with a weaker audio
+  front-end.
+
+### qwen2.5-omni cross-family results ⭐ (same 600 wavs, ~$30)
+
+**The finding-3 discriminator came back clean: the omni-streaming control
+does NOT collapse — the audio introspection failure is DUPLEX-SPECIFIC.**
+
+| model | FT type | trap p_yes pre text→audio | audio ptrue_pre AUC (text) |
+|---|---|---|---|
+| minicpm-o45 | duplex | .055 → **.556** collapse | .786 (.807) trap dead |
+| minicpm-o26 | duplex | .196 → .345 | **.491 ≈ chance** (.604) |
+| **qwen2.5-omni** | omni-streaming | .279 → **.213 INTACT** | .727 (.749) −.02 only |
+
+Omni's audio p_yes actually moves DOWN on every pool except math (chat
+.547→.460, fact .570→.457, trap .279→.213) — no overconfidence shift, no
+discrimination loss. Same duplex-vs-omni gradient as 5c/5d. **Unified paper
+claim now fully supported: duplex fine-tuning damages self-knowledge
+READOUTS — the probe's late-layer readout in its text blind spot (5d) and
+the verbalized readout in its audio blind spot (6a) — while the omni
+control keeps both and the mid-layer signal survives everywhere.**
+(Omni quirk persists: ptrue_post < pre on audio too, .599 < .727 — it was
+already the only pre>post model on text.)
+
+- **Finding 2 replicates cross-family**: transfer onset ~L06-08/28 (~25%
+  depth — EARLIER than MiniCPM's ~50%, consistent with omni's tighter
+  audio-text alignment and no duplex damage), plateau L18–L27 ≈ .80–.83
+  both directions (L23 text→audio .826).
+- **Finding-1 consistency**: omni audio sweep has no cliff (last-token math
+  final .757 ≈ text .746; peaks .82 mid) — matches "no duplex FT → no
+  cliff in either modality"; its text side was diffuse-depressed, audio
+  similar.
+- Modality tax omni: chat +14.0, knowledge +10.0, math +6.0, fact +5.0,
+  trap 0 (.98=.98).
+
+**Phase 6b verdict:** finding 2 = MiniCPM×2 + omni (cross-family) ✅;
+finding 3 = duplex-specific (two duplex generations collapse, omni control
+intact) ✅ — now the same shape as finding 1's raw>omni>duplex gradient;
+finding 1 audio-side = MiniCPM-scoped as pre-registered (no other runnable
+duplex family).
+
+---
+
+## Phase 6c — ablation vs o4.5's own thinking + latency ⭐ (2026-07-22)
+
+User requirement: prove the solution ≥ o4.5's built-in capability
+(`enable_thinking`), and benchmark latency end-to-end per request.
+
+### Component latency bench (`latency_bench`, 50 q × text/audio, CUDA-synced,
+3-warmup excluded, per-query interleaved; P50/P95 ms)
+
+| config | text | audio |
+|---|---:|---:|
+| **L22 truncated decision (the gate)** | **20 / 25** | **45 / 104** |
+| TTFT (full prefill + 1st token) | 36 / 47 | 68 / 144 |
+| ptrue_pre (short prefill + 1 tok) | 39 / 63 | 67 / 169 |
+| full answer (= ptrue_post entry fee) | 1855 / 7013 | 3507 / 7391 |
+
+**The gate decides BEFORE the first token** (20 < 36 ms text; 45 < 68 ms
+audio) — pre-TTFT escalation is real, and all pre-decode signals sit far
+inside the 200–300 ms voice turn-taking budget. Audio latency tax ≈ 2×.
+Decode 36.3 tok/s (matches Phase 0). Closes 6a open item (c).
+
+### Thinking ablation (`collect_think` 600 q, enable_thinking=True,
+max 2048 tok, gpt-5.4-mini judge 0 errors)
+
+Per-pool: thinking helps math (fail .187→.127) and knowledge (.480→.427),
+does nothing on trap (.98), and HURTS easy-chat (.207→.233). Overhead
+P50 +8 to +24 s per query (P95 up to +63 s). think_used .57–.92 (the
+hybrid mode skips thinking on some chat).
+
+### End-to-end policy table (`e2e_latency_report`; test n=240; fast
+latencies = per-pool bench medians [n_forward store is k-capped, unusable];
+think = per-query measured; cloud = per-query expert_latency from Phase 5)
+
+| policy | acc | lat mean | P50 | P95 |
+|---|---:|---:|---:|---:|
+| fast-only | .588 | 3.0 | 3.5 | 4.2 |
+| **all-THINK (o4.5's own)** | .637 | **22.4** | 17.2 | 60.1 |
+| gated-think @.33 | .613 | 12.1 | 3.6 | 47.6 |
+| **gated-cloud @.15** | **.688** | **5.3** | 3.6 | 10.1 |
+| **gated-cloud @.33** | **.787** | **6.5** | 3.6 | 20.8 |
+| gated-cloud @.50 | .858 | 7.0 | 3.6 | 24.4 |
+
+**Verdict: proven, with domination.** gated-cloud beats all-THINK on BOTH
+axes at every escalation rate — already at 15% escalation: +5.1 acc pts at
+4.2× lower mean latency; at 33%: +15.0 pts at 3.4× lower. gated-think (the
+self-escalation tier) is weak (.613): the gate predominantly flags
+knowledge/trap failures, which thinking cannot fix (thinking's gains are
+execution/math) — a clean mechanistic reason why external escalation is
+necessary, not just better. Thinking-tier idea documented and closed.
+
+Phase-6c spend ≈ $45 (think 600 incl. long generations + judge + bench).
+
+---
+
+## Phase 6d — Freeze-Omni: the frozen-backbone control (2026-07-22)
+
+Freeze-Omni (arXiv 2411.00774; speech encoder + adapter → FROZEN
+Qwen2-7B-Instruct + state-head duplex) separates "duplex operation" from
+"backbone weight updates". Integration: `modal_freeze.py` (their pins torch
+2.2/transformers 4.45.2 — audioLLM manipulates legacy tuple KV; ptrue =
+text tokens + chat_template['suffix'] appended to the audio KV via
+DynamicCache.from_legacy_cache — without the suffix close the Yes/No mass
+is 0.00; audioEncoderProcessor vendored to avoid the flask import chain;
+text side = the `qwen2-7b` tag verbatim, same weights).
+
+### Primary readout test: CONFOUNDED by capability collapse (pre-registered)
+
+Audio fail rates explode vs the same weights on text: math .240→**.713**,
+chat .333→.720, knowledge .600→.927 (fact +.04, trap .96→.98 only ones
+stable). Audio probe: OOF peaks ~.70 (type recognition), **LOPO math
+.44–.55 ≈ chance at every layer** — but with labels this collapsed the
+readout question is unanswerable here (same verdict class as qwen2-audio
+in 5c: documented negative).
+
+### Two informative residues
+
+1. **Finding-3 control still holds**: trap p_yes text .165 → audio **.112**
+   — the verbal knows-it-doesn't-know SURVIVES audio on the frozen
+   backbone (moves toward honesty, like omni; opposite of both duplex
+   models). Third non-duplex model without the collapse. (Caveat: with
+   audio capability collapsed, "No" is also the calibrated easy answer —
+   pre AUC only .612, post .842.)
+2. **Cross-modal transfer is ≈ DEAD on identical weights**: text→audio
+   .52–.60, audio→text .34–.54 (inverts at L20) — versus .80–.86 on every
+   end-to-end-trained model. **The modality-shared mid-layer core (finding
+   2) is not free: it is CREATED by training the backbone on the modality.**
+   An adapter alone aligns well enough to converse, but audio-context
+   hiddens live off the text manifold — probes don't transfer, and task
+   capability craters.
+
+Combined three-way story: end-to-end multimodal training BUILDS the shared
+semantic core (Freeze-Omni lacks it); duplex-style training additionally
+DAMAGES the readouts (MiniCPM×2); omni-streaming gets both right (core
+present, readouts intact). The paper's mechanism section now has all four
+quadrants populated.
+
+Phase-6d spend ≈ $45 (download + smoke ×4 + 600 chunked-streaming
+collection + judge + qwen2-7b text layers). Project total ≈ **$290**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
