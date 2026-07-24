@@ -1280,6 +1280,13 @@ P90 28.9 s; audio P50 1.9 s / P90 26.8 s (@.50: 1.8/0.3 s P50).
 - Caveats: expert latency measured Modal-us-east→OpenAI (includes RTT);
   local durations at max_new_tokens=256 (mild underestimate for the
   longest answers); bench n=10/pool → cross-product estimate.
+- Paper figure: `figures/timeline_scenarios.{png,pdf}`
+  (`figures/timeline_scenarios.py`, runs locally on the pulled parquets'
+  medians) — panel (a) ms-scale fork (decision at 20 ms < TTFT 36 ms),
+  panel (b) audio-channel occupancy: pre-answer routing (2.7 s dead air)
+  vs gated hard-math (full overlap) / easy-fact (1.8 s stall) / trap
+  (7.4 s gap, unbridgeable — gpt-5.5 trap P50 8.2 s is the slowest pool
+  while trap drafts are the shortest, the structural worst case).
 
 ### Changyi's qwen3-omni proposal — disposition
 
