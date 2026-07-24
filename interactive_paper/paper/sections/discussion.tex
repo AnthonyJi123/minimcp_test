@@ -1,0 +1,75 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Design consequences: the two-stage gate}
+
+The evidence converges on a two-stage design:
+\begin{itemize}
+\item \textbf{Stage 1 (prefill, effectively free):} a mid-layer
+  ($\sim$60\% depth) last-token probe --- 20/45\,ms, before the first
+  token, and the only signal that survives duplex fine-tuning \emph{and}
+  both input modalities (\S\ref{sec:quadrants}). Open engineering item:
+  score-scale calibration for threshold (rate) transfer.
+\item \textbf{Stage 2 (optional, post-draft):} $\ptrue$-post on the drafted
+  answer --- the strongest single signal (0.899); the draft doubles as the
+  distilled escalation query and as the fallback answer. On audio input,
+  never ask over raw audio context: run $\ptrue$ on the model's own
+  transcript (``repeat-then-judge,'' \S\ref{sec:audioptrue}).
+\end{itemize}
+
+\subsection{Positioning vs.\ query-side routing}
+
+Query-side routers \citep{ong2024routellm,ding2024hybrid,chen2023frugalgpt}
+decide before generation from query features, and the big model then
+answers the user directly. Neither transfers to full-duplex voice: the user
+talks to one voice whose session state lives in the small model, and
+query-side features are precisely the ``type shortcut'' our audit
+quantifies (pool oracle 0.715 vs.\ probe 0.822 in-distribution) and LOPO
+breaks. The signal must come from the answering model itself --- consistent
+with \citet{llmrouterbench2026}'s attribution of router failures to
+model-recall gaps. A head-to-head comparison of query-feature routers vs.\
+internal-signal gates under distribution shift, on their standardized
+protocol, is natural future work.
+
+\subsection{Step 2 preview: result injection}
+
+Step 2 --- returning the thinker's result into the live duplex session ---
+is scoped by our data. The official streaming interface exposes a per-chunk
+text-injection point (\texttt{teacher\_forcing\_text}), and our streaming
+smoke test surfaced the first substantive obstacle: the talker
+\emph{pushes back} on injected expert results that conflict with its own
+reasoning rather than relaying them --- injection protocol and authority
+framing are a research problem, not plumbing. The overlap analysis
+(\S\ref{sec:overlap}) sets the timing budget: P50 one stall sentence; P90
+dominated by expert latency, arguing for a fast-expert tier or streamed
+partial results.
+
+\subsection{Limitations}
+\label{sec:limitations}
+
+(i) $\ptrue$ prompt sensitivity: one phrasing each (pre/post).
+(ii) The audio arm is single-voice TTS speech; SD-QA real-speech validation
+is open. (iii) Mid-layer probe threshold transfer needs deployment-grade
+calibration; AUC/area claims are unaffected. (iv) The audio side of the
+introspection-collapse finding is MiniCPM-scoped (two generations of one
+family); a new open-weight full-duplex family is a pre-registered
+prediction test --- it should show the late-layer text-input cliff.
+(v) The frozen test split is reused across signal comparisons (signals were
+pre-specified; a fresh test set would be cleaner). (vi) Labels come from a
+single judge family, bounded by a stronger re-judge (deltas $\le$0.010) but
+without human labels.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+Zero-training self-knowledge in a small full-duplex model exists, is
+strong, and is modality- and layer-fragile in systematic,
+duplex-fine-tune-induced ways. The standard readouts --- final-layer probes
+and verbalized self-evaluation --- each have one blind modality, and both
+blind spots are created by the duplex fine-tune; the mid-layer
+representation underneath survives everything we tested. Read there, the
+resulting gate decides before the first output token, transfers from cheap
+text calibration to speech on end-to-end models, and as a system dominates
+the model's own thinking mode on both accuracy and latency. Step 2 ---
+getting the thinker's answer back into the talker's mouth --- is where this
+program goes next.

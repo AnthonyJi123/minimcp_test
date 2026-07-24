@@ -1,0 +1,80 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\paragraph{Target model and matched-pair controls.}
+The system target is \textbf{MiniCPM-o~4.5} (9B; omni + full-duplex
+fine-tune of Qwen3-8B), run in bf16 with greedy decoding, seed 42. To
+attribute effects to the \emph{kind} of fine-tune rather than the backbone,
+we assemble matched pairs and controls (Table~\ref{tab:models}): the raw
+backbone family member for each fine-tune, a streaming-omni fine-tune
+(Qwen2.5-Omni-7B), a second-generation duplex model (MiniCPM-o~2.6), an
+audio-understanding fine-tune (Qwen2-Audio-7B), a frozen-backbone adapter
+model (Freeze-Omni, whose LLM weights are byte-identical to its raw
+control), and two additional raw backbones for diversity (Mistral-7B-v0.3
+\citep{jiang2023mistral}, GLM4-9B-chat \citep{glm2024chatglm}); the
+Qwen2.5/Qwen2 raw controls follow \citet{yang2024qwen25}.
+
+\begin{table}[t]
+\centering\small
+\caption{Model roster. ``Pair'' groups a fine-tune with its raw backbone
+control; the comparison statistic is always the within-pair difference.}
+\label{tab:models}
+\begin{tabular}{llll}
+\toprule
+model & type & pair & role \\
+\midrule
+MiniCPM-o 4.5 & omni + duplex FT & Qwen3-8B & system target \\
+Qwen3-8B & raw & --- & pair control \\
+MiniCPM-o 2.6 & duplex FT & Qwen2.5-7B & duplex replication \\
+Qwen2.5-Omni-7B & streaming omni FT & Qwen2.5-7B & omni control \\
+Qwen2.5-7B & raw & --- & pair control \\
+Qwen2-Audio-7B & audio FT & Qwen2-7B & audio-FT control \\
+Freeze-Omni & frozen LLM + adapter & Qwen2-7B & adapter control \\
+Qwen2-7B & raw & --- & pair control \\
+Mistral-7B-v0.3 & raw & --- & backbone diversity \\
+GLM4-9B-chat & raw & --- & backbone diversity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Query pool (frozen, public benchmarks only).}
+600 queries in five pools, frozen before any gate experiment (360
+calibration / 240 test, seed 42): \emph{trap} = SimpleQA (50; the target
+model fails 100\%), \emph{hard-knowledge} = MMLU-Pro (150),
+\emph{easy-fact} = TriviaQA (100), \emph{easy-chat} = Dolly-15k (en) +
+Alpaca-zh (150), \emph{hard-math} = GSM8K tail + MATH-500 (150). Text-input
+fail rates for MiniCPM-o~4.5: trap 1.00 / knowledge .48 / fact .34 / chat
+.21 / math .19 (overall .358). We deliberately use no LLM-generated
+queries: a pilot GPT-generated trap pool failed its design (90\% answered
+correctly by the 9B target) and creates a generator-equals-judge
+circularity.
+
+\paragraph{Gate signals (all zero-training).}
+(i) \emph{Decode scalars}: max token entropy / margin over the first $k$
+decode steps. (ii) \emph{Linear probe}: logistic regression on a single
+hidden state, position $\times$ layer swept; trained on calibration
+features, thresholds from out-of-fold scores. (iii) \emph{Verbalized
+self-evaluation} \citep{kadavath2022language}: $\ptrue$-pre reads $P(\text{Yes})$
+off the first token of ``Would you answer this correctly?'' asked
+\emph{before} answering; $\ptrue$-post asks ``Is this answer correct?'' about
+a drafted answer.
+
+\paragraph{Labels and judge.}
+Adequacy labels come from \texttt{gpt-5.4-mini} with structured outputs,
+blind to the gate. The judge is validated by a \texttt{gpt-5.5} re-judge:
+agreement 0.962 (text) / 0.945 (audio); every headline number moves
+$\le$0.010 under the stronger judge's labels. Escalation target for system
+experiments: \texttt{gpt-5.5}. \todonote{cite/describe judge models
+properly; OpenAI model documentation entry in refs.bib is a placeholder}
+
+\paragraph{Audio arm.}
+The frozen pool is TTS-rendered (OpenAI \texttt{tts-1}, single voice), so
+query \emph{content} is unchanged and only modality varies, following
+Spoken-SQuAD / VoiceBench practice
+\citep{li2018spokensquad,chen2024voicebench}. Real-speech validation on
+SD-QA \citep{faisal2021sdqa} is open (\S\ref{sec:todo}).
+
+\paragraph{Infrastructure.}
+All experiments run on Modal H100 instances; torch 2.8.0, transformers
+4.51.0 (4.57.6 for Qwen2.5-Omni; 4.45.2 for Freeze-Omni). Total compute +
+API spend for Phases 0--7a: $\approx$\$290.

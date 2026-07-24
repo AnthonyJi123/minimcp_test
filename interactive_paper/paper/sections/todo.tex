@@ -1,0 +1,46 @@
+% =========================================================================
+% Working TODO / roadmap — DELETE THIS SECTION BEFORE SUBMISSION.
+% Experiment-level items mirror RESULTS.md / TECHNICAL_REPORT.md §9.
+% =========================================================================
+\section*{TODO / Roadmap (working section --- delete before submission)}
+\label{sec:todo}
+
+\subsection*{Experiments}
+\begin{itemize}
+\item \todonote{SD-QA arm B: validate the audio findings on real (dialectal)
+  speech instead of single-voice TTS \citep{faisal2021sdqa}}
+\item \todonote{mid-layer probe threshold-transfer calibration
+  (Phase-3-style C-compression) --- needed for deployment claims, not for
+  AUC/area claims}
+\item \todonote{pre-registered prediction test: when a new open-weight
+  full-duplex family lands (e.g.\ Qwen3.5-Omni-class), it should show the
+  late-layer text-input cliff}
+\item \todonote{$\ptrue$ prompt-sensitivity sweep (currently one phrasing
+  each for pre/post)}
+\item \todonote{head-to-head query-feature router vs.\ internal-signal gate
+  under distribution shift on the LLMRouterBench protocol}
+\item \todonote{step 2: injection protocol + authority framing (talker
+  pushes back on conflicting expert results); fast-expert tier or streamed
+  partial results for the P90 tail}
+\item \todonote{fresh test split for final camera-ready numbers (current
+  test split reused across signal comparisons)}
+\end{itemize}
+
+\subsection*{Writing / assets}
+\begin{itemize}
+\item \todonote{affiliations, emails, author order + contribution notes on
+  the title page}
+\item \todonote{regenerate \texttt{concept\_probe\_vs\_ppl} figure with
+  English labels (Fig.~\ref{fig:concept})}
+\item \todonote{regenerate ROC figure to include $\ptrue$ curves
+  (Fig.~\ref{fig:roc})}
+\item \todonote{verify the \citet{llmrouterbench2026} bib entry (authors /
+  exact title, arXiv:2601.07206) and the MiniCPM-o 4.5 model-card entry}
+\item \todonote{decide target venue + switch template (currently generic
+  preprint article); candidates: ICASSP/Interspeech (speech systems) vs.\
+  ACL/NeurIPS (LM analysis)}
+\item \todonote{bootstrap CIs are computed for headline numbers in
+  RESULTS.md --- surface them in tables beyond Table~\ref{tab:rq1}}
+\item \todonote{appendix: full per-pool tables, judge prompts, $\ptrue$
+  prompts, reproducibility statement (seeds, pins, spend)}
+\end{itemize}

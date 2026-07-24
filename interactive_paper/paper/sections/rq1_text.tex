@@ -1,0 +1,66 @@
+\section{Which Signal Knows the Model Will Fail? (Text Input)}
+\label{sec:rq1}
+
+\subsection{Headline comparison}
+
+Table~\ref{tab:rq1} compares the candidate signals on MiniCPM-o~4.5
+(calibration split; probe numbers are 5-fold out-of-fold).
+Figure~\ref{fig:roc} shows the ROC curves.
+
+\begin{table}[t]
+\centering\small
+\caption{Signal AUCs against judged failure labels, MiniCPM-o 4.5, text
+input. Bracketed interval is a bootstrap 95\% CI.}
+\label{tab:rq1}
+\begin{tabular}{lcc}
+\toprule
+signal & AUC & training needed \\
+\midrule
+$\ptrue$-post (post-draft) & \textbf{0.899} & none \\
+probe on $h_{\text{prompt}}$ (final layer) & 0.822 [0.777, 0.863] & LR on calib \\
+$\ptrue$-pre (pre-answer) & 0.807 & none \\
+max entropy@4 (best decode scalar) & 0.696 & none \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.72\linewidth]{roc}
+  \caption{ROC of the final-layer probe vs.\ decode scalars (calibration
+  split). \todonote{regenerate to include the $\ptrue$ curves on the same
+  axes}}
+  \label{fig:roc}
+\end{figure}
+
+\subsection{The probe's number is a type shortcut}
+\label{sec:audit}
+
+The probe's 0.822 does not mean what it appears to mean. Three audit results
+(all calibration-only): (i) the same hidden state classifies the
+\emph{source pool} of a query at 95.8\%; (ii) a pool-identity oracle alone
+--- predict each pool's base fail rate --- already reaches AUC 0.715; (iii)
+appending true pool labels to the probe adds nothing (0.822 $\rightarrow$
+0.821), i.e.\ the probe has already absorbed the type information. The
+decisive test is leave-one-pool-out (LOPO) transfer: held-out math
+\emph{inverts} to 0.372 --- the probe scores terse MATH-500 items as
+``safer'' than verbose GSM8K items, a style-familiarity artifact --- and the
+mean escalation score on the 100\%-fail trap pool is 0.232. Decode entropy
+is $\approx$ chance on two of three raw backbones tested. In-distribution
+AUC therefore overstates what a query-side signal knows; we treat LOPO as
+the primary metric for signal quality throughout.
+
+\subsection{$\ptrue$: ask before the model answers}
+\label{sec:ptrue}
+
+Verbalized self-evaluation needs no training and transfers differently. On
+the 100\%-fail SimpleQA trap pool, pre-answer $\ptrue$ says ``No, I will not
+get this right'' with mean escalation score 0.945 --- on the same items the
+probe scores 0.232. The timing is essential: asked \emph{after} the model
+has produced a confident-wrong answer, self-assessment collapses to 0.360
+(the model endorses its own answer). Post-draft $\ptrue$ (``Is this answer
+correct?'') is the strongest overall signal (0.899) but requires paying for
+a full draft first. Across backbones, $\ptrue$-post beats the trained probe
+on four of five raw/duplex models tested; the exception (GLM4-9B-chat,
+0.685 vs.\ probe 0.798) shows the pattern depends on the backbone's
+self-evaluation calibration quality rather than being universal.

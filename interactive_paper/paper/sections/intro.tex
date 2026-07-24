@@ -1,0 +1,89 @@
+\section{Introduction}
+\label{sec:intro}
+
+Voice assistants built on full-duplex speech models
+\citep{defossez2024moshi,zeng2024glm4voice,xu2025qwen25omni} face a
+structural tension. The conversational loop---listening while speaking,
+turn-taking inside a $\sim$200--300\,ms budget
+\citep{stivers2009universals}---demands a small, low-latency model close to
+the user. Answer quality on knowledge- and reasoning-heavy queries demands a
+large one. The natural architecture is a \emph{talker--thinker} split,
+echoing the System~1/System~2 distinction \citep{kahneman2011thinking}: a
+small duplex ``talker'' holds the live session and answers by default, and a
+large cloud ``thinker'' is consulted only when needed. This paper is about
+the load-bearing decision in that architecture: \textbf{when should the
+talker hand off?}
+
+We deliberately restrict ourselves to \emph{zero-training} gate signals ---
+quantities that can be read off the small model as-is, without fine-tuning
+it: decode-time scalars (entropy, margin), linear probes on hidden states
+\citep{alain2017understanding}, and verbalized self-evaluation, i.e.\
+$\ptrue$-style ``Would you answer this correctly?'' prompts
+\citep{kadavath2022language}. The constraint is practical (duplex fine-tunes
+are expensive and fragile to retrain) but it also sharpens the scientific
+question: \emph{does a small full-duplex model already know what it does not
+know, and can that knowledge be read out in time to act on it?}
+
+Our answer, developed over a controlled study of ten
+backbones/fine-tunes and both input modalities, is: \textbf{the knowledge is
+there; the readouts are what break, and they break in systematic,
+duplex-fine-tune-induced ways.} Concretely:
+
+\begin{enumerate}
+\item \textbf{Standard probes flatter to deceive (\S\ref{sec:rq1}).} A
+  final-layer hidden-state probe reaches AUC 0.822, but an audit shows it is
+  mostly a query-\emph{type} recognizer: a pool-identity oracle alone scores
+  0.715, and leave-one-pool-out (LOPO) transfer \emph{inverts} on math
+  (0.372). Pre-answer $\ptrue$ needs no training, beats the probe on most
+  backbones, and scores 100\%-fail SimpleQA traps at 0.945 --- but only if
+  asked \emph{before} the model answers; after answering, it endorses its own
+  confident-wrong answer (0.945 $\rightarrow$ 0.360).
+\item \textbf{Duplex fine-tuning overwrites readouts, not knowledge
+  (\S\ref{sec:duplex}).} Across matched pairs (raw vs.\ omni-streaming vs.\
+  duplex fine-tunes of the same backbone), LOPO probe transfer degrades in
+  the order raw $>$ omni-streaming $>$ duplex, with label coverage
+  controlled. A full layer$\times$position sweep localizes the damage: on
+  MiniCPM-o~4.5, LOPO math is 0.931 at layer 22 but 0.366 at layer 35, with
+  a sharp cliff over the last four layers, only at the last-token position
+  --- exactly where a streaming head must encode turn-control state.
+\item \textbf{Each readout has one blind modality (\S\ref{sec:speech}).}
+  The late-layer cliff is text-input-specific: under audio input the final
+  layer does not invert (0.936). Conversely, verbalized introspection
+  collapses on audio input (trap $p_{\mathrm{yes}}$ $0.055 \rightarrow
+  0.556$) on both MiniCPM duplex generations while omni-streaming and
+  frozen-backbone controls stay intact. Three controlled arms (ASR audit,
+  filler audio, audio+text duplication) pin the mechanism to \emph{binding}:
+  the verbal self-check runs over text-token pathways that audio embeddings
+  do not feed, while a probe reads the same information at 0.93+.
+\item \textbf{End-to-end training creates the shared core
+  (\S\ref{sec:speech}).} Text$\leftrightarrow$audio probe transfer is
+  $\sim$0.86 on every end-to-end model but dead ($0.52$--$0.60$) on
+  Freeze-Omni's frozen backbone with identical text weights --- so the
+  practical recipe ``calibrate on cheap text, deploy on speech'' is valid
+  for end-to-end models only.
+\item \textbf{The gate wins as a system (\S\ref{sec:system}).} The mid-layer
+  probe decides in 20\,ms (text) / 45\,ms (audio), before the first output
+  token. Against the model's own \texttt{enable\_thinking} mode, gated-cloud
+  escalation dominates on both accuracy and latency at every escalation
+  rate, because the gate flags knowledge/trap failures that thinking cannot
+  fix --- external escalation is \emph{necessary}, not merely better.
+\end{enumerate}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{concept_probe_vs_ppl}
+  \caption{Conceptual contrast between a supervised probe in hidden-state
+  space and what output-distribution scalars (entropy/perplexity) can see.
+  \todonote{regenerate this figure with English labels (current version has
+  Chinese axis/legend text); source:
+  \texttt{figures/concept\_probe\_vs\_ppl.py}}}
+  \label{fig:concept}
+\end{figure}
+
+This is explicitly \textbf{step~1 of a two-step design}. Step~2 --- how the
+thinker's result is returned into a live duplex session (injection protocol,
+authority framing, stall phrases) --- is scoped but not solved here; our
+streaming experiments already surface its first real obstacle (the talker
+pushes back on injected results that conflict with its own reasoning,
+\S\ref{sec:discussion}), and our overlap analysis (\S\ref{sec:system})
+quantifies its timing budget.

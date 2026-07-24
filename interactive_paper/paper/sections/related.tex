@@ -1,0 +1,73 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Do language models know what they know?}
+\citet{kadavath2022language} introduced $\ptrue$ and P(IK) self-evaluation
+and showed large models are reasonably calibrated about their own answers;
+\citet{lin2022teaching} trained models to verbalize uncertainty. A parallel
+line reads correctness from internal states: linear probes
+\citep{alain2017understanding} on hidden activations separate true from
+false statements \citep{azaria2023internal,marks2024geometry}, latent
+knowledge can be found without supervision \citep{burns2023discovering}, and
+intermediate layers encode more truthfulness information than the output
+distribution reveals \citep{orgad2024llms} --- consonant with our mid-layer
+findings. Output-side uncertainty measures such as semantic entropy
+\citep{kuhn2023semantic,farquhar2024detecting} require sampling multiple
+generations, which a real-time duplex loop cannot afford. Our contribution
+to this literature is not a new signal but a \emph{controlled account of
+when the standard readouts break}: we show the probe and $\ptrue$ readouts
+fail in complementary, modality- and architecture-specific ways under
+duplex fine-tuning, while the underlying information survives.
+
+\paragraph{Routing, cascades, and deferral.}
+Cost-quality routing across LLMs is well studied: FrugalGPT
+\citep{chen2023frugalgpt} cascades models with a learned scorer, HybridLLM
+\citep{ding2024hybrid} trains a query router, RouteLLM \citep{ong2024routellm}
+learns routers from preference data, and RouterBench
+\citep{hu2024routerbench} standardizes evaluation;
+\citet{llmrouterbench2026} report that many routers fail to beat simple
+baselines under a unified protocol and attribute the remaining oracle gap to
+model-recall failures. These routers decide from \emph{query-side} features
+before generation, and the large model then answers the user directly. Both
+assumptions fail in full-duplex voice: the user talks to one voice whose
+session state (audio context, duplex KV cache) lives in the small model, and
+our audit (\S\ref{sec:rq1}) quantifies exactly how far query-side features
+go --- they are the ``type shortcut'' whose transfer collapses under
+distribution shift, whereas the model-internal mid-layer signal transfers.
+Classical learning-to-defer \citep{madras2018predict} and early-exit
+computation \citep{schuster2022confident} are the same decision inside one
+model; speculative decoding \citep{leviathan2023fast} inverts our roles
+(large model verifies small drafts). Reasoning-mode escalation
+(\S\ref{sec:system}) connects to test-time-compute models
+\citep{guo2025deepseekr1}: we find self-escalation to a thinking mode is
+dominated by external escalation because the flagged failures are
+knowledge-bound, not compute-bound.
+
+\paragraph{Full-duplex and omni speech models.}
+End-to-end spoken dialogue models now span duplex designs --- dGSLM
+\citep{nguyen2023generative}, Moshi with its Inner Monologue
+\citep{defossez2024moshi}, GLM-4-Voice \citep{zeng2024glm4voice} --- and
+streaming omni models such as Qwen2.5-Omni \citep{xu2025qwen25omni};
+Freeze-Omni \citep{wang2024freezeomni} attaches speech adapters to a frozen
+LLM, and Qwen2-Audio \citep{chu2024qwen2audio} covers audio-understanding
+fine-tunes. Our target, MiniCPM-o~4.5
+\citep{yao2024minicpmv,openbmb2026minicpmo}, is a 9B omni/duplex fine-tune
+of Qwen3-8B \citep{yang2025qwen3}. We use this landscape as a
+\emph{controlled independent variable}: matched pairs separating raw
+backbones, audio-only fine-tunes, streaming-omni fine-tunes, duplex
+fine-tunes, and frozen-backbone adapters let us attribute readout damage to
+duplex-ness specifically, and the shared mid-layer core to end-to-end
+training specifically.
+
+\paragraph{Evaluation practice.}
+Our query pools come from public benchmarks only: SimpleQA
+\citep{wei2024simpleqa} for confidently-wrong long-tail traps (cf.\ PopQA
+\citep{mallen2023popqa}), MMLU-Pro \citep{wang2024mmlupro}, TriviaQA
+\citep{joshi2017triviaqa}, GSM8K \citep{cobbe2021gsm8k} and MATH-500
+\citep{hendrycks2021math,lightman2024lets}, and Dolly/Alpaca instruction
+data \citep{conover2023dolly,taori2023alpaca}. Adequacy labels come from an
+LLM judge \citep{zheng2023judging} validated by a stronger re-judge
+(agreement 0.962 text / 0.945 audio). The audio arm TTS-renders the frozen
+pool, following the practice of Spoken-SQuAD \citep{li2018spokensquad} and
+VoiceBench \citep{chen2024voicebench}; real-speech validation on SD-QA
+\citep{faisal2021sdqa} is planned (\S\ref{sec:todo}).

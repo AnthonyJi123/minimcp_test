@@ -1,0 +1,63 @@
+% =========================================================================
+% When Does a Small Model Know to Hand Off?
+% Zero-Training Escalation Gates for Full-Duplex Speech Models
+%
+% Draft v0.1 (2026-07-24) — generated from TECHNICAL_REPORT.md v3.
+% Source of truth for numbers: interactive_paper/RESULTS.md (Phases 0-7a).
+% Build: pdflatex + bibtex (Overleaf default works).
+% \todonote{...} marks open items; the "TODO / Roadmap" section at the end
+% collects experiment-level TODOs and must be deleted before submission.
+% =========================================================================
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage[round]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+
+\graphicspath{{figures/}}
+
+% ---- draft machinery ----------------------------------------------------
+\newcommand{\todonote}[1]{\textcolor{red!80!black}{\textbf{[TODO: #1]}}}
+\newcommand{\ptrue}{p(\mathrm{True})}
+\newcommand{\auc}[1]{#1}
+
+\title{When Does a Small Model Know to Hand Off?\\
+\Large Zero-Training Escalation Gates for Full-Duplex Speech Models}
+
+\author{%
+Ruoyu He \and Jisen Li \and Changyi Yang \and Zetian Li \and Zhongzhu Zhou\\[0.6em]
+\normalsize \todonote{affiliations, emails, author order + contribution footnotes}%
+}
+\date{Draft v0.1 --- \today}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+\input{sections/intro}
+\input{sections/related}
+\input{sections/setup}
+\input{sections/rq1_text}
+\input{sections/duplex}
+\input{sections/speech}
+\input{sections/system}
+\input{sections/discussion}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\clearpage
+\appendix
+\input{sections/todo}
+
+\end{document}

@@ -1,0 +1,105 @@
+\section{Duplex Fine-Tuning Overwrites Readouts, Not Knowledge}
+\label{sec:duplex}
+
+\subsection{Matched pairs: damage tracks duplex-ness, not audio}
+\label{sec:pairs}
+
+Is the LOPO transfer failure of \S\ref{sec:audit} a MiniCPM quirk?
+Table~\ref{tab:lopo} shows LOPO transfer of the standard (final-layer,
+last-token) probe across one backbone family, with label coverage matched by
+subsampling the raw control to the duplex model's per-pool fail rates
+(\texttt{lopo\_matched}): the raw backbone matched to MiniCPM-o~2.6's exact
+fail rates keeps math at 0.825 while the duplex model itself sits at
+chance --- so label coverage is ruled out and the \emph{representation}
+changed. The degradation is ordered: raw $>$ omni-streaming $>$ duplex.
+Audio-only fine-tuning is separately controlled (Qwen2-Audio), though that
+pair is confounded by capability collapse and is reported as a documented
+negative. Raw-backbone baselines vary across families, so the defensible
+statistic is always the within-pair difference.
+
+\begin{table}[t]
+\centering\small
+\caption{LOPO transfer (AUC on the held-out pool) of the final-layer
+last-token probe, Qwen2.5-7B family, label-coverage matched. The o4.5
+column is the Qwen3-family pair for reference.}
+\label{tab:lopo}
+\begin{tabular}{lcccc}
+\toprule
+LOPO pool & Qwen2.5-7B (raw) & Qwen2.5-Omni & MiniCPM-o 2.6 (duplex) & [o4.5 vs Qwen3] \\
+\midrule
+hard-math & \textbf{0.809} & 0.745 & \textbf{0.538} $\approx$ chance & 0.372 (inverts) \\
+hard-knowledge & 0.680 & 0.613 & \textbf{0.526} $\approx$ chance & 0.61 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Layer $\times$ position sweep: the cliff}
+\label{sec:sweep}
+
+We capture every decoder layer at prefill, at both the last-token and
+mean-pooled positions (final-layer values reproduce the generation-time
+hooks exactly, 5-for-5). Figure~\ref{fig:layersweep} and
+Table~\ref{tab:sweep} show the central result: \textbf{mid-network, the
+duplex model carries near-raw transferable difficulty information; the
+damage is confined to the last few layers at the last-token position.}
+
+\begin{table}[t]
+\centering\small
+\caption{LOPO math transfer by depth (last-token probes).}
+\label{tab:sweep}
+\begin{tabular}{lccl}
+\toprule
+model & best mid-layer & final layer & shape \\
+\midrule
+Qwen3-8B (raw) & 0.964 (L33/36) & 0.958 & plateau, no cliff \\
+\textbf{MiniCPM-o 4.5 (duplex)} & \textbf{0.931 (L22/36)} & \textbf{0.366} & cliff L31$\rightarrow$L34, inverts \\
+Qwen2.5-7B (raw) & 0.893 (L21/28) & 0.809 & mild dip \\
+Qwen2.5-Omni (streaming) & 0.794 (L16/28) & 0.746 & diffuse mild depression \\
+\textbf{MiniCPM-o 2.6 (duplex)} & \textbf{0.822 (L21/28)} & \textbf{0.540} & cliff L21$\rightarrow$L27 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{layer_sweep}
+  \caption{LOPO transfer by layer and position. Duplex models (MiniCPM-o
+  4.5/2.6) show a late-layer cliff at the last-token position only;
+  mean-pooled probes survive to the final layer; raw backbones show no
+  cliff; the omni-streaming control shows mild diffuse depression instead.}
+  \label{fig:layersweep}
+\end{figure}
+
+Three structural facts localize the mechanism. First, the within-pair
+deficit at the best mid-layer is only $-0.03$, vs.\ $-0.59$ at the final
+layer. Second, mean-pooled probes survive to the final layer on duplex
+models --- the damage is (late-layer $\times$ last-token)-specific, exactly
+the position a streaming/duplex head must re-purpose to encode turn-control
+state. Third, the two fine-tune styles fail differently: duplex damage is
+severe but \emph{local}; omni-streaming damage is mild but \emph{diffuse}.
+We conclude the duplex fine-tune \textbf{overwrites the readout} rather than
+destroying the model's self-knowledge --- which reverses the natural
+interpretation of \S\ref{sec:audit}: the signal exists and is strong; the
+standard readout simply cannot see it on duplex models.
+
+\subsection{Does the mid-layer convert into a better gate?}
+\label{sec:midlayergate}
+
+On the frozen test split, accuracy-vs-escalation-rate areas over the random
+baseline order as: final-layer probe $+0.054$ $<$ $\ptrue$-pre $+0.059$ $<$
+\textbf{mid-layer L22 probe $+0.064$} $<$ $\ptrue$-post $+0.068$ (which
+requires a full draft). The optimum is not knife-edge (L20--L30 all
+$\ge$$+0.056$; mean-pool uniformly worse), and the in-mix area
+\emph{under-sells} the mid-layer probe: its real advantage is LOPO
+robustness (math 0.93 vs.\ 0.37), which a same-mix test cannot show
+(Figure~\ref{fig:tradeoffmid}). Caveat: quantile-threshold transfer of probe
+scores remains weak and needs deployment-grade calibration
+(\S\ref{sec:todo}); AUC/area claims are unaffected.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{tradeoff_midlayer}
+  \caption{Accuracy vs.\ escalation rate on the frozen test split for the
+  mid-layer (L22) gate against final-layer probe and $\ptrue$ variants.}
+  \label{fig:tradeoffmid}
+\end{figure}

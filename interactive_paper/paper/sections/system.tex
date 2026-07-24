@@ -1,0 +1,115 @@
+\section{The Gate as a System}
+\label{sec:system}
+
+\subsection{Accuracy--cost tradeoff}
+
+On the frozen test split ($n=240$): small-only accuracy \textbf{0.588};
+big-only (\texttt{gpt-5.5}) \textbf{0.917}; big relayed through the small
+model's paraphrase 0.879 (relay tax 1--4 points). Every gate beats random
+escalation at every operating point (Figure~\ref{fig:tradeoff}); the
+balanced tier at a 33\% escalation budget reaches \textbf{0.779--0.787},
+recovering $\sim$58\% of the small$\rightarrow$big gap at one third of the
+big-only cost (\$1.12 per 100 queries big-only).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{tradeoff}
+  \caption{Accuracy vs.\ escalation rate, frozen test split: gated
+  escalation vs.\ the random-escalation baseline between the small-only and
+  big-only endpoints. See also Figure~\ref{fig:tradeoffptrue} for the
+  $\ptrue$ variants.}
+  \label{fig:tradeoff}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{tradeoff_ptrue}
+  \caption{Same tradeoff for the $\ptrue$ signals (pre-answer and
+  post-draft).}
+  \label{fig:tradeoffptrue}
+\end{figure}
+
+\subsection{Against the model's own thinking mode}
+\label{sec:thinking}
+
+MiniCPM-o~4.5 ships a built-in \texttt{enable\_thinking} reasoning mode ---
+self-escalation in place. Table~\ref{tab:policy} compares deployment
+policies with measured latencies. \textbf{Gated-cloud escalation dominates
+all-THINK on both axes at every escalation rate.} The reason is mechanistic,
+not incidental: the gate predominantly flags knowledge/trap failures, which
+thinking cannot fix --- thinking helps math (fail .187 $\rightarrow$ .127)
+but \emph{hurts} chat (.207 $\rightarrow$ .233) --- so external escalation
+is necessary, not merely better.
+
+\begin{table}[t]
+\centering\small
+\caption{Policy table, frozen test split ($n=240$). Latency from per-pool
+measured medians; think and cloud latencies per-query.}
+\label{tab:policy}
+\begin{tabular}{lcccc}
+\toprule
+policy & acc & lat.\ mean (s) & P50 & P95 \\
+\midrule
+fast-only & .588 & 3.0 & 3.5 & 4.2 \\
+all-THINK (o4.5's own) & .637 & 22.4 & 17.2 & 60.1 \\
+gated-think @.33 & .613 & 12.1 & 3.6 & 47.6 \\
+gated-cloud @.15 & .688 & 5.3 & 3.6 & 10.1 \\
+\textbf{gated-cloud @.33} & \textbf{.787} & \textbf{6.5} & 3.6 & 20.8 \\
+gated-cloud @.50 & .858 & 7.0 & 3.6 & 24.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The fork: deciding before the first token}
+\label{sec:fork}
+
+The mid-layer probe is one 4096-d dot product on a hidden state the forward
+pass already computes: forking a decision branch at layer $k$ costs
+microseconds and never stalls the main forward. The design question is at
+which depth the signal is sufficient. Measured on H100 (CUDA-synchronized,
+truncated-forward): the L22 decision lands in \textbf{20\,ms (text) /
+45\,ms (audio)}, vs.\ time-to-first-token of 36 / 68\,ms --- the decision
+exists \emph{before decoding starts} and sits far inside the 200--300\,ms
+turn-taking budget \citep{stivers2009universals}. Per-layer curves
+(Figure~\ref{fig:fork}) show L22's hidden state is available at 57\% of
+prefill wall-time (61\% audio) while L22 is simultaneously the in-mix
+quality peak (OOF .866 $>$ final layer .835): deciding early costs nothing,
+and the cloud call can launch while the remaining $\sim$40\% of prefill
+plus the whole decode still runs. Forking much earlier is not free:
+pre-50\%-depth layers are both weaker (L10 $\approx$ .794) and
+modality-specific (\S\ref{sec:xmodal}); the fork belongs at $\sim$55--60\%
+depth. For comparison, $\ptrue$-pre costs 39 / 67\,ms (an extra short
+prefill) and $\ptrue$-post costs a full draft (1.9 / 3.5\,s).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{fork_pareto}
+  \caption{Fork-depth Pareto: per-layer truncated-forward wall-time vs.\
+  gate quality. The deployed L22 sits at the quality peak while its hidden
+  state is available at $\sim$57--61\% of prefill wall-time.}
+  \label{fig:fork}
+\end{figure}
+
+\subsection{Does the cloud round-trip hide inside the talker's floor time?}
+\label{sec:overlap}
+
+If the gate fires at prefill and the cloud call launches immediately, the
+expert result is ready before the local answer finishes speaking for
+40--58\% of the whole test mix (audio input buys more time than text). But
+\emph{gate-escalated} queries skew toward short local answers (trap and
+knowledge pools; trap overlap $\approx$ 0), so pure overlap covers only
+$\sim$20--31\% of escalations at a 33\% budget (Figure~\ref{fig:overlap}).
+The residual wait after the local answer ends is P50 2--3\,s --- one stall
+sentence --- but P90 $\sim$27\,s, dominated by the expert's own reasoning
+latency. This argues for a fast-expert tier or streamed partial results in
+step 2, and it quantifies the stall-phrase budget an injection protocol
+must cover.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{overlap}
+  \caption{Cloud round-trip vs.\ local answer duration: probability the
+  expert result arrives before the local answer ends (+slack), whole mix
+  and gate-escalated subset, text and audio.}
+  \label{fig:overlap}
+\end{figure}
