@@ -84,7 +84,14 @@ FEATURES = f"{DATA}/calib_features.parquet"
 GATE_CFG = f"{DATA}/gate_config.json"
 EVAL_EXPERT = f"{DATA}/eval_expert.parquet"
 EVAL_PARA = f"{DATA}/eval_paraphrase.parquet"
+EXPERT_CACHE = f"{DATA}/expert_cache"   # gpt-5.5 answer cache (anti-distillation-
+                                        # flag: no query is ever sent twice)
 OPENAI = modal.Secret.from_name("openai")
+
+# Single egress region for the API-heavy CPU functions — the 2026-07 suspension
+# review flags rotating datacenter IPs; GPU functions stay unpinned (H100
+# capacity) since their API volume is small.
+API_REGION = "us-east"
 
 
 def _write_jsonl(path, rows):
@@ -479,7 +486,7 @@ def run_signals(workers: int = 4):
 
 # ====================== Phase 2.2: judge labels + features =================
 @gen_app.function(image=util_image, volumes={DATA: gate_data},
-                  secrets=[OPENAI], timeout=60 * 60)
+                  secrets=[OPENAI], timeout=60 * 60, region=API_REGION)
 def label(concurrency: int = 8):
     """gpt-5.4-mini judges each answer → adequate; merge into calib_features.parquet."""
     import asyncio
@@ -1055,7 +1062,7 @@ def run_signals_hf(tag: str, workers: int = 4, limit: int = 0):
 
 
 @gen_app.function(image=util_image, volumes={DATA: gate_data},
-                  secrets=[OPENAI], timeout=60 * 60)
+                  secrets=[OPENAI], timeout=60 * 60, region=API_REGION)
 def label_hf(tag: str, concurrency: int = 8):
     """Judge the backbone's answers (same rubric/judge as Phase 2) →
     features_{tag}.parquet."""
@@ -2282,7 +2289,7 @@ def e2e_demo(n: int = 9):
         score = probe.score(s["h_prompt"])
         fired = score >= thr
         dq = distill.distill_query(model, tok, q["query"])
-        exp = escalate.ask_expert(dq)                       # escalate the DISTILLED query
+        exp = escalate.ask_expert(dq, cache_dir=EXPERT_CACHE)  # escalate the DISTILLED query
         ea = exp["answer"]
         final = (inject.paraphrase(model, tok, q["query"], ea) if ea
                  else f"[no expert answer: {exp['error']}]")
@@ -2302,21 +2309,30 @@ def e2e_demo(n: int = 9):
 
 # ============================ Phase 5: system evaluation ===================
 @gen_app.function(image=util_image, volumes={DATA: gate_data}, secrets=[OPENAI],
-                  timeout=60 * 60)
-def eval_expert(concurrency: int = 6):
+                  timeout=60 * 60, region=API_REGION)
+def eval_expert(concurrency: int = 3, force: bool = False):
     """Phase 5 big-only: gpt-5.5 answers every TEST query (original, single-turn
-    → already standalone), judged for adequacy. → eval_expert.parquet."""
+    → already standalone), judged for adequacy. → eval_expert.parquet.
+    Answers are cached on the volume — a re-run only hits the API for misses."""
     import asyncio
+    import os
     import pandas as pd
     sys.path.insert(0, "/workspace/gate")
     import escalate
+
+    if os.path.exists(EVAL_EXPERT) and not force:
+        print(">>> eval_expert.parquet exists — expert results are FROZEN "
+              "(anti-distillation-flag: never bulk re-collect). "
+              "--force true to override.", flush=True)
+        return
 
     df = pd.read_parquet(FEATURES)
     test = df[df["split"] == "test"].reset_index(drop=True)
     print(f">>> eval_expert: {len(test)} test queries → gpt-5.5", flush=True)
 
     res = asyncio.run(escalate.ask_expert_many(test["query"].tolist(),
-                                               concurrency=concurrency))
+                                               concurrency=concurrency,
+                                               cache_dir=EXPERT_CACHE))
     n_err = sum(1 for r in res if r["error"])
     print(f">>> expert done ({n_err} errors); judging...", flush=True)
 
