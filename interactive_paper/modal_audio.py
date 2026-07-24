@@ -29,7 +29,7 @@ import modal
 
 from modal_app import (app, gen_app, image, util_image, GPU_VOL, gate_data,
                        DATA, MODEL_DIR, OPENAI, QUERIES, FEATURES,
-                       PTRUE_PRE, _read_jsonl, _load_queries,
+                       PTRUE_PRE, API_REGION, _read_jsonl, _load_queries,
                        _load_ptrue_rows_hf, _load_model)
 
 TAG = "minicpm-o45-audio"
@@ -58,7 +58,7 @@ PTRUE_POST_AU = ("You just heard a question in the audio. Here is a proposed "
 
 # ============================ TTS rendering ================================
 @gen_app.function(image=util_image_au, volumes={DATA: gate_data},
-                  secrets=[OPENAI], timeout=60 * 60)
+                  secrets=[OPENAI], timeout=60 * 60, region=API_REGION)
 def tts_pool(limit: int = 0, concurrency: int = 8):
     """Render the frozen query pool to wav (idempotent — skips existing)."""
     from concurrent.futures import ThreadPoolExecutor
@@ -733,7 +733,7 @@ FILLER_TEXT = ("The weather was mild yesterday, and the streets were quiet "
 
 
 @gen_app.function(image=util_image_au, volumes={DATA: gate_data},
-                  secrets=[OPENAI], timeout=60 * 5)
+                  secrets=[OPENAI], timeout=60 * 5, region=API_REGION)
 def tts_filler():
     from openai import OpenAI
     os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -850,7 +850,7 @@ def arms_report():
 
 # ============================ gpt-5.5 re-judge =============================
 @gen_app.function(image=util_image_au, volumes={DATA: gate_data},
-                  secrets=[OPENAI], timeout=60 * 60 * 2)
+                  secrets=[OPENAI], timeout=60 * 60 * 2, region=API_REGION)
 def rejudge(tag: str, concurrency: int = 8):
     """Re-judge a features parquet with gpt-5.5 (JUDGE_MODEL monkeypatched);
     report agreement with the gpt-5.4-mini labels per pool."""
@@ -1583,3 +1583,256 @@ def audio_report(mtag: str = "minicpm-o45", dtag: str = ""):
         json.dump({"curves": curves}, f)
     gate_data.commit()
     print(f"\n>>> wrote {DATA}/audio_xmodal_{dtag}.json", flush=True)
+
+
+# ============================ fork timing (7a) =============================
+@app.function(image=image_au, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def prefill_timing(n_per_pool: int = 5):
+    """Per-LAYER truncated-forward wall-clock, text and audio arms: at what
+    time during prefill is layer k's hidden state available, i.e. how early
+    can a mid-layer probe fire?  Same truncation methodology as
+    latency_bench's timed_l22, generalized to every decoder layer; the probe
+    itself is one 4096-dim dot product (~us) so time-to-layer IS the decision
+    time. layer=-1 rows = full prefill + 1 decoded token (TTFT reference).
+    -> prefill_timing.parquet"""
+    import time
+    import numpy as np
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+
+    model, tok = _load_model_audio()
+    kw = decode._chat_kwargs(model, tok)
+    layers = model.llm.model.layers
+    n_layers = len(layers)
+
+    by_pool = {}
+    for q in _read_jsonl(QUERIES):
+        by_pool.setdefault(q["pool"], []).append(q)
+    sample = [q for p in sorted(by_pool) for q in by_pool[p][:n_per_pool]]
+
+    class _Stop(Exception):
+        pass
+
+    def timed_layer(content, li):
+        def hook(_m, _i, _o):
+            raise _Stop()
+
+        h = layers[li].register_forward_hook(hook)
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        try:
+            model.chat(msgs=[{"role": "user", "content": content}],
+                       max_new_tokens=1, **kw)
+        except _Stop:
+            pass
+        finally:
+            h.remove()
+        torch.cuda.synchronize()
+        return time.perf_counter() - t0
+
+    def timed_full(content):
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        model.chat(msgs=[{"role": "user", "content": content}],
+                   max_new_tokens=1, **kw)
+        torch.cuda.synchronize()
+        return time.perf_counter() - t0
+
+    print(f">>> prefill_timing: {len(sample)} queries x 2 arms x "
+          f"{n_layers} layers", flush=True)
+    rows = []
+    for k, q in enumerate(sample):
+        au = _load_wav(q["id"])
+        warm = k < 2
+        for arm, content in (("text", [q["query"]]), ("audio", [au])):
+            for li in range(n_layers):
+                rows.append({"id": q["id"], "pool": q["pool"], "arm": arm,
+                             "warmup": warm, "layer": li,
+                             "t_s": timed_layer(content, li)})
+            rows.append({"id": q["id"], "pool": q["pool"], "arm": arm,
+                         "warmup": warm, "layer": -1,
+                         "t_s": timed_full(content)})
+        if k < 5 or k % 10 == 0:
+            d = [r for r in rows if r["id"] == q["id"]]
+            t22 = next(r["t_s"] for r in d
+                       if r["arm"] == "text" and r["layer"] == 22)
+            tf = next(r["t_s"] for r in d
+                      if r["arm"] == "text" and r["layer"] == -1)
+            print(f"  [{k}] {q['pool']}: text L22={t22*1000:.0f}ms "
+                  f"prefill+1tok={tf*1000:.0f}ms", flush=True)
+
+    df = pd.DataFrame(rows)
+    df.to_parquet(f"{DATA}/prefill_timing.parquet")
+    gate_data.commit()
+    d = df[~df["warmup"]]
+    for arm in ("text", "audio"):
+        g = d[d["arm"] == arm].groupby("layer")["t_s"].median() * 1000
+        print(f"  {arm}: L0={g[0]:.0f} L11={g[11]:.0f} L22={g[22]:.0f} "
+              f"L{n_layers-1}={g[n_layers-1]:.0f} full+1tok={g[-1]:.0f} ms",
+              flush=True)
+    print(">>> prefill_timing done", flush=True)
+
+
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 30,
+              cpu=8)
+def fork_report():
+    """Joins prefill_timing (WHEN is layer k readable) with the 5d layer
+    sweep (HOW GOOD is layer k) -> the fork Pareto: decision quality vs
+    decision time, text and audio arms. -> fork_pareto.png"""
+    import json
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    t = pd.read_parquet(f"{DATA}/prefill_timing.parquet")
+    t = t[~t["warmup"]]
+    curves = {}
+    for arm, tag in (("text", "minicpm-o45"), ("audio", "minicpm-o45-audio")):
+        with open(f"{DATA}/layer_sweep_{tag}.json") as f:
+            sweep = {c["layer"]: c for c in json.load(f)["curves"]}
+        g = t[t["arm"] == arm].groupby("layer")["t_s"].median() * 1000
+        full = g.pop(-1)
+        curves[arm] = pd.DataFrame({
+            "layer": g.index, "ms": g.values,
+            "pct_of_prefill": g.values / full * 100,
+            "oof": [sweep[li]["last_oof"] for li in g.index]})
+        print(f"\n=== {arm} (prefill+1tok = {full:.0f} ms) ===", flush=True)
+        for _, r in curves[arm].iterrows():
+            print(f"  L{int(r['layer']):02d} {r['ms']:6.1f} ms "
+                  f"({r['pct_of_prefill']:5.1f}%) oof={r['oof']:.3f}",
+                  flush=True)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    for ax, arm in zip(axes, ("text", "audio")):
+        c = curves[arm]
+        ax.plot(c["ms"], c["oof"], "o-", ms=3, label="probe OOF AUC")
+        for li in (11, 16, 22):
+            r = c[c["layer"] == li].iloc[0]
+            ax.annotate(f"L{li}", (r["ms"], r["oof"]),
+                        textcoords="offset points", xytext=(4, 4))
+        ax.set_title(f"{arm}: decision quality vs decision time")
+        ax.set_xlabel("time-to-layer during prefill (ms, median)")
+        ax.grid(alpha=.3)
+    axes[0].set_ylabel("calib OOF AUC (last-token probe)")
+    fig.tight_layout()
+    fig.savefig(f"{DATA}/fork_pareto.png", dpi=140)
+    gate_data.commit()
+    print(f"\n>>> wrote {DATA}/fork_pareto.png", flush=True)
+
+
+# ============================ escalation overlap (7a) ======================
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 30,
+              cpu=8)
+def overlap_report():
+    """Jisen's question: when the gate escalates, is the cloud result ready
+    before the talker finishes speaking the current turn?  Timeline per
+    escalated query: gate fires at t=l22 (pre-decode) -> cloud call starts
+    in parallel with local decode; expert result lands at l22 +
+    expert_latency; the talker holds the floor for its local answer
+    (latency_bench wall-clock, pool-matched).  overlap = P(expert ready
+    before local speech ends + slack), slack = turn-taking gap. Uses
+    Phase-5 per-query gpt-5.5 latencies (Modal us-east; includes API RTT).
+    -> overlap.png"""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    b = pd.read_parquet(f"{DATA}/latency_bench.parquet")
+    b = b[~b["warmup"]]
+    gate = {a: float(b[f"{a}_l22_s"].median()) for a in ("text", "audio")}
+    local = {a: {p: g[f"{a}_answer_s"].to_numpy()
+                 for p, g in b.groupby("pool")} for a in ("text", "audio")}
+
+    big = pd.read_parquet(f"{DATA}/eval_expert.parquet")
+    big = big[big["expert_error"].isna() & (big["expert_latency"] > 0)]
+    print(f">>> {len(big)} expert queries; expert latency "
+          f"P50={big['expert_latency'].median():.1f}s "
+          f"P95={big['expert_latency'].quantile(.95):.1f}s; gate "
+          f"text={gate['text']*1000:.0f}ms audio={gate['audio']*1000:.0f}ms",
+          flush=True)
+
+    slacks = (0.0, 2.0, 5.0)
+
+    def overlap_frac(rows, arm, slack):
+        """Mean over expert rows of P(gate + big <= local + slack), local
+        drawn from the same pool's bench durations (cross product)."""
+        vals = [np.mean(gate[arm] + r.expert_latency
+                        <= local[arm][r.pool] + slack)
+                for r in rows.itertuples() if r.pool in local[arm]]
+        return float(np.mean(vals))
+
+    print("\n=== overlap: P(cloud result ready before talker finishes) ===",
+          flush=True)
+    print(f"  {'pool':16s} " + " ".join(f"{a}+{s:.0f}s" for a in
+                                        ("text", "audio") for s in slacks),
+          flush=True)
+    for pool, g in big.groupby("pool"):
+        print(f"  {pool:16s} " +
+              " ".join(f"{overlap_frac(g, a, s):6.3f}"
+                       for a in ("text", "audio") for s in slacks),
+              flush=True)
+    print(f"  {'ALL (test mix)':16s} " +
+          " ".join(f"{overlap_frac(big, a, s):6.3f}"
+                   for a in ("text", "audio") for s in slacks), flush=True)
+
+    # --- escalated-only: the queries the L22 gate actually fires on --------
+    feats = pd.read_parquet(FEATURES)[["id", "pool", "split",
+                                       "escalate_label"]]
+    ids, hl = [], []
+    for s in sorted(glob.glob(f"{DATA}/layers_minicpm-o45.shard*.npz")):
+        z = np.load(s)
+        ids += [str(x) for x in z["ids"]]
+        hl.append(z["h_last"])
+    hl = np.concatenate(hl)
+    m = pd.DataFrame({"id": ids, "row": range(len(ids))}).merge(feats, on="id")
+    m = m[m["escalate_label"].notna()]
+    ca, tt = m[m["split"] == "calib"], m[m["split"] == "test"].copy()
+    probe = LogisticRegression(max_iter=2000).fit(
+        hl[ca["row"].to_numpy(), 22, :].astype(np.float32),
+        ca["escalate_label"].astype(int))
+    tt["score"] = probe.predict_proba(
+        hl[tt["row"].to_numpy(), 22, :].astype(np.float32))[:, 1]
+    print("\n=== escalated-only overlap (L22 gate, test split) ===",
+          flush=True)
+    for esc in (0.15, 0.33, 0.50):
+        sel = tt[tt["score"] >= np.quantile(tt["score"], 1 - esc)]
+        e = big.merge(sel[["id"]], on="id")
+        print(f"  esc@{esc:.2f} (n={len(e)}): " +
+              " ".join(f"{a}+{s:.0f}s={overlap_frac(e, a, s):.3f}"
+                       for a in ("text", "audio") for s in slacks),
+              flush=True)
+        for arm in ("text", "audio"):
+            med = {p: float(np.median(v)) for p, v in local[arm].items()}
+            wait = np.array([gate[arm] + r.expert_latency - med[r.pool]
+                             for r in e.itertuples() if r.pool in med])
+            wait = np.clip(wait, 0, None)     # already-ready => 0 stall
+            print(f"           {arm}: stall needed after local answer "
+                  f"P50={np.median(wait):.1f}s P90="
+                  f"{np.percentile(wait, 90):.1f}s", flush=True)
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    for arm, ls in (("text", "-"), ("audio", "--")):
+        ready = np.sort(gate[arm] + big["expert_latency"].to_numpy())
+        ax.plot(ready, np.linspace(0, 1, len(ready)), "C0" + ls,
+                label=f"cloud result ready ({arm} gate)")
+        dur = np.sort(np.concatenate(list(local[arm].values())))
+        ax.plot(dur, np.linspace(0, 1, len(dur)), "C1" + ls,
+                label=f"local answer duration ({arm})")
+    ax.set_xlim(0, 15)
+    ax.set_xlabel("seconds after query end")
+    ax.set_ylabel("CDF")
+    ax.set_title("Escalation overlap: cloud round-trip vs talker floor time")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=.3)
+    fig.tight_layout()
+    fig.savefig(f"{DATA}/overlap.png", dpi=140)
+    gate_data.commit()
+    print(f"\n>>> wrote {DATA}/overlap.png", flush=True)

@@ -1202,6 +1202,104 @@ collection + judge + qwen2-7b text layers). Project total ≈ **$290**.
 
 ---
 
+## Phase 7a — collaborator follow-ups: fork profiling + escalation overlap (2026-07-24)
+
+Meeting feedback (Jisen, Changyi) triaged into: (1) fork-at-layer-k
+profiling — Jisen's "branch at ~L10, probe in parallel, both finish
+together"; (2) result-feedback overlap — Jisen's "traditional routing
+doesn't need to feed results back to a talker; can the cloud result be
+ready by the next turn?"; (3) qwen3-omni probe test (Changyi) — assessed,
+deferred (below); (4) routing-literature positioning (Changyi) — written
+into TECHNICAL_REPORT §7. Items 1–2 run same-day; step-2 injection design
+is the next real phase.
+
+### Fork profiling: the decision is ready at 57% of prefill — at the quality peak
+
+`prefill_timing` (H100, 25 q × text/audio × all 36 layers, truncated-forward
+= same methodology as 6c's timed_l22, CUDA-synced, 2-query warmup) +
+`fork_report` (joins 5d layer-sweep quality; figures/fork_pareto.png;
+prefill_timing.parquet on volume). Architecture note first: the "fork" is
+free by construction — the probe is one 4096-d dot product (~µs) on a
+hidden state the forward computes anyway; nothing waits. The real question
+is WHERE the signal is sufficient:
+
+| layer | text ms (% of prefill+1tok) | text OOF | audio ms (%) | audio OOF |
+|---|---:|---:|---:|---:|
+| L11 (Jisen's ~L10) | 8.1 (35%) | .794 | 24.1 (48%) | .760 |
+| L16 | 10.4 (45%) | .797 | 26.4 (53%) | .780 |
+| **L22 (deployed)** | **13.2 (57%)** | **.866 = peak** | 30.6 (61%) | .815 |
+| L23 | 13.7 (59%) | .850 | 29.3 (59%) | **.822 = peak** |
+| L35 (final) | 19.3 (84%) | .835 | 36.6 (73%) | .813 |
+| prefill+1tok | 23.2 | — | 50.1 | — |
+
+- **L22 is simultaneously the earliest-useful AND the best layer** (in-mix
+  OOF .866 beats the final layer's .835; 5d showed the same for LOPO .93 vs
+  .37) — deciding at 57% of prefill costs nothing in quality. Escalation
+  can therefore LAUNCH while the last 43% of prefill + decode still runs.
+- L10-ish is too early on this model: .794 (−.07 from peak) and early
+  layers are modality-specific (6a: cross-modal transfer dead before ~50%
+  depth) — the fork belongs at ~55–60% depth, not 30%.
+- Audio pays the encoder front-end (~17 ms: audio L1 21.4 ms vs text L1
+  3.8 ms) at EVERY fork depth; L1→L22 then adds only ~9 ms. (Both arms'
+  L0 rows are inflated by per-query first-call overhead — the L0 point in
+  fork_pareto.png is an artifact, ignore it.)
+- Absolute times here (23 ms prefill) are lower than 6c's chat-path bench
+  (TTFT 36 ms) — different call overhead; the robust statistic is the
+  ratio. Both agree the decision predates the first output token.
+
+### Escalation overlap: Jisen's "result by next turn" — yes for the mix, not for escalated traps
+
+`overlap_report` (CPU $0): per-query Phase-5 gpt-5.5 latencies (P50 3.0 s /
+P95 24.4 s) vs pool-matched measured local answer durations (6c bench);
+timeline = gate fires at l22 → cloud call in parallel with local decode.
+P(expert result ready before the talker finishes + slack), figures/overlap.png:
+
+| pool | text+0s | text+2s | text+5s | audio+0s | audio+2s | audio+5s |
+|---|---:|---:|---:|---:|---:|---:|
+| easy-chat | .43 | .66 | .86 | .77 | .86 | .92 |
+| easy-fact | .02 | .62 | .94 | .56 | .87 | .95 |
+| hard-knowledge | .48 | .61 | .74 | .44 | .60 | .73 |
+| hard-math | .66 | .91 | .93 | .71 | .91 | .93 |
+| trap | **.00** | .00 | .26 | .02 | .09 | .38 |
+| ALL (test mix) | .40 | .65 | .81 | .58 | .75 | .84 |
+| **escalated @.33** | **.20** | **.39** | **.60** | **.31** | **.47** | **.63** |
+
+Stall needed after the local answer ends (escalated @.33): text P50 3.1 s /
+P90 28.9 s; audio P50 1.9 s / P90 26.8 s (@.50: 1.8/0.3 s P50).
+
+- **The overlap story works for the traffic mix (40–58%) but the gate
+  selects against it**: escalated queries skew trap/knowledge, whose local
+  answers are SHORT (trap overlap ≈ 0 — the talker finishes "…is X" in ~1 s
+  while gpt-5.5 thinks for 3+). Math is the good case (.66–.91): long local
+  answers buy the cloud time.
+- Design consequence: same-turn delivery needs only **P50 one stall
+  sentence (~2–3 s)**; the P90 tail (~27 s) is gpt-5.5's own reasoning
+  latency, not our plumbing — argues for a fast-expert tier and/or streamed
+  partial results in step 2. Audio deployment is structurally friendlier
+  (utterances are ~2× longer).
+- Caveats: expert latency measured Modal-us-east→OpenAI (includes RTT);
+  local durations at max_new_tokens=256 (mild underestimate for the
+  longest answers); bench n=10/pool → cross-product estimate.
+
+### Changyi's qwen3-omni proposal — disposition
+
+The logic ("if a non-duplex omni's last layers are probeable, the damage is
+duplex not modality") is exactly the already-run qwen2.5-omni control:
+no cliff in either modality (5d text final .746 ≈ audio .757, 6b), plus 6a's
+within-model converse (o4.5 audio L35 .936 vs text .366 — same weights, no
+cliff on the native modality) and the ttstpl control. Qwen3-Omni-30B-A3B
+(turn-based streaming per model card, premise correct) would add a
+same-generation-as-o4.5 omni control (n=2), ~$25 + MoE/thinker integration
+(transformers from source) — worthwhile as reinforcement, deferred by
+priority call 2026-07-24. Stronger version of the same test: a NEW
+open-weight full-duplex model as a pre-registered prediction ("it should
+show the text-input late-layer cliff") — watch Qwen3.5-Omni (2026-03,
+weights unconfirmed) and DuplexOmni (arXiv 2606.09186).
+
+Phase-7a spend ≈ $2. Project total ≈ **$292**.
+
+---
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
