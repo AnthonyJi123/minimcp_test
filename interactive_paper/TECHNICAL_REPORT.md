@@ -325,6 +325,21 @@ third of escalations; the residual wait after the local answer ends is
 own reasoning latency, which argues for a fast-expert tier or streamed
 partial results in step 2. Audio helps (longer utterances buy time).
 
+![Escalation timelines](figures/timeline_scenarios.png)
+
+**Figure — escalation timelines (all measured medians, text arm).**
+(a) The fork: the L22 probe decision (20 ms, 57% of prefill) precedes the
+first output token (36 ms); the cloud call launches while prefill is still
+running, so the talker never waits on the gate. (b) Audio-channel occupancy
+across four scenarios: pre-answer routing (RouteLLM-style) leaves 2.7 s of
+dead air before anything is spoken; gated hard-math fully overlaps the
+cloud round-trip (expert P50 2.7 s < draft 3.5 s — zero silence); gated
+easy-fact bridges with one 1.8 s stall sentence; gated trap is the
+structural worst case — gpt-5.5 is slowest exactly on the SimpleQA traps
+(P50 8.2 s, P90 54 s) while the local draft is shortest (0.8 s), leaving a
+7.4 s gap that stalling cannot bridge — the step-2 problem. Vector version:
+`figures/timeline_scenarios.pdf`; script `figures/timeline_scenarios.py`.
+
 ---
 
 ## 7. Positioning vs LLM routing
@@ -393,7 +408,8 @@ authority framing is the next phase.
 signals), `modal_app.py` (text pipelines + reports), `modal_audio.py` (audio
 arm, thinking ablation, latency + fork + overlap benches), `modal_freeze.py`
 (Freeze-Omni). Figures: roc, tradeoff, tradeoff_ptrue, tradeoff_midlayer,
-layer_sweep, fork_pareto, overlap. Volumes: `gate-data` (signals, layers npz,
+layer_sweep, fork_pareto, overlap, timeline_scenarios (+pdf). Volumes:
+`gate-data` (signals, layers npz,
 features incl. gpt-5.5 re-judge, ptrue shards, audio pool wavs, benches),
 `minicpm-o45-weights` (+ all control-model snapshots), `fdb-data`,
 `bench-data`.
