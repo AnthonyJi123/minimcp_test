@@ -67,6 +67,16 @@ duplex-fine-tune-induced ways.} Concretely:
   escalation dominates on both accuracy and latency at every escalation
   rate, because the gate flags knowledge/trap failures that thinking cannot
   fix --- external escalation is \emph{necessary}, not merely better.
+\item \textbf{The loop closes live (\S\ref{sec:live}).} In full streaming
+  duplex sessions, an end-of-turn mid-layer read out-performs the offline
+  reference (AUC .887 vs.\ .843) and still decides pre-first-token; the
+  returned expert answer is spoken by the talker, and the pushback problem
+  largely dissolves for \emph{gated} escalations because the same
+  low-confidence state that fires the gate predicts relay compliance
+  (comply .42 $\to$ .75 across gate-score quartiles). The live system
+  climbs monotonically from its honest streaming floor (.400 $\to$ .633 at
+  55\% escalation), with the gap to offline operation itemized into
+  measured audio, streaming, and speech-channel taxes.
 \end{enumerate}
 
 \begin{figure}[t]
@@ -80,10 +90,12 @@ duplex-fine-tune-induced ways.} Concretely:
   \label{fig:concept}
 \end{figure}
 
-This is explicitly \textbf{step~1 of a two-step design}. Step~2 --- how the
-thinker's result is returned into a live duplex session (injection protocol,
-authority framing, stall phrases) --- is scoped but not solved here; our
-streaming experiments already surface its first real obstacle (the talker
-pushes back on injected results that conflict with its own reasoning,
-\S\ref{sec:discussion}), and our overlap analysis (\S\ref{sec:system})
-quantifies its timing budget.
+The paper executes \textbf{both steps of the two-step design}. Step~1
+(\S\ref{sec:rq1}--\S\ref{sec:system}) establishes when the talker should
+hand off; step~2 (\S\ref{sec:live}) returns the thinker's result into the
+live duplex session. Its anticipated obstacle --- the talker pushing back
+on injected results that conflict with its own reasoning --- turns out to
+be governed by the gate's own signal: escalations the gate fires are
+exactly the ones the talker is willing to relay, and where confidence is
+high, authority \emph{framing} works while forcing words into the
+talker's mouth backfires (\S\ref{sec:inject}).

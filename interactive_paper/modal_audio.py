@@ -29,8 +29,8 @@ import modal
 
 from modal_app import (app, gen_app, image, util_image, GPU_VOL, gate_data,
                        DATA, MODEL_DIR, OPENAI, QUERIES, FEATURES,
-                       PTRUE_PRE, API_REGION, _read_jsonl, _load_queries,
-                       _load_ptrue_rows_hf, _load_model)
+                       PTRUE_PRE, API_REGION, _read_jsonl, _write_jsonl,
+                       _load_queries, _load_ptrue_rows_hf, _load_model)
 
 TAG = "minicpm-o45-audio"
 AUDIO_DIR = f"{DATA}/audio_pool"
@@ -326,6 +326,385 @@ def run_audio_ptrue(workers: int = 4, mtag: str = "minicpm-o45"):
     total = sum(collect_ptrue_audio.starmap(
         [(shards[i], i, mtag) for i in range(workers)]))
     print(f">>> collected audio p(True) for {total} queries")
+
+
+# ============================ key check + pool-AUC audit ===================
+@gen_app.function(image=util_image_au, secrets=[OPENAI], timeout=60 * 3,
+                  region=API_REGION)
+def openai_ping():
+    """1-call health check of the OpenAI secret (account was just restored)."""
+    from openai import OpenAI
+    try:
+        r = OpenAI().chat.completions.create(
+            model="gpt-5.4-mini", max_completion_tokens=16,
+            messages=[{"role": "user", "content": "Reply with the word: pong"}])
+        print(f">>> KEY OK | model={r.model} | content={r.choices[0].message.content!r} "
+              f"| usage={r.usage.total_tokens}", flush=True)
+    except Exception as e:
+        print(f">>> KEY FAILED: {type(e).__name__}: {e}", flush=True)
+
+
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 10)
+def ptrue_withinpool():
+    """Is the residual audio p(True) AUC (0.786) type-level or instance-level?
+    Decompose: within-pool AUC per pool (instance component) vs a pool-identity
+    predictor (score = pool mean p_yes) for both text and audio arms."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.metrics import roc_auc_score
+
+    def load(tag_glob, feats_path, name):
+        pt = pd.concat([pd.read_parquet(s) for s in sorted(glob.glob(tag_glob))],
+                       ignore_index=True)[["id", "p_yes_pre"]]
+        f = pd.read_parquet(feats_path)[["id", "pool", "escalate_label"]]
+        df = pt.merge(f, on="id")
+        df = df[df["escalate_label"].notna()]
+        y = df["escalate_label"].astype(int).to_numpy()
+        s = -df["p_yes_pre"].to_numpy()
+        print(f"=== {name} (n={len(df)}) overall AUC={roc_auc_score(y, s):.3f} ===",
+              flush=True)
+        pool_mean = df.groupby("pool")["p_yes_pre"].transform("mean")
+        print(f"  pool-identity-only AUC = "
+              f"{roc_auc_score(y, -pool_mean.to_numpy()):.3f}", flush=True)
+        for pool, g in df.groupby("pool"):
+            yy = g["escalate_label"].astype(int)
+            if yy.nunique() < 2:
+                print(f"  {pool:16s} n={len(g):4d} single-class "
+                      f"(fail={yy.mean():.2f}) mean_p_yes={g['p_yes_pre'].mean():.3f}",
+                      flush=True)
+            else:
+                print(f"  {pool:16s} n={len(g):4d} within-pool AUC="
+                      f"{roc_auc_score(yy, -g['p_yes_pre']):.3f}", flush=True)
+
+    load(f"{DATA}/ptrue.shard*.parquet", FEATURES, "text ptrue_pre")
+    load(f"{DATA}/ptrue_{TAG}.shard*.parquet", f"{DATA}/features_{TAG}.parquet",
+         "audio ptrue_pre")
+
+
+# ============================ SD-QA arm B (real human speech) ==============
+SDQA_N = 200
+SDQA_AUDIO = f"{DATA}/sdqa_audio"
+SDQA_Q = f"{DATA}/queries_sdqa.jsonl"
+
+util_audio_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("datasets==2.21.0", "huggingface_hub[hf_transfer]", "pandas",
+                 "pyarrow", "soundfile", "librosa", "scikit-learn")
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+    .add_local_file(_APP_PY, "/root/modal_app.py")
+)
+
+
+@app.function(image=util_audio_image, volumes={DATA: gate_data},
+              timeout=60 * 60)
+def build_sdqa(n: int = SDQA_N):
+    """Pull VoiceBench's SD-QA subset (REAL human recordings of NQ/TyDi-style
+    questions, USA dialect) -> wavs on volume + queries_sdqa.jsonl in the
+    frozen-pool schema. Introspective: prints configs/splits/features first."""
+    import numpy as np
+    import librosa
+    import soundfile as sf
+    from datasets import load_dataset, get_dataset_config_names
+
+    configs = get_dataset_config_names("hlt-lab/voicebench")
+    print(f">>> voicebench configs: {configs}", flush=True)
+    cfg = next((c for c in configs if "sd" in c.lower().replace("-", "")), None)
+    if cfg is None:
+        raise RuntimeError(f"no sd-qa config found in {configs}")
+    from datasets import load_dataset
+    ds = load_dataset("hlt-lab/voicebench", cfg)
+    print(f">>> splits: {list(ds.keys())}", flush=True)
+    split = "usa" if "usa" in ds else list(ds.keys())[0]
+    d = ds[split]
+    print(f">>> using split {split!r} n={len(d)} features={d.features}", flush=True)
+
+    ref_field = next((f for f in ("reference", "answer", "output", "response")
+                      if f in d.features), None)
+    q_field = next((f for f in ("prompt", "question", "text", "instruction")
+                    if f in d.features), None)
+    if not q_field:
+        raise RuntimeError(f"no question field in {list(d.features)}")
+    print(f">>> q_field={q_field!r} ref_field={ref_field!r}", flush=True)
+
+    os.makedirs(SDQA_AUDIO, exist_ok=True)
+    rows = []
+    for i, ex in enumerate(d):
+        if len(rows) >= n:
+            break
+        au = ex["audio"]
+        arr = np.asarray(au["array"], dtype=np.float32)
+        if au["sampling_rate"] != 16000:
+            arr = librosa.resample(arr, orig_sr=au["sampling_rate"],
+                                   target_sr=16000)
+        qid = f"sdqa{i:04d}"
+        sf.write(f"{SDQA_AUDIO}/{qid}.wav", arr, 16000)
+        rows.append({"id": qid, "pool": "sdqa", "source": f"voicebench/{cfg}/{split}",
+                     "query": ex[q_field],
+                     "reference_answer": ex[ref_field] if ref_field else None,
+                     "split": "calib"})
+    _write_jsonl(SDQA_Q, rows)
+    gate_data.commit()
+    print(f">>> wrote {len(rows)} sdqa queries + wavs "
+          f"(ref answers: {'yes' if ref_field else 'NO - judge will rate unaided'})",
+          flush=True)
+
+
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 5)
+def _load_sdqa() -> list:
+    return _read_jsonl(SDQA_Q)
+
+
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 5)
+def _load_sdqa_answers(tag: str) -> list:
+    """Answers straight from signals shards (decoupled from judge/key)."""
+    import glob
+    import pandas as pd
+    df = pd.concat([pd.read_parquet(s) for s in
+                    sorted(glob.glob(f"{DATA}/signals_{tag}.shard*.parquet"))],
+                   ignore_index=True)
+    return [{"id": r["id"], "query": r["query"],
+             "answer": r["answer"] if isinstance(r["answer"], str) else ""}
+            for _, r in df.iterrows()]
+
+
+@app.function(image=image_au, gpu="H100", volumes=GPU_VOL, timeout=60 * 60 * 2)
+def collect_sdqa(shard: list, shard_id: int, mode: str) -> int:
+    """Signals + all-layer capture for SD-QA in either modality.
+    mode='audio': real human recording in; mode='text': same question typed."""
+    import numpy as np
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+    import layers as layers_mod
+    import librosa
+
+    tag = f"sdqa-{mode}"
+    model, tok = _load_model_audio()
+    kw = decode._chat_kwargs(model, tok)
+    mods = list(model.llm.model.layers)
+    print(f">>> {tag} shard {shard_id}: {len(shard)} queries", flush=True)
+
+    sig_rows, ids, lasts, means = [], [], [], []
+    for k, q in enumerate(shard):
+        if mode == "audio":
+            au, _ = librosa.load(f"{SDQA_AUDIO}/{q['id']}.wav", sr=16000,
+                                 mono=True)
+            content = [au]
+        else:
+            content = [q["query"]]
+        coll = decode._Collector(16)
+        handles = decode._register(model, coll)
+        res = {}
+        try:
+            hl, hm = layers_mod.capture_prefill_layers(
+                mods,
+                lambda: res.update(text=model.chat(
+                    msgs=[{"role": "user", "content": content}],
+                    max_new_tokens=512, **kw)))
+        finally:
+            for h in handles:
+                h.remove()
+        text = res["text"]
+        text = text.strip() if isinstance(text, str) else str(text)
+        h_prompt = coll.hiddens[0] if coll.hiddens else None
+        steps = coll.hiddens[1:9]
+        h_mean8 = torch.stack(steps).mean(0) if steps else h_prompt
+        sig_rows.append({**{f: q[f] for f in
+                            ("id", "pool", "source", "query", "reference_answer",
+                             "split")},
+                         "answer": text, "n_forward": len(coll.hiddens),
+                         "entropy": coll.entropy, "margin": coll.margin,
+                         "h_prompt": h_prompt.tolist() if h_prompt is not None else None,
+                         "h_mean8": h_mean8.tolist() if h_mean8 is not None else None})
+        ids.append(q["id"])
+        lasts.append(hl.numpy().astype(np.float16))
+        means.append(hm.numpy().astype(np.float16))
+        if k < 2 or k % 50 == 0:
+            print(f"  [{k}] {text[:60]!r}", flush=True)
+
+    pd.DataFrame(sig_rows).to_parquet(f"{DATA}/signals_{tag}.shard{shard_id}.parquet")
+    np.savez_compressed(f"{DATA}/layers_{tag}.shard{shard_id}.npz",
+                        ids=np.array(ids), h_last=np.stack(lasts),
+                        h_mean=np.stack(means))
+    gate_data.commit()
+    print(f">>> wrote {tag} shard {shard_id} ({len(ids)} rows)", flush=True)
+    return len(ids)
+
+
+@app.function(image=image_au, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def collect_ptrue_sdqa(shard: list, shard_id: int, mode: str) -> int:
+    """p(True) pre/post for SD-QA, question presented as audio or text."""
+    import pandas as pd
+    import torch
+    sys.path.insert(0, "/workspace/gate")
+    import decode
+    import librosa
+
+    tag = f"sdqa-{mode}"
+    model, tok = _load_model_audio()
+    kw = decode._chat_kwargs(model, tok)
+
+    def tok_ids(words):
+        ids = set()
+        for w in words:
+            enc = tok.encode(w, add_special_tokens=False)
+            if len(enc) == 1:
+                ids.add(enc[0])
+        return sorted(ids)
+
+    YES = tok_ids(["Yes", "yes", "YES", " Yes", " yes", "是", "能", "对", "会"])
+    NO = tok_ids(["No", "no", "NO", " No", " no", "否", "不", "错"])
+
+    def p_yes(content):
+        store = {}
+
+        def head_hook(_m, _inp, out):
+            if "logits" not in store:
+                store["logits"] = out[0, -1, :].detach().float().cpu()
+
+        h = model.llm.lm_head.register_forward_hook(head_hook)
+        try:
+            model.chat(msgs=[{"role": "user", "content": content}],
+                       max_new_tokens=1, **kw)
+        finally:
+            h.remove()
+        p = torch.softmax(store["logits"], dim=-1)
+        py, pn = float(p[YES].sum()), float(p[NO].sum())
+        return py / (py + pn) if (py + pn) > 0 else 0.5
+
+    from modal_app import PTRUE_POST
+    rows = []
+    for k, q in enumerate(shard):
+        if mode == "audio":
+            au, _ = librosa.load(f"{SDQA_AUDIO}/{q['id']}.wav", sr=16000,
+                                 mono=True)
+            pre = p_yes([au, PTRUE_PRE_AU])
+            post = p_yes([au, PTRUE_POST_AU.format(a=q["answer"][:4000])])
+        else:
+            pre = p_yes([PTRUE_PRE.format(q=q["query"])])
+            post = p_yes([PTRUE_POST.format(q=q["query"], a=q["answer"][:4000])])
+        rows.append({"id": q["id"], "p_yes_pre": pre, "p_yes_post": post})
+        if k < 3 or k % 50 == 0:
+            print(f"  [{k}] pre={pre:.3f} post={post:.3f}", flush=True)
+    pd.DataFrame(rows).to_parquet(f"{DATA}/ptrue_{tag}.shard{shard_id}.parquet")
+    gate_data.commit()
+    print(f">>> wrote ptrue {tag} shard {shard_id}", flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_sdqa(workers: int = 4, mode: str = "both"):
+    qs = _load_sdqa.remote()
+    modes = ["audio", "text"] if mode == "both" else [mode]
+    for m in modes:
+        shards = [qs[i::workers] for i in range(workers)]
+        print(f">>> sdqa-{m}: {len(qs)} queries / {workers} H100 workers")
+        total = sum(collect_sdqa.starmap(
+            [(shards[i], i, m) for i in range(workers)]))
+        print(f">>> collected sdqa-{m} for {total} queries")
+
+
+@app.function(image=util_image_au, volumes={DATA: gate_data}, timeout=60 * 30,
+              cpu=8)
+def sdqa_report():
+    """Arm-B validation on REAL human speech (200 q, VoiceBench sd-qa USA).
+    Label-free part always runs (paired p_yes shift = overconfidence
+    replication). Labeled parts (fail rates, per-layer transfer from the
+    frozen pool = the cliff test on real speech) run once
+    features_sdqa-{audio,text}.parquet exist (label_hf needs the key)."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    def load_pt(tag):
+        return pd.concat([pd.read_parquet(s) for s in
+                          sorted(glob.glob(f"{DATA}/ptrue_{tag}.shard*.parquet"))],
+                         ignore_index=True)
+
+    ptx, pau = load_pt("sdqa-text"), load_pt("sdqa-audio")
+    pair = ptx.merge(pau, on="id", suffixes=("_tx", "_au"))
+    d = pair["p_yes_pre_au"] - pair["p_yes_pre_tx"]
+    print(f"=== label-free: paired p_yes_pre shift, real speech (n={len(pair)}) ===",
+          flush=True)
+    print(f"  text mean={pair['p_yes_pre_tx'].mean():.3f} "
+          f"audio mean={pair['p_yes_pre_au'].mean():.3f} "
+          f"shift={d.mean():+.3f} (audio>text on {(d > 0).mean():.0%})", flush=True)
+
+    have = all(os.path.exists(f"{DATA}/features_sdqa-{m}.parquet")
+               for m in ("audio", "text"))
+    if not have:
+        print("\n!! features_sdqa-* missing — run label_hf --tag sdqa-audio and "
+              "--tag sdqa-text after the key is restored", flush=True)
+        return
+
+    lab = {m: pd.read_parquet(f"{DATA}/features_sdqa-{m}.parquet")[
+        ["id", "escalate_label"]].dropna() for m in ("audio", "text")}
+    fr = {m: lab[m]["escalate_label"].mean() for m in lab}
+    print(f"\n=== fail rates: text={fr['text']:.3f} audio={fr['audio']:.3f} "
+          f"d={fr['audio'] - fr['text']:+.3f} ===", flush=True)
+
+    def load_layers(tag):
+        ids, hl = [], []
+        for s in sorted(glob.glob(f"{DATA}/layers_{tag}.shard*.npz")):
+            z = np.load(s)
+            ids += [str(x) for x in z["ids"]]
+            hl.append(z["h_last"])
+        return pd.DataFrame({"id": ids, "row": range(len(ids))}), np.concatenate(hl)
+
+    # frozen-pool calib probes (text + audio arms)
+    src = {}
+    for name, tag, feats in (("tx", "minicpm-o45", FEATURES),
+                             ("au", TAG, f"{DATA}/features_{TAG}.parquet")):
+        f = pd.read_parquet(feats)[["id", "pool", "split", "escalate_label"]]
+        idx, H = load_layers(tag)
+        m = idx.merge(f, on="id")
+        m = m[(m["split"] == "calib") & m["escalate_label"].notna()]
+        src[name] = (H[m["row"].to_numpy()], m["escalate_label"].astype(int).to_numpy())
+
+    tgt = {}
+    for name, tag in (("tx", "sdqa-text"), ("au", "sdqa-audio")):
+        idx, H = load_layers(tag)
+        m = idx.merge(lab["text" if name == "tx" else "audio"], on="id")
+        tgt[name] = (H[m["row"].to_numpy()], m["escalate_label"].astype(int).to_numpy())
+
+    n_layers = src["tx"][0].shape[1]
+    print(f"\n=== frozen-pool probe -> sdqa transfer per layer "
+          f"(sdqa = fully held-out pool; the real-speech cliff test) ===",
+          flush=True)
+    print("  layer | tx->sdqaTX | au->sdqaAU | tx->sdqaAU(deploy)", flush=True)
+    for li in range(n_layers):
+        row = []
+        for (s, t) in (("tx", "tx"), ("au", "au"), ("tx", "au")):
+            Xs, ys = src[s][0][:, li, :].astype(np.float32), src[s][1]
+            Xt, yt = tgt[t][0][:, li, :].astype(np.float32), tgt[t][1]
+            sc = LogisticRegression(max_iter=2000).fit(Xs, ys).predict_proba(Xt)[:, 1]
+            row.append(roc_auc_score(yt, sc))
+        print(f"  L{li:02d}   | {row[0]:.3f}      | {row[1]:.3f}      | {row[2]:.3f}",
+              flush=True)
+
+    for m, pt in (("text", ptx), ("audio", pau)):
+        j = pt.merge(lab[m], on="id")
+        y = j["escalate_label"].astype(int)
+        print(f"\n  sdqa-{m}: ptrue_pre AUC={roc_auc_score(y, -j['p_yes_pre']):.3f} "
+              f"post={roc_auc_score(y, -j['p_yes_post']):.3f} "
+              f"| fail-subset mean p_yes_pre="
+              f"{j.loc[y == 1, 'p_yes_pre'].mean():.3f}", flush=True)
+
+
+@app.local_entrypoint()
+def run_sdqa_ptrue(workers: int = 4, mode: str = "both"):
+    modes = ["audio", "text"] if mode == "both" else [mode]
+    for m in modes:
+        qs = _load_sdqa_answers.remote(f"sdqa-{m}")
+        shards = [qs[i::workers] for i in range(workers)]
+        print(f">>> sdqa-{m} ptrue: {len(qs)} / {workers} workers")
+        total = sum(collect_ptrue_sdqa.starmap(
+            [(shards[i], i, m) for i in range(workers)]))
+        print(f">>> collected ptrue sdqa-{m} for {total}")
 
 
 # ============================ TTS-template control =========================

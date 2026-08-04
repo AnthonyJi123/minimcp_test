@@ -1,0 +1,208 @@
+\section{The Gate Goes Live: Streaming Deployment and Result Injection}
+\label{sec:live}
+
+Everything so far measures signals in replay. This section closes the loop
+--- the original third research question: once the gate has decided the
+answer belongs to the big model, how does the big model's result get back
+into the small model so the \emph{talker} speaks it? We run the full
+duplex session live: audio streamed in 1\,s chunks, the mid-layer gate
+read during streaming, the expert called mid-conversation, its result
+injected into the same session. Three questions structure the section:
+where the streaming gate should read (\S\ref{sec:liveloop}), whether the
+talker will actually say what the expert answered (\S\ref{sec:inject}),
+and what the tradeoff curve looks like when every oracle shortcut is
+removed (\S\ref{sec:livecurve}).
+
+\subsection{The streaming loop: the end-of-turn read decides, prefetch dies}
+\label{sec:liveloop}
+
+The offline gate reads $h_{\text{prompt}}$ --- the last prompt token's
+mid-layer state. Streaming has no such token until the turn ends, and
+per-chunk probe scores are strictly weaker than the offline reference
+(best chunk statistic AUC .764 vs.\ offline .843), with a structural
+failure on trap: short utterances back-load the critical entity into the
+zero-padded tail chunk, and the mid-stream gate fired on only 1/5 of trap
+(live) where the offline read caught nearly all. The fix is the
+\textbf{end-of-turn read}: after the last audio chunk, prefill an
+assistant turn containing a single space and read L22 at the
+assistant-start position --- the streaming analogue of
+$h_{\text{prompt}}$. This read reaches \textbf{AUC .887}, \emph{above}
+the offline full-prefill reference (.843), restores trap
+fire@balanced from .20 to \textbf{.90}, costs 22\,ms (still before the
+first output token), and becomes the \emph{only} decision point ---
+escalation-rate thresholds are quantiles of this single score, so the
+chunk-vs-turn joint-calibration problem disappears.
+
+The remaining role for mid-stream firing would be \emph{speculative}
+expert prefetch --- start the cloud call early, veto at end of turn. We
+kill this with a measurement before building it. Framing the design as
+query-level speculative execution \citep{leviathan2023fast} at sentence
+granularity, its acceptance rate is the probability that an expert answer
+to the \emph{partial} transcript answers the full question --- a wait-$k$
+style tradeoff \citep{ma2019stacl}. Judged on calibration texts truncated
+at 25/50/75\% of the words, acceptance is \textbf{.07/.19/.51}; at the
+chunk gate's typical fire point (27--40\% of the audio) it is
+$\sim$.2--.4, i.e.\ 6--8 of every 10 speculative calls would be wasted.
+Trap's acceptance floor (.00/.10/.27) is the same back-loaded-core
+property that broke the mid-stream probe --- one underlying property,
+measured independently in the hidden states and in the semantics.
+Prefetch is dropped; the expert starts at end of turn.
+
+Two more deployment-honesty decisions close the loop's design. First, the
+expert query is the talker's \emph{own} transcription of the audio
+(P50 2.2\,s, overlapped with the stall phrase), not the dataset's gold
+text. Second, expert reasoning effort is \textbf{fixed at low}: on the
+gate-escalated population, effort buys \emph{zero} accuracy (gold-text
+queries: .85 medium vs.\ .82 low overall; math 1.00 at both) while
+doubling latency (P50 5.8$\to$9.1\,s, P95 23.9$\to$78.8\,s) --- escalated
+failures are knowledge-bound at both scales, mirroring the talker-side
+thinking result (\S\ref{sec:thinking}). A planned deadline-aware effort
+policy collapsed, by measurement, to the simplest possible one. The stall
+phrase itself must be injected as \emph{assistant-role prefill}: the
+official \texttt{teacher\_forcing\_text} hook continues generating freely
+mid-stream, so canned filler semantics survive only if the phrase enters
+as already-spoken assistant speech.
+
+\subsection{Will the talker say it? The pushback problem, quantified}
+\label{sec:inject}
+
+The streaming smoke test surfaced the substantive step-2 obstacle: the
+talker \emph{pushes back} on injected expert results that conflict with
+its own reasoning. Before any live sweep, we quantified this channel on
+172 live audio sessions: conflicting ``expert answers'' fabricated by
+within-pool derangement of reference answers (deterministic, no LLM
+generation), four framings from neutral (F0) through the deployed
+authority template (F1), strong-override (F2), and assistant-seeding (F3,
+teacher-forcing ``the answer is: X'' into the talker's own mouth), judged
+into \{comply, pushback, lip-service, other\}. Five results:
+
+\begin{enumerate}
+\item \textbf{The deployed channel is clean.} On the actual live workload
+  --- model wrong, correct answer injected --- comply $=1.00$ ($n{=}24$).
+  The live curve of \S\ref{sec:livecurve} is not contaminated by relay
+  refusal.
+\item \textbf{The same signal that triggers escalation predicts
+  compliance.} Across gate-score quartiles, comply rises
+  $.42 \to .67 \to .75 \to .75$; resistance (pushback + lip-service) is
+  .25 in the most-confident quartile vs.\ .08 elsewhere. A model that
+  knows it doesn't know is willing to listen --- the gate and the relay
+  are two uses of one signal. In the high-score half, hard-knowledge (the
+  dominant escalation type) complies $1.00$ ($n{=}13$).
+\item \textbf{Authority framing works; forcing words into the talker's
+  mouth backfires.} Worst case (confident-correct model $\times$
+  conflicting injection): F0 comply .00, F1 .53, F2 .79 --- but F3
+  \emph{seeding} yields comply .25 with lip-service .62: the model speaks
+  the seeded answer, then walks it back in its own continuation. Forced
+  speech is treated as revisable; framing, not ventriloquism, is the
+  mechanism. The deployed loop keeps F1 (F2 is the shelf option: it only
+  helps a rare corner and plausibly raises the swallow rate below).
+\item \textbf{Math is silently re-derived.} ``Other'' concentrates in
+  hard-math: the model neither relays nor disputes --- it re-derives and
+  states its own number (comply .57 / silent .26 vs.\ .66 / .20
+  non-math). A bare numeric answer carries no authority against the
+  model's own computation chain; harmless when the expert is right, but
+  verbatim-relay claims are off the table for math.
+\item \textbf{The swallow rate sets the ceiling.} Model-wrong $\times$
+  wrong-injection: comply .64, pushback .00. An unconfident model has no
+  internal resistance to a wrong expert --- expert quality is the
+  accuracy ceiling of the whole cascade, now quantified.
+\end{enumerate}
+
+\subsection{The live curve, with the deployment price itemized}
+\label{sec:livecurve}
+
+With the channel verified clean, we ran the full live sweep: 240 frozen
+test queries $\times$ four tiers (never / conservative / balanced /
+aggressive), each a complete duplex session, scored on \emph{heard
+accuracy} --- the judge sees exactly what a user would have heard (the
+relay for escalated queries, the local streaming answer otherwise).
+Labels are frozen in \texttt{gated\_traces\_v2.parquet}; all statistics
+are paired bootstrap over queries on those labels
+(Table~\ref{tab:live}, Figure~\ref{fig:dualview}).
+
+\begin{table}[t]
+\centering\small
+\caption{Live streaming sweep, frozen test split ($n=240$), paired
+bootstrap 95\% CIs. Heard = honest end-to-end accuracy;
+gold-inject = the channel-controlled counterfactual (escalated rows
+re-scored with the frozen gold-text expert answers); channel cost = their
+paired difference. $^{*}$ = CI excludes 0.}
+\label{tab:live}
+\begin{tabular}{lccccc}
+\toprule
+tier & esc & heard-acc & $\Delta$ vs.\ floor & gold-inject & channel cost \\
+\midrule
+never (floor) & 0\%  & .400 [.34,.46] & --- & .400 & --- \\
+conservative  & 14\% & .446 [.38,.51] & +.046 [$-$.01,+.10] & .500 [.44,.56] & +.054$^{*}$ \\
+balanced      & 35\% & .529 [.47,.59] & +.129$^{*}$ [+.07,+.19] & .637 [.58,.70] & +.108$^{*}$ \\
+aggressive    & 55\% & .633 [.57,.69] & +.233$^{*}$ [+.17,+.30] & .767 [.71,.82] & +.133$^{*}$ \\
+always (synth) & 100\% & --- & --- & .917 [.88,.95] & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.85\linewidth]{live_dualview}
+  \caption{Dual-view live tradeoff. Blue: honest heard-accuracy of the
+  live duplex system (paired bootstrap CIs). Green: the
+  channel-controlled counterfactual --- same live sessions, escalated
+  rows re-scored with frozen gold-text expert answers; its random
+  reference (dashed) uses the same gold outcomes, so it pairs with the
+  green curve only. Gray: the offline text-chat curve
+  (Figure~\ref{fig:tradeoff}). The two annotated gaps itemize the
+  deployment price: floor-to-floor, the audio + streaming-answer tax;
+  view-to-view, the speech-channel (ASR-distill + relay) cost.}
+  \label{fig:dualview}
+\end{figure}
+
+The curve rises monotonically: +.23 accuracy at 55\% escalation, and the
+balanced and aggressive gains over the live floor are significant
+(conservative's +.046 is not, at $n=240$ --- stated for honesty). In the
+channel-controlled view the gate clears its random reference at every arm
+(+.03/+.06/+.08). The interesting content is the \emph{decomposition} of
+the gap to the offline curve, which the two views separate:
+
+\begin{itemize}
+\item \textbf{Audio + streaming-answer tax (floor .588 $\to$ .400).} The
+  live floor stacks the audio modality tax (\S\ref{sec:speech}) with a
+  streaming-answer tax: in duplex voice mode the model produces short,
+  speech-styled answers that sometimes plan aloud and stop. This is real
+  deployment behavior --- it is exactly why the never-escalate endpoint
+  had to be run live rather than synthesized from chat-mode replays.
+\item \textbf{Speech-channel cost (+.05/+.11/+.13, all significant).} On
+  the escalated population, the expert answering the talker's own
+  transcript scores .57 vs.\ .85 on gold text. Attribution across five
+  transcription arms puts most of the math damage ($-$.70) on a
+  \emph{TTS-of-LaTeX artifact} --- the audio pool reads formula problems
+  aloud and the round-trip destroys the symbolic structure; no one speaks
+  LaTeX at a voice assistant, so the audio arm is scoped to speakable
+  content. The deployment-real residue is entity loss on hard-knowledge
+  ($-$.31): prompt-level rescues are no-ops (a recognition-errors warning
+  changes nothing; $k$-best self-transcription trades a small trap gain
+  for a larger knowledge loss), and even external ASR (Whisper) recovers
+  only .62 of the .82 gold ceiling --- the damaging errors are
+  internally-coherent entity substitutions with no textual residue to
+  correct from. We treat ASR robustness as an orthogonal channel
+  property, not a contribution of this system.
+\end{itemize}
+
+\subsection{Signal boundary: a third blind spot}
+\label{sec:falseqa}
+
+A fairness challenge to the trap pool --- SimpleQA entities are hard to
+\emph{hear}, conflating knowledge difficulty with transcription
+difficulty --- motivated auditioning a transcription-fair failure pool:
+false-premise questions \citep{hu2023falseqa}, every word common by
+design ($n=60$, criterion fixed before data selection). The audition
+fails \emph{as a pool} and succeeds as a finding: the small model fails
+substantially (.63 text / .47 audio) and the expert would help (.80
+adequacy), but the end-of-turn gate is \textbf{blind} to these failures
+--- fire@balanced .18 (vs.\ trap's .90), with essentially no score
+separation between failed and passed answers (.568 vs.\ .507). A model
+answering along a false premise does not ``feel'' unable: the mid-layer
+signal reads \emph{missing knowledge}, not \emph{broken question}. This
+is the third documented blind spot, after easy-chat failures and
+decode-time math: the pre-answer signal is specifically a
+\emph{retrieval-failure} detector. FalseQA therefore enters the
+signal-boundary analysis, not the tradeoff pools.

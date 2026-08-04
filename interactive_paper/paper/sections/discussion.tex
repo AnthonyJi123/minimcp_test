@@ -2,6 +2,7 @@
 \label{sec:discussion}
 
 \subsection{Design consequences: the two-stage gate}
+\label{sec:twostage}
 
 The evidence converges on a two-stage design:
 \begin{itemize}
@@ -31,25 +32,54 @@ model-recall gaps. A head-to-head comparison of query-feature routers vs.\
 internal-signal gates under distribution shift, on their standardized
 protocol, is natural future work.
 
-\subsection{Step 2 preview: result injection}
+\subsection{Result injection: resolved by the same signal}
 
 Step 2 --- returning the thinker's result into the live duplex session ---
-is scoped by our data. The official streaming interface exposes a per-chunk
-text-injection point (\texttt{teacher\_forcing\_text}), and our streaming
-smoke test surfaced the first substantive obstacle: the talker
-\emph{pushes back} on injected expert results that conflict with its own
-reasoning rather than relaying them --- injection protocol and authority
-framing are a research problem, not plumbing. The overlap analysis
-(\S\ref{sec:overlap}) sets the timing budget: P50 one stall sentence; P90
-dominated by expert latency, arguing for a fast-expert tier or streamed
-partial results.
+initially looked like a research problem of its own: the streaming smoke
+test showed the talker pushing back on conflicting injected results. The
+quantified answer (\S\ref{sec:inject}) is that for \emph{gated}
+escalations the problem largely dissolves, and for a principled reason:
+the same low-confidence state that fires the gate predicts relay
+compliance (comply .42 $\to$ .75 across gate-score quartiles; 1.00 on the
+deployed wrong-model $\times$ correct-expert workload). The gate and the
+relay are two uses of one signal. Where the state is confident, framing
+--- not ventriloquism --- is the mechanism (authority framing .53--.79
+vs.\ seeding's backfire), and the residual ceiling is the swallow rate:
+an unconfident talker relays a \emph{wrong} expert at .64 with zero
+pushback, so cascade accuracy is bounded by expert quality.
+
+\subsection{Three failure species, one perceivability axis}
+
+The accumulated blind-spot results organize into a taxonomy of
+\emph{why} a model fails, ordered by whether the failure is an observable
+event in the model's own processing. \textbf{Retrieval-type} failures
+(``I don't know this entity'') produce an observable empty lookup at
+prefill --- pre-answer signals work (trap fire .90).
+\textbf{Execution-type} failures (``stuck mid-solution'') only come into
+existence during decoding --- decode-time signals see them (math
+entropy@16 .860) and pre-answer signals cannot.
+\textbf{Metacognitive-type} failures (``doesn't know the question itself
+is broken'') never occur as an event anywhere in the model's experience
+--- like a schoolkid confidently ``verifying'' Goldbach's conjecture, the
+model answering a false-premise question executes smoothly along the
+wrong frame, and every internal signal is blind (FalseQA fire .18, no
+score separation; \S\ref{sec:falseqa}). This mirrors the human
+feeling-of-knowing literature, which finds metacognition accurate for
+memory retrieval and unreliable for insight problems. The taxonomy
+explains the two-stage gate architecture (\S\ref{sec:twostage}
+rationale: prefill probe for species 1, decode monitor for species 2),
+scopes the claim --- the pre-answer signal is a retrieval-failure
+detector, not a general oracle --- and notes that query-surface routers
+miss species 3 as well.
 
 \subsection{Limitations}
 \label{sec:limitations}
 
 (i) $\ptrue$ prompt sensitivity: one phrasing each (pre/post).
-(ii) The audio arm is single-voice TTS speech; SD-QA real-speech validation
-is open. (iii) Mid-layer probe threshold transfer needs deployment-grade
+(ii) The audio arm is validated on real dialectal speech (SD-QA), but
+scripted read speech and one dialect split; spontaneous conversational
+speech (disfluencies, self-repair) remains uncovered. (iii) Mid-layer
+probe threshold transfer needs deployment-grade
 calibration; AUC/area claims are unaffected. (iv) The audio side of the
 introspection-collapse finding is MiniCPM-scoped (two generations of one
 family); a new open-weight full-duplex family is a pre-registered
@@ -57,7 +87,11 @@ prediction test --- it should show the late-layer text-input cliff.
 (v) The frozen test split is reused across signal comparisons (signals were
 pre-specified; a fresh test set would be cleaner). (vi) Labels come from a
 single judge family, bounded by a stronger re-judge (deltas $\le$0.010) but
-without human labels.
+without human labels. (vii) The live sweep (\S\ref{sec:live}) is one
+session per query per tier; the conservative tier's gain over the floor is
+not significant at $n=240$. The loop runs with text-mode talker output
+(\texttt{generate\_audio=False}): the relay is validated at the utterance
+level, and spoken TTS output plus barge-in remain unimplemented.
 
 \section{Conclusion}
 \label{sec:conclusion}
@@ -70,6 +104,11 @@ blind spots are created by the duplex fine-tune; the mid-layer
 representation underneath survives everything we tested. Read there, the
 resulting gate decides before the first output token, transfers from cheap
 text calibration to speech on end-to-end models, and as a system dominates
-the model's own thinking mode on both accuracy and latency. Step 2 ---
-getting the thinker's answer back into the talker's mouth --- is where this
-program goes next.
+the model's own thinking mode on both accuracy and latency. And when the
+thinker's answer comes back, the same signal that fired the escalation
+predicts that the talker will actually say it: run live end-to-end, the
+gated duplex system climbs monotonically from its honest streaming floor
+(.400 $\to$ .633 at 55\% escalation), with the remaining gap to the
+offline curve itemized into named, measured taxes rather than left as
+mystery. Gate and relay are one mechanism; what remains is engineering
+the channel around it.

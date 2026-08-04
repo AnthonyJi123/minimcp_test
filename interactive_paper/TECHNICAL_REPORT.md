@@ -1,12 +1,14 @@
 # When Does a Small Model Know to Hand Off?
 ## Zero-Training Escalation Gates for Full-Duplex Speech Models
 
-**Technical Report — v3** (v1: 2026-07-13, probe gate; v2: 2026-07-14, audit +
+**Technical Report — v4** (v1: 2026-07-13, probe gate; v2: 2026-07-14, audit +
 p(True) + 3-backbone replication; v3: 2026-07-24, adds Phases 5c–6d + system
 profiling — the duplex-damage mechanism story, audio-input replication, the
-thinking ablation, and the fork/overlap latency analysis)
-Date: 2026-07-24 · Seed: 42 · Status: Phases 0–6 complete; Phase 7 (step-2
-result injection) open
+thinking ablation, and the fork/overlap latency analysis; v4: 2026-07-30,
+adds §8b — Part 2 executed: live duplex gate, conflict injection, live
+tradeoff curve with bootstrap + dual-view decomposition, router baseline,
+FalseQA blind spot)
+Date: 2026-07-30 · Seed: 42 · Status: Parts 1 and 2 complete (Phases 0–8g)
 
 ---
 
@@ -225,9 +227,38 @@ type-level priors on audio. Cheap fix confirmed twice: any text
 re-presentation (own transcript, dup) restores the signal
 ("repeat-then-judge").
 
+A within-pool AUC decomposition agrees and sharpens the picture: on audio,
+pool identity alone carries .709 of the .786 total, and the surviving
+instance-level discrimination is selective — math .901 (above text's .809),
+knowledge .732, trap .365 (sub-chance). Instance introspection that rests
+on difficulty sensing survives the modality switch; instance introspection
+that rests on entity recall does not.
+
 Elegant symmetry: the probe's readout is text-fragile, p(True)'s readout is
 audio-fragile — in both cases the knowledge survives and a *readout* breaks,
 and in both cases the breakage is duplex-FT-specific.
+
+### 4.4 Real-speech validation: the audio findings are not TTS artifacts (7b)
+
+Every audio number above uses TTS speech (one voice). Arm B reruns the
+matched-pair design on 200 REAL human recordings (VoiceBench sd-qa, USA
+split; NQ-style factoid questions with references), each question run both
+as typed text and as the human recording; gpt-5.4-mini judge, 0 errors.
+All three audio-side findings replicate:
+
+- **modality tax**: fail rate .400 text → .450 audio;
+- **audio overconfidence**: paired p_yes_pre shift +.089 (audio > text on
+  62% of queries); on the failure subset .415 → .581;
+- **layer structure**: early layers dead (≤L11, .42–.55 all transfer arms),
+  sharp rise after ~50% depth, audio late layers usable through L35
+  (.74–.77), and the deployment recipe (text-calib probe → real-speech
+  audio) holds a .76–.80 band at L22–L26 (peak .800 @ L25). Magnitudes sit
+  below 6a's .86 as expected: sd-qa content is also out-of-pool, so this is
+  transfer across BOTH content and modality — a strictly harder test.
+
+p(True) on real speech: pre AUC .769/.771 (text/audio), post .813/.743.
+Scope note: the text-side math cliff is untestable on sd-qa (no math);
+it never involved synthetic audio, so it needed no arm-B protection.
 
 ---
 
@@ -256,6 +287,13 @@ small-only **0.588**; big-only (gpt-5.5) **0.917**; paraphrase-relayed big
 0.879 (relay tax 1–4 pts). Every gate beats random escalation at every
 operating point; balanced tier @33% escalation → **0.779–0.787**, recovering
 ~58% of the small→big gap at 1/3 the cost ($1.12/100q big-only).
+
+Honest baseline (added 2026-07-29): a **pool-oracle router** (escalate by
+the pool's calib fail rate — type information only) captures **+0.042** of
+the gate's **+0.054** area over random; the internal signal's
+in-distribution residual is **+0.012** (~2 pts at the balanced budget) —
+the system-level counterpart of §2's AUC decomposition (0.715 of 0.821).
+The gate's case over type routing rests on LOPO transfer, not this margin.
 
 ### 6.2 Against the model's own thinking mode (6c)
 
@@ -383,12 +421,123 @@ surfaced the first real problem — the model *pushes back* on injected expert
 results that conflict with its own reasoning rather than relaying them. The
 overlap analysis (6.4) adds the timing constraint: P50 one stall sentence,
 P90 dominated by the expert's own latency. Injection protocol design +
-authority framing is the next phase.
+authority framing was the next phase — executed in §8b below.
+
+## 8b. Part 2 executed: the live gate + result injection (Phases 8–8g, 2026-07-25/30)
+
+### 8b.1 The streaming loop: end-of-turn read decides, prefetch dies
+
+Live per-chunk probe scores are weaker than the offline reference (best
+chunk statistic AUC .764 vs offline .843) and structurally miss trap
+(entity back-loaded into the zero-padded tail chunk; live fire 1/5). Fix:
+the **end-of-turn read** — after the last audio chunk, prefill an
+assistant turn containing a single space and read L22 at assistant-start
+(the streaming analogue of h_prompt). **AUC .887 > offline .843**; trap
+fire@balanced .20 → **.90**; costs 22 ms, still pre-first-token; it is the
+*only* decision gate (thresholds = quantiles of this one score — the
+chunk/turn joint-calibration problem disappears).
+
+Mid-stream firing survives only as hypothetical speculative prefetch, and
+a completeness curve killed it before it was built: acceptance ("would an
+expert answer to the partial transcript answer the full question?") is
+**.07/.19/.51 at 25/50/75%** of the words; at the chunk gate's typical
+fire point (27–40% of audio) that is ~.2–.4 → 6–8 of 10 speculative calls
+wasted. Trap's floor (.00/.10/.27) is the same back-loaded-core property
+that broke the mid-stream probe — one property, measured twice (hidden
+states + semantics). The expert starts at end of turn. Framing for the
+paper: query-level speculative execution with too-low an acceptance rate.
+
+Deployment-honesty decisions: expert query = the talker's **own
+transcription** (P50 2.2 s, overlapped with the stall TTS), not gold text;
+stall phrase must be **assistant-role prefill** (teacher_forcing_text
+keeps free-generating); relay = F1 authority-framed text turn (~0.7 s).
+
+### 8b.2 Conflict injection: the pushback problem quantified (172 sessions)
+
+Conflicting "expert answers" by within-pool derangement of references
+(zero LLM generation); framings F0 neutral / F1 deployed authority / F2
+strong-override / F3 assistant-seeding; judge → {comply, pushback,
+lip-service, other}. Five results: (1) **deployed channel clean** —
+model-wrong × correct-inject comply = 1.00 (n=24), the live curve is
+uncontaminated; (2) **the escalation signal predicts compliance** — comply
+.42→.67→.75→.75 across gate-score quartiles, resistance .25 (top quartile)
+vs .08; "a model that knows it doesn't know is willing to listen"; (3)
+worst case (confident-correct × conflict): F0 .00 / F1 .53 / F2 .79 / F3
+**backfires** (comply .25, lip-service .62 — the model walks back its own
+forced speech; framing works, ventriloquism doesn't); (4) math is
+**silently re-derived** (neither relays nor disputes; bare numbers carry
+no authority against its own computation chain); (5) **swallow rate .64**
+— an unconfident model has no resistance to a wrong expert; expert quality
+is the cascade's accuracy ceiling. Decision: ship F1; F2 shelved (would
+plausibly raise the swallow rate).
+
+### 8b.3 Effort is free, ASR is the leak
+
+On the gate-escalated population (n=72): expert **effort tax ≈ 0
+everywhere** (gold .85 med vs .82 low; gold math 1.00 at BOTH efforts)
+while latency doubles at medium (P50 5.8→9.1 s, P95 23.9→78.8 s) →
+**fixed-low ships**; the deadline-aware design collapsed to the simplest
+policy. Combined with 6.2: escalated failures are knowledge-bound at both
+scales — extra compute buys nothing at either end. The real leak is the
+**ASR-distill tax**: expert on self-transcripts .57 vs .85 gold. Five-arm
+attribution: math −.70 is mostly a **TTS-of-LaTeX artifact** (scope note:
+the audio arm evaluates speakable content); the deployment-real residue is
+knowledge-entity loss (−.31). Rescues negative: robust-prompt no-op,
+k-best GER trades trap +.06 for knowledge −.12; even Whisper recovers only
+.62 of the .82 ceiling — the damaging errors are internally-coherent
+entity substitutions with no textual residue. Scope decision: ASR is a
+channel property, not a contribution; handled by the dual-view curve.
+
+### 8b.4 The live curve, bootstrapped (240 × 4 live arms, frozen labels)
+
+Full duplex sessions, heard-accuracy (judge sees exactly what the user
+would have heard); labels frozen in `gated_traces_v2.parquet`; paired
+bootstrap (10k, seed 42) on the frozen labels (`live_dualview`;
+gated_report re-judging has ±.02–.03 single-judge noise):
+
+| tier | esc | heard-acc [95% CI] | Δ vs floor | gold-inject | channel cost |
+|---|---:|---|---|---|---|
+| never (floor) | 0% | .400 [.34,.46] | — | .400 | — |
+| conservative | 14% | .446 [.38,.51] | +.046 [−.01,+.10] n.s. | .500 | +.054 * |
+| balanced | 35% | .529 [.47,.59] | +.129 [+.07,+.19] * | .637 | +.108 * |
+| aggressive | 55% | .633 [.57,.69] | +.233 [+.17,+.30] * | .767 | +.133 * |
+| always (synth) | 100% | — | — | .917 [.88,.95] | — |
+
+Monotone rise, +.23 at 55% escalation; balanced/aggressive significant,
+conservative n.s. at n=240 (stated for honesty). Dual-view decomposition
+(figures/live_dualview.png): floor .588 (offline text) → .400 (live) =
+audio modality + streaming-answer tax (short speech-style answers that
+plan aloud then stop — why the endpoint had to be run live); honest vs
+gold-inject views differ by the significant speech-channel cost
+(ASR-distill + relay). In the channel-controlled view the gate clears its
+random reference at every arm (+.03/+.06/+.08). Always-live arm cancelled
+(ceiling + random line synthesize from frozen gold answers, $0).
+
+### 8b.5 Boundary results
+
+**Query-feature router baseline (8f, $0):** TF-IDF+LR on the query surface
+— in-mix OOF AUC .669 < pool-oracle .715; tradeoff area +.040 (worst of
+all signals); LOPO collapse (.38–.57; trap mean score .230 = misses the
+100%-fail pool). Query-feature routing IS the type shortcut, now with
+numbers; the structural argument (§7) holds under identical data.
+
+**FalseQA audition (8g, ~$8): the third blind spot.** False-premise
+questions (transcription-fair by design): small model fails .63 text /
+.47 audio, expert adequacy .80 — but the end-of-turn gate is blind
+(fire@balanced .18 vs trap .90; score separation .568 vs .507 ≈ none).
+The mid-layer signal reads *missing knowledge*, not *broken question*.
+Blind spots now: easy-chat failures, decode-time math, premise checks →
+the pre-answer signal is specifically a retrieval-failure detector.
+Discussion frame: three failure species × perceivability (retrieval =
+observable empty lookup at prefill; execution = emerges during decode;
+metacognitive = no failure event ever occurs in the model's experience).
 
 ## 9. Remaining gaps (honest list)
 
 - p(True) prompt sensitivity: one phrasing each (pre/post).
-- Audio arm is TTS speech (one voice); SD-QA real-speech validation open.
+- Real-speech validation done (7b, SD-QA): scripted read speech, one
+  dialect exercised (10 further dialect splits unused); spontaneous
+  conversational speech (disfluencies, self-repair) still uncovered.
 - Mid-layer probe threshold (rate) transfer needs deployment-grade
   calibration; area/AUC claims unaffected.
 - Finding 1's audio side is MiniCPM-scoped (no second runnable duplex
@@ -399,17 +548,28 @@ authority framing is the next phase.
   signals pre-specified; a fresh test set would be cleaner).
 - Judge variance now bounded (gpt-5.5 re-judge, deltas ≤ .010) but single
   judge family; no human labels.
-- Total spend ≈ **$290** of the $2000 budget.
+- Live sweep is one session per query per tier; the conservative tier's
+  gain over the live floor is not significant at n=240. The live loop runs
+  with text-mode talker output (generate_audio=False) — the relay is
+  validated at the utterance level; spoken TTS output and barge-in remain
+  unimplemented.
+- Paired bootstrap done for the live arms; DeLong for same-test signal
+  comparisons and the +0.012 gate-vs-pool-oracle residual test still open.
+- Total spend ≈ **$462** of the $2000 budget.
 
 ## 10. Artifacts
 
-`RESULTS.md` (full log, Phases 0–7a), `PLAN.md`, `gate_config.json`, `src/`
+`RESULTS.md` (full log, Phases 0–8g), `PLAN.md`, `gate_config.json`, `src/`
 (gate, decode, hf_decode, layers, escalate, distill, inject, queries,
 signals), `modal_app.py` (text pipelines + reports), `modal_audio.py` (audio
 arm, thinking ablation, latency + fork + overlap benches), `modal_freeze.py`
-(Freeze-Omni). Figures: roc, tradeoff, tradeoff_ptrue, tradeoff_midlayer,
-layer_sweep, fork_pareto, overlap, timeline_scenarios (+pdf). Volumes:
-`gate-data` (signals, layers npz,
+(Freeze-Omni), `modal_stream.py` (Part 2: live duplex loop v2, end-of-turn
+gate, conflict injection, effort/ASR characterization, FalseQA, router
+baseline, live_dualview bootstrap). Figures: roc, tradeoff, tradeoff_ptrue,
+tradeoff_midlayer, layer_sweep, fork_pareto, overlap, timeline_scenarios
+(+pdf), live_dualview (+json). Frozen live labels:
+`gated_traces_v2.parquet` (all live-curve statistics must use this, not
+fresh judgings). Volumes: `gate-data` (signals, layers npz,
 features incl. gpt-5.5 re-judge, ptrue shards, audio pool wavs, benches),
 `minicpm-o45-weights` (+ all control-model snapshots), `fdb-data`,
 `bench-data`.

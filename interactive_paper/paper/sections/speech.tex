@@ -79,6 +79,28 @@ regresses to type-level priors. The failure also implies its own cheap fix,
 confirmed twice: re-present the query as text (own transcript or
 duplication) before asking --- ``repeat-then-judge.''
 
+\subsection{Real-speech validation: not TTS artifacts}
+\label{sec:realspeech}
+
+Every audio number above uses TTS speech (one voice). We rerun the
+matched-pair design on 200 \emph{real human recordings} (VoiceBench
+SD-QA, USA split; naturally-occurring factoid questions with references),
+each question presented both as typed text and as the human recording.
+All three audio-side findings replicate: the modality tax (fail rate
+$.400 \rightarrow .450$); audio overconfidence (paired $p_{\text{yes}}$
+shift $+.089$; on the failure subset $.415 \rightarrow .581$); and the
+layer structure --- early layers dead ($\leq$L11, .42--.55 across all
+transfer arms), a sharp rise after $\sim$50\% depth, audio late layers
+usable through L35 (.74--.77), and the deployment recipe (text-calibrated
+probe read on real-speech audio) holding a .76--.80 band at L22--L26
+(peak .800 at L25). Magnitudes sit below the matched-TTS .86 as expected:
+SD-QA content is also out-of-pool, making this transfer across
+\emph{both} content and modality --- a strictly harder test. The
+text-side math cliff is untestable here (SD-QA contains no math); it
+never involved synthetic audio and needed no such protection. Residual
+limitation: scripted read speech in one dialect (ten further dialect
+splits remain for future robustness work).
+
 \subsection{Synthesis: four quadrants}
 \label{sec:quadrants}
 

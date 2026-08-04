@@ -11,13 +11,45 @@ balanced tier at a 33\% escalation budget reaches \textbf{0.779--0.787},
 recovering $\sim$58\% of the small$\rightarrow$big gap at one third of the
 big-only cost (\$1.12 per 100 queries big-only).
 
+Figure~\ref{fig:tradeoff} also draws the baseline the type-shortcut audit
+(\S\ref{sec:audit}) demands: a \emph{pool-oracle} router that escalates by
+each pool's calibration-split base fail rate (true type labels, no
+instance-level information, no test leakage). It captures $+0.042$ of the
+gate's $+0.054$ area over random --- the system-level counterpart of the
+AUC decomposition (0.715 of 0.821), and slightly harsher: in-distribution,
+the instance-level residual the internal signal adds on top of type
+routing is \textbf{$+0.012$ area} ($\sim$2 points at the balanced budget).
+The gate's case over type routing therefore rests not on this
+in-distribution margin but on transfer: the type shortcut is exactly what
+collapses under LOPO (\S\ref{sec:audit}), while the mid-layer signal
+survives it.
+
+A \emph{trained} query-feature router closes this argument with data. We
+fit a RouteLLM-style external router \citep{ong2024routellm} under
+identical data conditions --- TF-IDF (word 1--2\,gram + character
+3--5\,gram) $\to$ logistic regression on the calibration split's text
+labels, seeing only the query surface. In-mix it lands \emph{below} even
+the pool oracle (OOF AUC .669 vs.\ .715; tradeoff area $+.040$ vs.\ the
+probe's $+.054$, mid-layer $+.064$, $\ptrue$-post $+.068$ on the same
+test set and frozen expert answers). Under LOPO it collapses entirely
+(held-out-pool AUC .38--.57 vs.\ the mid-layer probe's .93 on math) and
+its mean score on the 100\%-fail trap pool is .230 --- it \emph{misses}
+the pool a router most needs to catch. Query-feature routing is the type
+shortcut and nothing else; the comparison against preference-trained
+routers on the LLMRouterBench protocol \citep{llmrouterbench2026} remains
+future work, but the information-source question is settled under
+identical data.
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=.85\linewidth]{tradeoff}
   \caption{Accuracy vs.\ escalation rate, frozen test split: gated
-  escalation vs.\ the random-escalation baseline between the small-only and
-  big-only endpoints. See also Figure~\ref{fig:tradeoffptrue} for the
-  $\ptrue$ variants.}
+  escalation vs.\ the random-escalation and pool-oracle (type-only)
+  baselines between the small-only and big-only endpoints. The oracle
+  captures most of the gate's in-distribution lift ($+0.042$ of $+0.054$
+  area); the gate's advantage over type routing is transfer, not this
+  margin (\S\ref{sec:audit}). See also Figure~\ref{fig:tradeoffptrue} for
+  the $\ptrue$ variants.}
   \label{fig:tradeoff}
 \end{figure}
 

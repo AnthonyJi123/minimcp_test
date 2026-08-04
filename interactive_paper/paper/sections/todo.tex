@@ -18,15 +18,175 @@
 \item \todonote{$\ptrue$ prompt-sensitivity sweep (currently one phrasing
   each for pre/post)}
 \item \todonote{head-to-head query-feature router vs.\ internal-signal gate
-  under distribution shift on the LLMRouterBench protocol}
+  under distribution shift on the LLMRouterBench protocol; NEAR-TERM
+  (decided 2026-07-30): add an offline query-feature router baseline
+  (text-only classifier over the query surface, $\sim$\$10) as a line in
+  the tradeoff figure --- closes the ``type recognition is all you need''
+  objection with data (expected: matches the pool-oracle component
+  in-mix, collapses under LOPO); no live arm --- external routing needs
+  the full query + ASR and structurally cannot fire mid-utterance
+  (one-sentence annotation on the live figure instead). OFFLINE BASELINE
+  DONE (2026-07-30, RESULTS.md \S 8f, \$0): TF-IDF+LR router in-mix OOF
+  AUC .669 $<$ pool-oracle .715, area $+.040$ (worst of all signals);
+  LOPO collapse .38--.57, trap mean score .230. WRITTEN into
+  \S\ref{sec:system}; LLMRouterBench protocol comparison stays future
+  work}
 \item \todonote{step 2: injection protocol + authority framing (talker
   pushes back on conflicting expert results); fast-expert tier or streamed
-  partial results for the P90 tail}
+  partial results for the P90 tail. DONE (2026-07-30, RESULTS.md \S 8b,
+  172 sessions, $\sim$\$6): (1) deployed channel clean --- model-wrong
+  $\times$ correct-inject comply $=1.00$ ($n{=}24$), the live curve is
+  uncontaminated; (2) L0 hypothesis CONFIRMED --- comply rises
+  $.42 \to .75$ across gate-score quartiles, resistance $.25$ vs $.08$:
+  the same signal that triggers escalation predicts relay compliance;
+  (3) worst-case framing ladder: neutral $.00$ / deployed authority
+  $.53$ / strong-override $.79$ / assistant-seeding BACKFIRES ($.25$
+  comply, $.62$ lip-service --- the model walks back its own forced
+  speech); (4) silent-override on math: the model re-derives instead of
+  relaying or disputing (bare numbers carry no authority against its own
+  computation chain); (5) swallow rate $.64$ when unconfident --- expert
+  quality is the accuracy ceiling. Decision: keep the deployed F1
+  authority framing for the full sweep; strong-override stays shelved
+  (would plausibly raise the swallow rate). WRITTEN into
+  \S\ref{sec:inject} (2026-07-30)}
+\item \todonote{Part-2 acceptance decided (2026-07-30 grilling): paper-grade
+  \emph{live} tradeoff curve (heard-accuracy, 240 test queries $\times$ 3
+  tiers + never/always-escalate endpoints, bootstrap CIs, offline audio
+  curve as reference). Gate redesign for the streaming trap miss (a
+  full-duplex-specific read-position failure: short audio, entity in the
+  zero-padded tail chunk; live 1/5 vs offline $\approx$ full catch):
+  end-of-turn read becomes the \emph{deciding} gate (pre-TTFT, 45\,ms $<$
+  68\,ms TTFT; escalation rate calibrated on this single score), mid-stream
+  chunk gate demoted to speculative expert prefetch with end-of-turn veto
+  (abort/ignore the expert on veto). VALIDATED (2026-07-30, RESULTS.md
+  \S 8c): the streaming end-of-turn read (single-space assistant prefill,
+  L22 at assistant-start) reaches AUC .887 --- above the offline .843
+  reference --- and trap fire@balanced recovers .20 $\to$ .90; thresholds
+  in \texttt{midlayer\_gate\_audio.json}. Prefetch subsequently RETIRED
+  (see the speculative-execution entry): the end-of-turn read is the only
+  gate; the expert starts at end of turn. FULL SWEEP DONE (2026-07-30,
+  RESULTS.md \S 8e + \texttt{live\_dualview}): four live arms never
+  .400 / cons 14\% .446 / bal 35\% .529 / aggr 55\% .633; paired
+  bootstrap on frozen \texttt{gated\_traces\_v2.parquet} --- bal/aggr
+  deltas significant, conservative $+.046$ n.s.; dual-view figure
+  (honest heard-acc + gold-inject counterfactual, channel cost
+  $+.05/+.11/+.13$ all significant) replaces the offline-audio-reference
+  plan; always-live arm cancelled (synthesized from frozen gold, \$0).
+  WRITTEN into \S\ref{sec:live}}
+\item \todonote{dead-air fix decided (2026-07-30 grilling): deadline-aware
+  expert effort selection, not blanket effort=low. Measure the two
+  governing dimensions: (1) expert latency as a function of effort
+  $\times$ query type (escalated subset $\times$ \{low, high\}, $\sim$200
+  calls, probation-throttled); (2) difficulty operationalized as
+  effort-sensitivity $\Delta$acc(high$-$low) per pool — predicted
+  $\approx 0$ for trap (retrieval-bound) vs.\ large for math
+  (execution-bound), mirroring the 6c talker-side think-gain structure
+  (potential cross-scale finding: extra compute rescues execution
+  failures, not retrieval failures). Policy conditions only on the
+  observable time budget (remaining audio + filler tolerance), never on
+  query type. Offline replay simulation of dead-air CDF under
+  fixed-high / fixed-low / deadline-aware precedes any live change;
+  streamed partials rejected (latency is pre-token hidden reasoning),
+  speculative laddering deferred (probation call volume). MEASURED AND
+  RESOLVED (2026-07-30, RESULTS.md \S 8d): effort tax $\approx 0$
+  everywhere \emph{including gold math} (low 1.00 = med 1.00) --- the
+  effort-sensitivity prediction is REFUTED; latency doubles at medium
+  (P50 5.8$\to$9.1\,s, P95 23.9$\to$78.8\,s) $\to$ \textbf{fixed-low
+  ships}; deadline-aware collapses to the simplest policy. Escalated
+  failures are knowledge-bound at both scales (cross-scale finding with
+  6c). WRITTEN into \S\ref{sec:liveloop}}
+\item \todonote{expert-pipeline oracle removal (2026-07-30 grilling):
+  (1) query form decided --- talker self-transcription at fire time
+  (fork the streaming session), replacing the dataset gold text; shares
+  the same $\sim$200-call batch as the effort characterization (transcript
+  queries $\times$ \{low, high\} vs.\ frozen gold-text high-effort
+  answers = ASR-distill tax + effort tax in one batch; methodology
+  lineage: SD-QA / HeySQuAD paired gold-vs-ASR arms). WER risk
+  concentrated on hard-knowledge (.224). (2) prefetch realism decided ---
+  milestone 1 sent the \emph{full} question text at 27--40\% of the
+  audio (a deployment-impossible oracle inflating the 5/6 overlap
+  result). Fix framed as \emph{query-level speculative execution}
+  (speculative decoding's draft--verify--rollback skeleton at sentence
+  granularity; lossy, unlike token-level): measure the wait-k-style
+  completeness curve first (calib texts truncated at 25/50/75\% of
+  audio progress, mini-judge scores ``answerable core already
+  spoken?'', $<$\$1) = the acceptance rate. MEASURED (2026-07-30,
+  RESULTS.md \S 8c): acceptance .07/.19/.51 at 25/50/75\% --- LOW ---
+  so prefetch is dropped per the pre-agreed rule; the curve goes in the
+  paper as the negative-result explanation, and trap's floor
+  (.00/.10/.27) unifies with the probe's trap signal-placement failure
+  (same back-loaded-core property, measured twice).
+  ASR-DISTILL TAX MEASURED (2026-07-30, RESULTS.md \S 8d): expert on
+  self-transcripts .57 vs gold .85 on the escalated population; math
+  $-$.70 mostly a TTS-of-LaTeX artifact (scope note: audio arm evaluates
+  speakable content); deployment-real residue = knowledge entities
+  $-$.31; rescues negative (robust prompt no-op, $k$-best GER trades
+  trap $+.06$ for knowledge $-$.12), Whisper recovers only .62 of the
+  .82 ceiling $\to$ channel-inherent. USER SCOPE DECISION: ASR is a
+  channel property, not a contribution --- handled via the dual-view
+  curve; ASR robustness cited as orthogonal work. WRITTEN into
+  \S\ref{sec:livecurve}.
+  Rejected with rationale: micro-turn streaming of the question (saves
+  only transmission+prefill $\approx$0.15\,s of a 30-token query;
+  reasoning cannot start before semantic completeness), literal
+  speculative decoding (provider-internal, no API handle; talker decode
+  not a bottleneck), draft-then-verify expert (verifying a fact
+  $\approx$ retrieving it for retrieval-bound escalations). Future
+  work: tool-using expert could do speculative retrieval off partial
+  input; Moshi inner-monologue as architectural reference for
+  transcript-so-far}
 \item \todonote{fresh test split for final camera-ready numbers (current
   test split reused across signal comparisons)}
+\item \todonote{statistics hardening (2026-07-26 Notion review): DeLong
+  paired tests for same-test-set signal comparisons; McNemar / paired
+  bootstrap for the paired text-vs-audio fail-rate deltas; paired bootstrap
+  for the gate-vs-pool-oracle tradeoff residual (+0.012 area, added
+  2026-07-29 — likely within noise at $n=240$, must be tested before any
+  claim rests on it). PARTIAL (2026-07-30): live-arm paired bootstrap
+  DONE (\texttt{live\_dualview}, Table~\ref{tab:live}); the rest still
+  open; expand pools to
+  500--1000 each from the same public benchmarks (GSM8K test, MMLU-Pro,
+  TriviaQA, SimpleQA have headroom) + extra benchmark families for
+  diversity (GPQA/ARC for knowledge, NQ for fact) + remaining 10 SD-QA
+  dialect splits}
+\item \todonote{injection payload budget (2026-07-30 discussion): current
+  note is tiny (template + low-effort answer P99 $\approx$150 tokens vs a
+  32k-class window; deployed low-effort answers are P50 3 words), so no
+  near wall --- but two scaling paths identified. (1) Session audio
+  itself hits the window first ($\sim$18 tok/s $\Rightarrow$ $\sim$30 min
+  fills 32k) --- a generic long-lived-duplex limitation, not an
+  injection-mechanism issue. (2) Long-form expert outputs (documents,
+  derivations, tool results): principle = KV holds only what will be
+  \emph{spoken} (voice bounds the useful payload at 2--4 sentences);
+  full output stays in the external answer cache; follow-up questions
+  page further notes in across turns (paging, not intra-turn dribbling).
+  Open \$5-scale experiment: does ``answer + one-sentence justification''
+  restore math relay compliance (the silent-override finding says bare
+  numbers lack authority --- authority wants more tokens, capacity wants
+  fewer; find the knee)}
+\item \todonote{closed-source behavioral arm (2026-07-26 Notion review):
+  trap $p_\mathrm{yes}$ text vs.\ audio + modality tax on audio-capable
+  commercial APIs (GPT audio / Gemini Live) with the existing 600 wavs;
+  probes impossible (no hidden states); if the API exposes no logprobs,
+  estimate $p_\mathrm{yes}$ by sampling Yes/No $k$ times}
 \end{itemize}
 
 \subsection*{Writing / assets}
+\begin{itemize}
+\item \todonote{discussion-section frame (2026-07-30, user's schoolkid
+  analogy): three failure species $\times$ perceivability —
+  retrieval-type (``don't know XYZ'': the empty lookup is an observable
+  event $\to$ pre-answer signals work; trap fire .90), execution-type
+  (``stuck mid-solution'' $\to$ decode-time entropy works; math
+  entropy@16 .860), metacognitive-type (``doesn't know the question has
+  a trap'', Goldbach-to-a-schoolkid: no failure event occurs in the
+  model's experience $\to$ all signals blind; FalseQA fire .18, no score
+  separation). Parallels human feeling-of-knowing literature (accurate
+  for memory retrieval, overconfident for insight problems). Explains
+  the two-stage gate architecture and why query-surface routers also
+  miss species 3. RESULTS \S 8g. WRITTEN into the discussion
+  (three-species subsection) + \S\ref{sec:falseqa} (2026-07-30)}
+\end{itemize}
 \begin{itemize}
 \item \todonote{affiliations, emails, author order + contribution notes on
   the title page}

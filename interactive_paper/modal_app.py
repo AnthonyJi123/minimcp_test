@@ -2413,8 +2413,8 @@ def eval_assemble():
     """Phase 5 RQ2: assemble the accuracy-vs-escalation-rate tradeoff from the
     stored small answers (calib_features), expert answers (eval_expert), and
     paraphrases (eval_paraphrase). Sweeps the gate threshold to draw the hybrid
-    curve, compares to the random-escalation baseline, prints latency/cost, and
-    writes figures/tradeoff.png."""
+    curve, compares to the random-escalation and pool-oracle (type-only)
+    baselines, prints latency/cost, and writes figures/tradeoff.png."""
     import json as _json
     import numpy as np
     import pandas as pd
@@ -2482,6 +2482,30 @@ def eval_assemble():
     print(f"\n>>> gate-vs-random area (expert-inject, ∫(acc_gate−acc_rand)d(rate)) "
           f"= {lift_area:+.4f}", flush=True)
 
+    # --- pool-oracle (type-only) baseline ------------------------------------
+    # score = the query's pool CALIB fail rate (true pool label, no test
+    # leakage): the upper bound of any router that only recognizes query type.
+    # Ties within a pool → the swept points sit at pool boundaries; straight
+    # segments between them = expectation over random within-pool order.
+    calib = df[df["split"] == "calib"]
+    pool_fail = {pl: float(np.mean([1 - b(x) for x in
+                                    calib.loc[calib["pool"] == pl, "adequate"]]))
+                 for pl in np.unique(pools)}
+    o_scores = np.array([pool_fail[pl] for pl in pools])
+    ocurve = []
+    for t in np.concatenate([[np.inf], np.unique(o_scores)[::-1], [-np.inf]]):
+        esc = o_scores >= t
+        ocurve.append((esc.mean(), hybrid_acc(esc, e), hybrid_acc(esc, p)))
+    ocurve = np.array(ocurve)
+    rand_o = (1 - ocurve[:, 0]) * small_acc + ocurve[:, 0] * big_acc
+    d = ocurve[:, 1] - rand_o
+    oracle_area = float(np.sum((d[1:] + d[:-1]) / 2 * np.diff(ocurve[:, 0])))
+    print(f">>> pool-oracle-vs-random area (type-only upper bound) = "
+          f"{oracle_area:+.4f} → internal-signal residual = "
+          f"{lift_area - oracle_area:+.4f}", flush=True)
+    print(f"    calib pool fail rates: "
+          f"{ {k: round(v, 2) for k, v in sorted(pool_fail.items())} }", flush=True)
+
     # --- latency + cost -------------------------------------------------------
     el = exp["expert_latency"].values
     pl = para["paraphrase_latency"].replace(0.0, np.nan).dropna().values
@@ -2503,6 +2527,8 @@ def eval_assemble():
     plt.plot(curve[:, 0], curve[:, 2], "-o", ms=3, label="hybrid-gate (paraphrase)")
     rr, rl = rand_line(big_acc)
     plt.plot(rr, rl, "k--", alpha=.5, label="random escalate (expert)")
+    plt.plot(ocurve[:, 0], ocurve[:, 1], "-s", ms=4, color="tab:purple",
+             alpha=.85, label="pool-oracle escalate (type-only, expert)")
     for tier, (r, ae, ap) in tier_pts.items():
         plt.annotate(tier, (r, ae), fontsize=8,
                      textcoords="offset points", xytext=(4, 4))
