@@ -23,6 +23,8 @@ import os
 import sys
 import time
 
+import modal
+
 from modal_app import (app, gen_app, image, util_image, GPU_VOL, gate_data,
                        DATA, OPENAI, QUERIES, FEATURES, API_REGION,
                        GATE_CFG, EVAL_EXPERT, _read_jsonl)
@@ -817,7 +819,7 @@ def router_baseline():
     import pandas as pd
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
     from sklearn.model_selection import StratifiedKFold, cross_val_predict
     from sklearn.pipeline import FeatureUnion, Pipeline
 
@@ -848,6 +850,34 @@ def router_baseline():
     print(f"  calib OOF AUC = {roc_auc_score(y_cal, oof):.3f} "
           f"(probe h_prompt .828 / pool-oracle .715)", flush=True)
 
+    # ---- training receipt (method / params / losses / accuracy) ----
+    fit_full = make_pipe().fit(cal["text"], y_cal)
+    p_train = fit_full.predict_proba(cal["text"])[:, 1]
+    n_feat = int(len(fit_full.named_steps["tfidf"].get_feature_names_out()))
+    receipt = {
+        "method": "TF-IDF (word 1-2gram + char_wb 3-5gram, min_df=2) -> "
+                  "LogisticRegression(C=1.0, penalty=l2, solver=lbfgs, "
+                  "max_iter=3000); 5-fold stratified OOF (seed 42)",
+        "n_train": int(len(cal)), "n_test": 0,  # n_test filled below
+        "escalate_rate_train": float(y_cal.mean()),
+        "n_features": n_feat,
+        "train_logloss": float(log_loss(y_cal, p_train)),
+        "train_acc": float(accuracy_score(y_cal, p_train >= .5)),
+        "oof_logloss": float(log_loss(y_cal, oof)),
+        "oof_acc": float(accuracy_score(y_cal, oof >= .5)),
+        "majority_acc_calib": float(max(y_cal.mean(), 1 - y_cal.mean())),
+    }
+    print("--- training receipt ---", flush=True)
+    print(f"  {receipt['method']}", flush=True)
+    print(f"  n_train={receipt['n_train']} (escalate rate "
+          f"{receipt['escalate_rate_train']:.3f}), features={n_feat}",
+          flush=True)
+    print(f"  train logloss={receipt['train_logloss']:.3f} "
+          f"acc={receipt['train_acc']:.3f} | eval (OOF) "
+          f"logloss={receipt['oof_logloss']:.3f} "
+          f"acc={receipt['oof_acc']:.3f} "
+          f"(majority {receipt['majority_acc_calib']:.3f})", flush=True)
+
     print("--- LOPO (train without a pool, test on it) ---", flush=True)
     for p in sorted(cal["pool"].unique()):
         tr = cal[cal["pool"] != p]
@@ -863,7 +893,7 @@ def router_baseline():
         print(f"  {p:15s} AUC={roc_auc_score(te['escalate_label'].astype(int), s):.3f}",
               flush=True)
 
-    pipe = make_pipe().fit(cal["text"], y_cal)
+    pipe = fit_full
     tst = tst.merge(pd.read_parquet(EVAL_EXPERT)[["id", "expert_adequate"]],
                     on="id")
     s_test = pipe.predict_proba(tst["text"])[:, 1]
@@ -882,21 +912,591 @@ def router_baseline():
                               dx=1 / n) if hasattr(np, "trapezoid")
                  else np.trapz(np.array(accs) - np.array(rand), dx=1 / n))
     test_auc = roc_auc_score(tst["escalate_label"].astype(int), s_test)
+    y_tst = tst["escalate_label"].astype(int).to_numpy()
+    receipt["n_test"] = int(n)
+    receipt["test_logloss"] = float(log_loss(y_tst, s_test))
+    receipt["test_acc"] = float(accuracy_score(y_tst, s_test >= .5))
+    receipt["majority_acc_test"] = float(max(y_tst.mean(), 1 - y_tst.mean()))
     print(f"--- test tradeoff (expert-inject) ---", flush=True)
     print(f"  test AUC = {test_auc:.3f}; area over random = {area:+.3f} "
           f"(probe_final +.054 / midlayer_L22 +.064 / ptrue_post +.068)",
           flush=True)
+    print(f"  test n={n} logloss={receipt['test_logloss']:.3f} "
+          f"acc={receipt['test_acc']:.3f} "
+          f"(majority {receipt['majority_acc_test']:.3f})", flush=True)
     for k_frac in (0.15, 0.30, 0.50):
         k = int(round(k_frac * n))
         print(f"  acc @ {k_frac:.0%} escalation = {accs[k]:.3f}", flush=True)
 
     out = {"oof_auc": float(roc_auc_score(y_cal, oof)),
            "test_auc": float(test_auc), "area": area,
-           "curve": [float(a) for a in accs]}
+           "curve": [float(a) for a in accs],
+           "receipt": receipt}
     with open(f"{DATA}/router_baseline.json", "w") as fh:
         json.dump(out, fh)
     gate_data.commit()
     print(f">>> wrote {DATA}/router_baseline.json", flush=True)
+
+
+# ============ worklist ⑤b: RouterBench score for the same router ===========
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 90,
+              cpu=16, memory=32768)
+def router_bench():
+    """Public-benchmark grounding for the 8f router (grilling ask: 'what
+    would this router score on a routing bench?'). RouterBench 0-shot
+    (withmartian, ~30k prompts, 11 models): pair routing weak=mixtral-8x7b
+    -> strong=gpt-4, label = weak model incorrect (same semantics as our
+    escalate_label). Three readouts: (1) in-domain — the same TF-IDF+LR
+    recipe trained on RouterBench itself, 5-fold OOF AUC/acc/logloss;
+    (2) leave-one-benchmark-out — the LOPO mirror on public data;
+    (3) zero-shot transfer — our calib-trained router scored on
+    RouterBench. $0 GPU — CPU only."""
+    import numpy as np
+    import pandas as pd
+    from huggingface_hub import hf_hub_download
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.pipeline import FeatureUnion, Pipeline
+
+    def make_pipe():  # identical recipe to router_baseline (8f)
+        return Pipeline([
+            ("tfidf", FeatureUnion([
+                ("w", TfidfVectorizer(ngram_range=(1, 2), min_df=2)),
+                ("c", TfidfVectorizer(analyzer="char_wb",
+                                      ngram_range=(3, 5), min_df=2)),
+            ])),
+            ("lr", LogisticRegression(C=1.0, max_iter=3000)),
+        ])
+
+    pkl = hf_hub_download("withmartian/routerbench",
+                          "routerbench_0shot.pkl", repo_type="dataset")
+    df = pd.read_pickle(pkl)
+    print(f"columns: {list(df.columns)}", flush=True)
+
+    def score_col(tag):
+        hits = [c for c in df.columns
+                if tag in c.lower() and "cost" not in c.lower()
+                and "response" not in c.lower()]
+        assert len(hits) == 1, f"{tag} -> {hits}"
+        return hits[0]
+
+    weak_c, strong_c = score_col("mixtral"), score_col("gpt-4")
+    df = df[["prompt", "eval_name", weak_c, strong_c]].dropna()
+    text = df["prompt"].astype(str)
+    weak_ok = (df[weak_c].astype(float) >= .5).to_numpy()
+    strong_ok = (df[strong_c].astype(float) >= .5).to_numpy()
+    y = (~weak_ok).astype(int)
+    print(f"=== RouterBench 0-shot, n={len(df)}: weak={weak_c} "
+          f"(correct {weak_ok.mean():.3f}) strong={strong_c} "
+          f"(correct {strong_ok.mean():.3f}); escalate rate {y.mean():.3f}",
+          flush=True)
+
+    oof = cross_val_predict(make_pipe(), text, y,
+                            cv=StratifiedKFold(5, shuffle=True,
+                                               random_state=42),
+                            method="predict_proba", n_jobs=5)[:, 1]
+    in_auc = roc_auc_score(y, oof)
+    in_acc = accuracy_score(y, oof >= .5)
+    print(f"--- in-domain (trained on RouterBench) ---", flush=True)
+    print(f"  OOF AUC={in_auc:.3f} acc={in_acc:.3f} "
+          f"logloss={log_loss(y, oof):.3f} "
+          f"(majority {max(y.mean(), 1 - y.mean()):.3f})", flush=True)
+
+    # deferral curve in our paper's currency: escalate top-k by router score
+    def pair_area(scores):
+        order = np.argsort(-scores)
+        n = len(scores)
+        a0, a1 = weak_ok.mean(), strong_ok.mean()
+        accs = []
+        for k in range(0, n + 1, max(1, n // 200)):
+            esc = np.zeros(n, dtype=bool)
+            esc[order[:k]] = True
+            accs.append(np.where(esc, strong_ok, weak_ok).mean())
+        xs = np.linspace(0, 1, len(accs))
+        rand = a0 + (a1 - a0) * xs
+        return (float(np.trapezoid(np.array(accs) - rand, xs)
+                      if hasattr(np, "trapezoid")
+                      else np.trapz(np.array(accs) - rand, xs)), accs, xs)
+
+    in_area, in_curve, xs = pair_area(oof)
+    for f_target in (.15, .30, .50):
+        i = int(round(f_target * (len(in_curve) - 1)))
+        print(f"  pair acc @ {f_target:.0%} escalation = "
+              f"{in_curve[i]:.3f}", flush=True)
+    print(f"  area over random = {in_area:+.3f}", flush=True)
+
+    print("--- leave-one-benchmark-out (LOPO mirror) ---", flush=True)
+    lobo = {}
+    for b in sorted(df["eval_name"].unique()):
+        m = (df["eval_name"] == b).to_numpy()
+        if len(set(y[m])) < 2:
+            print(f"  {b:15s} single-class (fail rate {y[m].mean():.2f})",
+                  flush=True)
+            continue
+        pipe = make_pipe().fit(text[~m], y[~m])
+        s = pipe.predict_proba(text[m])[:, 1]
+        lobo[b] = float(roc_auc_score(y[m], s))
+        print(f"  {b:15s} AUC={lobo[b]:.3f} (n={m.sum()}, "
+              f"fail rate {y[m].mean():.2f})", flush=True)
+
+    # zero-shot transfer: our calib-trained router scored on RouterBench
+    f = pd.read_parquet(FEATURES)[["id", "split", "escalate_label"]]
+    qtext = {q["id"]: q["query"] for q in _read_jsonl(QUERIES)}
+    f = f[(f["split"] == "calib") & f["escalate_label"].notna()
+          & f["id"].isin(qtext)]
+    ours = make_pipe().fit(f["id"].map(qtext),
+                           f["escalate_label"].astype(int))
+    s_ours = ours.predict_proba(text)[:, 1]
+    tr_auc = roc_auc_score(y, s_ours)
+    tr_area, _, _ = pair_area(s_ours)
+    print(f"--- zero-shot transfer (our calib router -> RouterBench) ---",
+          flush=True)
+    print(f"  AUC={tr_auc:.3f} area over random={tr_area:+.3f}", flush=True)
+
+    out = {"n": int(len(df)), "weak": weak_c, "strong": strong_c,
+           "escalate_rate": float(y.mean()),
+           "in_domain": {"oof_auc": float(in_auc), "oof_acc": float(in_acc),
+                         "oof_logloss": float(log_loss(y, oof)),
+                         "area": in_area},
+           "lobo_auc": lobo,
+           "transfer": {"auc": float(tr_auc), "area": tr_area}}
+    with open(f"{DATA}/router_bench.json", "w") as fh:
+        json.dump(out, fh)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/router_bench.json", flush=True)
+
+
+# ============ worklist ⑤c: same receipt for the internal probes ============
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 20,
+              cpu=8)
+def probe_receipt():
+    """The router receipt (8j), applied to our own gates — symmetric
+    accounting. Two probes, exact shipped recipes: (a) text h_prompt probe
+    (gate_config.json: LR C=0.001 on 4096-d, the Phase-4 gate), (b) audio
+    mid-layer L22 probe (fit_midlayer_gate: LR C=0.001, the live gate).
+    Per probe: train / 5-fold-OOF / test logloss + acc@0.5 vs majority +
+    AUC, plus test classification acc at the budget thresholds
+    (OOF-score quantiles .15/.30/.50 — the gate's actual operating mode;
+    0.5 is not how either signal is used). $0, frozen features."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+
+    def receipt(name, Xc, yc, Xt, yt, C, max_iter):
+        lr = LogisticRegression(C=C, max_iter=max_iter)
+        oof = cross_val_predict(LogisticRegression(C=C, max_iter=max_iter),
+                                Xc, yc,
+                                cv=StratifiedKFold(5, shuffle=True,
+                                                   random_state=42),
+                                method="predict_proba")[:, 1]
+        lr.fit(Xc, yc)
+        p_tr = lr.predict_proba(Xc)[:, 1]
+        r = {"name": name, "C": C, "dim": int(Xc.shape[1]),
+             "n_train": int(len(yc)), "escalate_rate": float(yc.mean()),
+             "train_logloss": float(log_loss(yc, p_tr)),
+             "train_acc": float(accuracy_score(yc, p_tr >= .5)),
+             "oof_auc": float(roc_auc_score(yc, oof)),
+             "oof_logloss": float(log_loss(yc, oof)),
+             "oof_acc": float(accuracy_score(yc, oof >= .5)),
+             "majority_calib": float(max(yc.mean(), 1 - yc.mean()))}
+        print(f"=== {name}: LR(C={C}) dim={r['dim']} n={r['n_train']} "
+              f"(esc {r['escalate_rate']:.3f}) ===", flush=True)
+        print(f"  train logloss={r['train_logloss']:.3f} "
+              f"acc={r['train_acc']:.3f} | OOF AUC={r['oof_auc']:.3f} "
+              f"logloss={r['oof_logloss']:.3f} acc={r['oof_acc']:.3f} "
+              f"(majority {r['majority_calib']:.3f})", flush=True)
+        if Xt is not None and len(set(yt)) == 2:
+            s = lr.predict_proba(Xt)[:, 1]
+            r.update({"n_test": int(len(yt)),
+                      "test_auc": float(roc_auc_score(yt, s)),
+                      "test_logloss": float(log_loss(yt, s)),
+                      "test_acc": float(accuracy_score(yt, s >= .5)),
+                      "majority_test": float(max(yt.mean(),
+                                                 1 - yt.mean()))})
+            print(f"  test n={r['n_test']} AUC={r['test_auc']:.3f} "
+                  f"logloss={r['test_logloss']:.3f} "
+                  f"acc={r['test_acc']:.3f} "
+                  f"(majority {r['majority_test']:.3f})", flush=True)
+            r["budget_ops"] = {}
+            for b in (.15, .30, .50):
+                thr = float(np.quantile(oof, 1 - b))
+                fire = s >= thr
+                r["budget_ops"][str(b)] = {
+                    "acc": float(accuracy_score(yt, fire)),
+                    "realized_rate": float(fire.mean())}
+                print(f"  @budget {b:.0%}: classification acc="
+                      f"{accuracy_score(yt, fire):.3f} "
+                      f"(realized escalation {fire.mean():.3f})", flush=True)
+        return r
+
+    out = []
+    f = pd.read_parquet(FEATURES)
+    f = f[f["escalate_label"].notna()]
+    cal = f[f["split"] == "calib"]
+    tst = f[f["split"] == "test"]
+    out.append(receipt(
+        "text h_prompt probe (Phase-4 gate)",
+        np.array([list(v) for v in cal["h_prompt"]], float),
+        cal["escalate_label"].astype(int).to_numpy(),
+        np.array([list(v) for v in tst["h_prompt"]], float),
+        tst["escalate_label"].astype(int).to_numpy(),
+        C=0.001, max_iter=2000))
+
+    ids, hl = [], []
+    for s in sorted(glob.glob(f"{DATA}/layers_minicpm-o45-audio.shard*.npz")):
+        z = np.load(s)
+        ids += [str(x) for x in z["ids"]]
+        hl.append(z["h_last"])
+    hl = np.concatenate(hl)
+    fa = pd.read_parquet(f"{DATA}/features_minicpm-o45-audio.parquet")[
+        ["id", "split", "escalate_label"]]
+    m = pd.DataFrame({"id": ids, "row": range(len(ids))}).merge(fa, on="id")
+    m = m[m["escalate_label"].notna()]
+    mc = m[m["split"] == "calib"]
+    mt = m[m["split"] == "test"]
+    out.append(receipt(
+        "audio mid-layer L22 probe (live gate)",
+        hl[mc["row"].to_numpy(), LAYER, :].astype(np.float32),
+        mc["escalate_label"].astype(int).to_numpy(),
+        hl[mt["row"].to_numpy(), LAYER, :].astype(np.float32)
+        if len(mt) else None,
+        mt["escalate_label"].astype(int).to_numpy(),
+        C=0.001, max_iter=5000))
+
+    with open(f"{DATA}/probe_receipt.json", "w") as fh:
+        json.dump(out, fh)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/probe_receipt.json", flush=True)
+
+
+# ============ worklist ⑤f: RouteLLM released-checkpoint baseline ===========
+# torch + the routellm package (pulled from git; the pip release lags).
+rllm_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install("git")
+    .pip_install("torch==2.8.0")
+    .pip_install("git+https://github.com/lm-sys/RouteLLM.git",
+                 "openai", "datasets", "pandas", "pyarrow", "scikit-learn")
+    .add_local_file(_APP_PY, "/root/modal_app.py")
+)
+
+
+@app.function(image=rllm_image, volumes={DATA: gate_data}, timeout=60 * 30,
+              cpu=8, secrets=[OPENAI])
+def routellm_baseline():
+    """User challenge: compare against a REAL preference-trained router,
+    not just our same-data recipe. Zero-shot eval of RouteLLM's released
+    checkpoints — bert_gpt4_augmented and mf_gpt4_augmented, trained on
+    ~100k GPT-4-vs-mixtral preference pairs — on our labeled pool.
+    Score = calculate_strong_win_rate(prompt) (P(strong model needed)),
+    used directly as the escalation score against escalate_label."""
+    import numpy as np
+    import pandas as pd
+    from sklearn.metrics import roc_auc_score
+    from routellm.routers.routers import ROUTER_CLS
+
+    from modal_app import EVAL_EXPERT
+    f = pd.read_parquet(FEATURES)[["id", "pool", "split", "escalate_label"]]
+    qtext = {q["id"]: q["query"] for q in _read_jsonl(QUERIES)}
+    f = f[f["escalate_label"].notna() & f["id"].isin(qtext)]
+    f["text"] = f["id"].map(qtext).str.slice(0, 4000)
+    exp = pd.read_parquet(EVAL_EXPERT)[["id", "expert_adequate"]]
+
+    out = {}
+    for name, ckpt in (("bert", "routellm/bert_gpt4_augmented"),
+                       ("mf", "routellm/mf_gpt4_augmented")):
+        r = ROUTER_CLS[name](ckpt)
+        f[name] = [float(r.calculate_strong_win_rate(t)) for t in f["text"]]
+        cal = f[f["split"] == "calib"]
+        tst = f[f["split"] == "test"].merge(exp, on="id")
+        y_cal = cal["escalate_label"].astype(int).to_numpy()
+        y_tst = tst["escalate_label"].astype(int).to_numpy()
+        s = tst[name].to_numpy()
+        small_ok = 1 - y_tst
+        exp_ok = tst["expert_adequate"].astype(float).to_numpy()
+        order = np.argsort(-s)
+        n = len(tst)
+        accs, rand = [], []
+        a0, a1 = small_ok.mean(), exp_ok.mean()
+        for k in range(n + 1):
+            esc = np.zeros(n, dtype=bool)
+            esc[order[:k]] = True
+            accs.append(np.where(esc, exp_ok, small_ok).mean())
+            rand.append(a0 + (a1 - a0) * k / n)
+        area = float(np.trapezoid(np.array(accs) - np.array(rand), dx=1 / n)
+                     if hasattr(np, "trapezoid")
+                     else np.trapz(np.array(accs) - np.array(rand), dx=1 / n))
+        out[name] = {
+            "calib_auc": float(roc_auc_score(y_cal, cal[name])),
+            "test_auc": float(roc_auc_score(y_tst, s)),
+            "area": area,
+            "acc_at_30": float(accs[int(round(.3 * n))]),
+            "pool_mean_score": {p: float(g[name].mean())
+                                for p, g in f.groupby("pool")},
+        }
+        print(f"=== RouteLLM {name} ({ckpt}) zero-shot on our pool ===",
+              flush=True)
+        print(f"  calib AUC={out[name]['calib_auc']:.3f} "
+              f"test AUC={out[name]['test_auc']:.3f} "
+              f"area={area:+.3f} acc@30%={out[name]['acc_at_30']:.3f} "
+              f"(our router .669/.721/+.040/.717; probe .828//+.054)",
+              flush=True)
+        for p, v in sorted(out[name]["pool_mean_score"].items()):
+            print(f"    {p:15s} mean score {v:.3f}", flush=True)
+
+    # same scores vs the AUDIO labels (TTS-read versions of the same
+    # queries — apples-to-apples with the audio L22 probe .843/.879)
+    fa = pd.read_parquet(f"{DATA}/features_minicpm-o45-audio.parquet")[
+        ["id", "split", "escalate_label"]]
+    fa = fa[fa["escalate_label"].notna()].rename(
+        columns={"split": "split_a", "escalate_label": "y_audio"})
+    fm = f.merge(fa, on="id")
+    for name in ("bert", "mf"):
+        for sp in ("calib", "test"):
+            d = fm[fm["split_a"] == sp]
+            auc = roc_auc_score(d["y_audio"].astype(int), d[name])
+            out[name][f"audio_{sp}_auc"] = float(auc)
+            print(f"  {name} vs AUDIO labels [{sp}] AUC={auc:.3f} "
+                  f"(audio probe {'OOF .843' if sp == 'calib' else '.879'})",
+                  flush=True)
+
+    with open(f"{DATA}/routellm_baseline.json", "w") as fh:
+        json.dump(out, fh)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/routellm_baseline.json", flush=True)
+
+
+# ============ worklist ⑤g: audio-modality router baseline ==================
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 20,
+              cpu=8)
+def router_audio():
+    """User challenge: 'is there an audio router?' There wasn't — every
+    router number so far is text-modality. This closes it: the same
+    TF-IDF+LR recipe against the AUDIO labels (the live gate's own
+    label set, esc rate .41), two input variants: (a) gold query text —
+    the router's best case; (b) the talker's own ASR transcript — what
+    an external router would actually see in a live audio session.
+    Opponent: audio L22 probe (OOF .843 / test .879). $0, frozen data."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.pipeline import FeatureUnion, Pipeline
+
+    def make_pipe():  # identical recipe to 8f
+        return Pipeline([
+            ("tfidf", FeatureUnion([
+                ("w", TfidfVectorizer(ngram_range=(1, 2), min_df=2)),
+                ("c", TfidfVectorizer(analyzer="char_wb",
+                                      ngram_range=(3, 5), min_df=2)),
+            ])),
+            ("lr", LogisticRegression(C=1.0, max_iter=3000)),
+        ])
+
+    fa = pd.read_parquet(f"{DATA}/features_minicpm-o45-audio.parquet")[
+        ["id", "pool", "split", "escalate_label"]]
+    fa = fa[fa["escalate_label"].notna()]
+    qtext = {q["id"]: q["query"] for q in _read_jsonl(QUERIES)}
+    asr = pd.concat([pd.read_parquet(s) for s in
+                     sorted(glob.glob(f"{DATA}/asr_minicpm-o45-audio"
+                                      f".shard*.parquet"))],
+                    ignore_index=True)
+    tr = dict(zip(asr["id"], asr["transcript"]))
+    print(f"audio rows {len(fa)}; with self-ASR transcript "
+          f"{fa['id'].isin(tr).sum()}", flush=True)
+
+    out = {}
+    for name, text_of in (("gold_text", qtext), ("asr_transcript", tr)):
+        d = fa[fa["id"].isin(text_of)].copy()
+        d["text"] = d["id"].map(text_of).fillna("")
+        cal = d[d["split"] == "calib"]
+        tst = d[d["split"] == "test"]
+        y_cal = cal["escalate_label"].astype(int).to_numpy()
+        y_tst = tst["escalate_label"].astype(int).to_numpy()
+        oof = cross_val_predict(make_pipe(), cal["text"], y_cal,
+                                cv=StratifiedKFold(5, shuffle=True,
+                                                   random_state=42),
+                                method="predict_proba")[:, 1]
+        s = make_pipe().fit(cal["text"], y_cal).predict_proba(
+            tst["text"])[:, 1]
+        out[name] = {
+            "n_calib": int(len(cal)), "n_test": int(len(tst)),
+            "oof_auc": float(roc_auc_score(y_cal, oof)),
+            "oof_acc": float(accuracy_score(y_cal, oof >= .5)),
+            "majority_calib": float(max(y_cal.mean(), 1 - y_cal.mean())),
+            "test_auc": float(roc_auc_score(y_tst, s)),
+            "test_acc": float(accuracy_score(y_tst, s >= .5)),
+            "majority_test": float(max(y_tst.mean(), 1 - y_tst.mean()))}
+        r = out[name]
+        print(f"=== audio-label router [{name}] n={r['n_calib']}/"
+              f"{r['n_test']} ===", flush=True)
+        print(f"  OOF AUC={r['oof_auc']:.3f} acc={r['oof_acc']:.3f} "
+              f"(maj {r['majority_calib']:.3f}) | test "
+              f"AUC={r['test_auc']:.3f} acc={r['test_acc']:.3f} "
+              f"(maj {r['majority_test']:.3f})  "
+              f"[audio probe: OOF .843 / test .879]", flush=True)
+
+    with open(f"{DATA}/router_audio.json", "w") as fh:
+        json.dump(out, fh)
+    gate_data.commit()
+    print(f">>> wrote {DATA}/router_audio.json", flush=True)
+
+
+# ============ worklist ⑤e: router fairness sweep ===========================
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 20,
+              cpu=8)
+def router_sweep():
+    """User challenge on 8f: 'prove you didn't train a deliberately weak
+    router to flatter the probe.' Grid over feature space x min_df x
+    regularization (24 configs), each scored by the same 5-fold OOF AUC
+    protocol as 8f/probes. If no config beats .669 by more than noise,
+    .669 is the query-surface ceiling on this data, not a tuning
+    artifact. $0, frozen data."""
+    import numpy as np
+    import pandas as pd
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.pipeline import FeatureUnion, Pipeline
+
+    f = pd.read_parquet(FEATURES)[["id", "split", "escalate_label"]]
+    qtext = {q["id"]: q["query"] for q in _read_jsonl(QUERIES)}
+    f = f[(f["split"] == "calib") & f["escalate_label"].notna()
+          & f["id"].isin(qtext)]
+    X, y = f["id"].map(qtext), f["escalate_label"].astype(int).to_numpy()
+
+    def feats(kind, md):
+        w = ("w", TfidfVectorizer(ngram_range=(1, 2), min_df=md))
+        c = ("c", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5),
+                                  min_df=md))
+        return {"word": FeatureUnion([w]), "char": FeatureUnion([c]),
+                "word+char": FeatureUnion([w, c])}[kind]
+
+    rows = []
+    for kind in ("word", "char", "word+char"):
+        for md in (1, 2):
+            for C in (0.01, 0.1, 1.0, 10.0):
+                pipe = Pipeline([("tfidf", feats(kind, md)),
+                                 ("lr", LogisticRegression(C=C,
+                                                           max_iter=3000))])
+                oof = cross_val_predict(
+                    pipe, X, y,
+                    cv=StratifiedKFold(5, shuffle=True, random_state=42),
+                    method="predict_proba")[:, 1]
+                auc = roc_auc_score(y, oof)
+                rows.append({"features": kind, "min_df": md, "C": C,
+                             "oof_auc": float(auc)})
+                print(f"  {kind:9s} min_df={md} C={C:<5g} "
+                      f"OOF AUC={auc:.3f}", flush=True)
+    best = max(rows, key=lambda r: r["oof_auc"])
+    print(f">>> best config: {best} (8f shipped .669; probe .828)",
+          flush=True)
+    with open(f"{DATA}/router_sweep.json", "w") as fh:
+        json.dump(rows, fh)
+    gate_data.commit()
+
+
+# ============ worklist ⑤d: receipt comparison figure =======================
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 5)
+def receipt_figure():
+    """Two-panel receipt comparison from router_baseline.json +
+    probe_receipt.json (no hardcoded numbers): (a) accuracy@0.5 on our
+    eval splits vs the majority-class baseline, (b) train->OOF->test
+    log-loss per signal (is each signal trained/generalizing?).
+    Fetch: modal volume get --force gate-data receipt_compare.png figures/
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    with open(f"{DATA}/router_baseline.json") as fh:
+        rr = json.load(fh)["receipt"]
+    with open(f"{DATA}/probe_receipt.json") as fh:
+        pr = json.load(fh)
+    text, audio = pr[0], pr[1]
+
+    SIGS = [
+        ("Router (query text)", "#898781", rr["oof_acc"],
+         rr["majority_acc_calib"], rr["test_acc"], rr["majority_acc_test"],
+         rr["train_logloss"], rr["oof_logloss"], rr["test_logloss"]),
+        ("Text probe (h_prompt)", "#2a78d6", text["oof_acc"],
+         text["majority_calib"], text["test_acc"], text["majority_test"],
+         text["train_logloss"], text["oof_logloss"], text["test_logloss"]),
+        ("Audio probe (L22, live gate)", "#eb6834", audio["oof_acc"],
+         audio["majority_calib"], audio["test_acc"], audio["majority_test"],
+         audio["train_logloss"], audio["oof_logloss"],
+         audio["test_logloss"]),
+    ]
+    INK, MUT, GRID = "#0b0b0b", "#52514e", "#e1e0d9"
+
+    fig, (ax, bx) = plt.subplots(1, 2, figsize=(11, 4.2), dpi=200)
+    fig.patch.set_facecolor("#fcfcfb")
+    for a in (ax, bx):
+        a.set_facecolor("#fcfcfb")
+        for s in ("top", "right"):
+            a.spines[s].set_visible(False)
+        for s in ("left", "bottom"):
+            a.spines[s].set_color("#c3c2b7")
+        a.tick_params(colors=MUT, labelsize=8)
+
+    # (a) accuracy@0.5 vs majority, calib-OOF + test
+    w, xs = 0.34, np.arange(len(SIGS))
+    for i, (name, col, oa, om, ta, tm, *_r) in enumerate(SIGS):
+        ax.bar(i - w / 2, oa, w * .92, color=col, zorder=3)
+        ax.bar(i + w / 2, ta, w * .92, color=col, alpha=.55, zorder=3)
+        for x, v in ((i - w / 2, oa), (i + w / 2, ta)):
+            ax.text(x, v + .012, f"{v:.3f}", ha="center", fontsize=7.5,
+                    color=INK)
+        for x, m in ((i - w / 2, om), (i + w / 2, tm)):
+            ax.plot([x - w * .46, x + w * .46], [m, m], color=INK, lw=1.4,
+                    ls=(0, (3, 2)), zorder=4)
+    ax.set_xticks(xs)
+    ax.set_xticklabels([s[0].replace(" (", "\n(") for s in SIGS],
+                       fontsize=8, color=INK)
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel("accuracy @ 0.5 threshold", fontsize=9, color=INK)
+    ax.grid(axis="y", color=GRID, lw=.7, zorder=0)
+    ax.set_title("(a) Accuracy on our eval splits\n"
+                 "solid = calib OOF, faded = test, "
+                 "dashed = majority baseline", fontsize=9, color=INK)
+
+    # (b) train -> OOF -> test log-loss per signal
+    ys = np.arange(len(SIGS))[::-1]
+    for yv, (name, col, *_a, tr_l, oof_l, te_l) in zip(ys, SIGS):
+        bx.plot([tr_l, oof_l], [yv, yv], color=col, lw=2, zorder=2)
+        bx.scatter([tr_l], [yv], s=52, facecolor="#fcfcfb", edgecolor=col,
+                   lw=2, zorder=3)
+        bx.scatter([oof_l], [yv], s=52, color=col, zorder=3)
+        bx.scatter([te_l], [yv], s=52, color=col, marker="s", zorder=3)
+        for v, dy in ((tr_l, .18), (oof_l, .18), (te_l, -.30)):
+            bx.text(v, yv + dy, f"{v:.3f}", ha="center", fontsize=7.5,
+                    color=MUT)
+        bx.text(-.05, yv, name.split(" (")[0], ha="right", va="center",
+                fontsize=8.5, color=INK)
+    bx.set_yticks([])
+    bx.set_xlim(-.05, .9)
+    bx.set_ylim(-.6, len(SIGS) - .4)
+    bx.set_xlabel("log-loss", fontsize=9, color=INK)
+    bx.grid(axis="x", color=GRID, lw=.7, zorder=0)
+    bx.set_title("(b) Training vs eval loss\n"
+                 "open = train, filled = calib OOF, square = test",
+                 fontsize=9, color=INK)
+
+    fig.tight_layout()
+    fig.savefig(f"{DATA}/receipt_compare.png", bbox_inches="tight",
+                facecolor="#fcfcfb")
+    gate_data.commit()
+    print(f">>> wrote {DATA}/receipt_compare.png", flush=True)
 
 
 # ============ worklist ③a: end-of-turn gate calibration + prefetch scan ====
@@ -2322,4 +2922,426 @@ def live_dualview(n_boot: int = 10000, seed: int = 42):
         json.dump(out, fh, indent=1)
     gate_data.commit()
     print(f"\n>>> wrote {DATA}/live_dualview.png + live_dualview.json",
+          flush=True)
+
+
+# ============ 8p: SD-QA real-speech live control arm =======================
+# Zero-recalibration transfer test: the v2 live loop (end-of-turn gate,
+# SAME gate artifact, SAME eot quantile thresholds — nothing refit, nothing
+# requantiled) run on the 200 REAL human recordings from Phase 7b
+# (VoiceBench sd-qa, USA split). Two arms only: never (live floor) and
+# balanced. Expert query = the talker's own transcript of the sd-qa wav
+# (same fork-transcribe prompt as the 6a ASR parquet). Not comparable to
+# the main live curve (no math/trap pools); it answers one question — does
+# the TTS-calibrated gate + loop survive real speech end-to-end?
+#
+# Run (cwd=interactive_paper, PYTHONUTF8=1):
+#   modal run modal_stream.py::sdqa_prep                     # verify 7b assets
+#   modal run modal_stream.py::run_sdqa_transcribe --limit 10   # smoke
+#   modal run modal_stream.py::run_sdqa_transcribe           # full 200
+#   modal run modal_stream.py::run_sdqa_live --tier never --limit 10  # smoke
+#   modal run modal_stream.py::run_sdqa_live --tier never
+#   modal run modal_stream.py::run_sdqa_live --tier balanced
+#   modal run modal_stream.py::sdqa_report
+SDQA_AUDIO = f"{DATA}/sdqa_audio"
+SDQA_Q = f"{DATA}/queries_sdqa.jsonl"
+SDQA_ASR = f"{DATA}/sdqa_transcripts"       # + .shard{i}.parquet
+SDQA_TRACES = f"{DATA}/sdqa_traces.jsonl"   # + .{tier}.shard{i} / .{tier}.smoke
+
+
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 10)
+def sdqa_prep():
+    """Verify the Phase-7b sd-qa assets are complete and in the live loop's
+    format ({id, query, reference_answer} + 16k wav per item). 7b already
+    materialized them (modal_audio.py::build_sdqa); this pass only checks —
+    if anything is missing, rerun build_sdqa, do not rebuild here."""
+    qs = _read_jsonl(SDQA_Q)
+    no_wav = [q["id"] for q in qs
+              if not os.path.exists(f"{SDQA_AUDIO}/{q['id']}.wav")]
+    no_ref = [q["id"] for q in qs if not q.get("reference_answer")]
+    no_txt = [q["id"] for q in qs if not q.get("query")]
+    print(f">>> sdqa pool: {len(qs)} items | missing wav {len(no_wav)} | "
+          f"missing reference {len(no_ref)} | missing query text {len(no_txt)}",
+          flush=True)
+    for q in qs[:3]:
+        print(f"  {q['id']}: {q['query'][:70]!r} -> "
+              f"{str(q['reference_answer'])[:40]!r}", flush=True)
+    if no_wav or no_ref or no_txt:
+        raise RuntimeError(
+            f"sd-qa assets incomplete (wav {no_wav[:5]} ref {no_ref[:5]} "
+            f"txt {no_txt[:5]}) — rerun modal_audio.py::build_sdqa")
+    print(">>> sdqa assets OK — reuse as-is", flush=True)
+
+
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 5)
+def _read_sdqa_vol() -> list:
+    return _read_jsonl(SDQA_Q)
+
+
+@app.function(image=image_st, gpu="H100", volumes=GPU_VOL, timeout=60 * 60)
+def sdqa_transcribe(shard: list, shard_id: int) -> int:
+    """The talker's own self-transcription of each sd-qa wav — same
+    fork-transcribe mechanism that built the v2 pipeline's ASR parquet
+    (modal_audio.py::collect_asr: model.chat + ASR_INSTR, greedy, 512)."""
+    import glob as _glob
+    import shutil
+    import librosa
+    import pandas as pd
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+
+    from modal_app import MODEL_DIR
+    cache = os.path.expanduser("~/.cache/huggingface/modules/"
+                               "transformers_modules/"
+                               + os.path.basename(MODEL_DIR))
+    os.makedirs(cache, exist_ok=True)
+    for f in _glob.glob(f"{MODEL_DIR}/*.py"):
+        shutil.copy(f, cache)
+    model = AutoModel.from_pretrained(
+        MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
+        init_vision=False, init_audio=True, init_tts=False,
+    ).eval().cuda()
+    tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
+
+    rows = []
+    for k, q in enumerate(shard):
+        au, _ = librosa.load(f"{SDQA_AUDIO}/{q['id']}.wav", sr=16000,
+                             mono=True)
+        out = model.chat(msgs=[{"role": "user", "content": [au, ASR_INSTR]}],
+                         tokenizer=tok, max_new_tokens=512, sampling=False,
+                         use_tts_template=False, generate_audio=False)
+        rows.append({"id": q["id"], "pool": q["pool"],
+                     "transcript": str(out).strip()})
+        if k < 3 or k % 25 == 0:
+            print(f"  [{k}] {q['id']} :: {rows[-1]['transcript'][:70]!r}",
+                  flush=True)
+    pd.DataFrame(rows).to_parquet(f"{SDQA_ASR}.shard{shard_id}.parquet")
+    gate_data.commit()
+    print(f">>> wrote sdqa transcripts shard {shard_id} ({len(rows)})",
+          flush=True)
+    return len(rows)
+
+
+@app.local_entrypoint()
+def run_sdqa_transcribe(workers: int = 2, limit: int = 0):
+    qs = _read_sdqa_vol.remote()
+    if limit:
+        qs = qs[:limit]
+        workers = 1
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> sdqa self-transcription: {len(qs)} wavs / {workers} workers")
+    total = sum(sdqa_transcribe.starmap(
+        [(shards[i], i if not limit else 99) for i in range(workers)]))
+    print(f">>> transcribed {total}")
+
+
+@gen_app.function(image=image_st, gpu="H100", volumes=GPU_VOL,
+                  secrets=[OPENAI], timeout=60 * 60 * 2)
+def sdqa_live(limit: int = 0, tier: str = "balanced",
+              shard: list = None, shard_id: int = -1) -> list:
+    """chat_gated_v2 on the sd-qa pool — same gate artifact, same eot
+    thresholds (zero recalibration), tier in {never, balanced}. Per-shard
+    trace files (concurrent same-file appends silently drop rows);
+    shard_id < 0 (smoke via --limit) writes a .smoke file the report
+    ignores."""
+    import glob as _glob
+    import inspect
+    import shutil
+    import threading
+    import numpy as np
+    import torch
+    import librosa
+    import pandas as pd
+    from transformers import AutoModel, AutoTokenizer
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+    import gate as gate_mod
+
+    from modal_app import MODEL_DIR, EXPERT_CACHE
+    cache = os.path.expanduser("~/.cache/huggingface/modules/"
+                               "transformers_modules/"
+                               + os.path.basename(MODEL_DIR))
+    os.makedirs(cache, exist_ok=True)
+    for f in _glob.glob(f"{MODEL_DIR}/*.py"):
+        shutil.copy(f, cache)
+    model = AutoModel.from_pretrained(
+        MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
+        init_vision=False, init_audio=True, init_tts=False,
+    ).eval().cuda()
+    tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
+    art = json.load(open(GATE_ART))
+    probe = gate_mod.Probe(art["w"], art["b"])
+    thr = {"never": 1e9, "always": -1e9}.get(tier) or \
+        art["eot_thresholds"][tier]
+    print(f">>> sdqa live: L{art['layer']} end-of-turn read "
+          f"(calib AUC {art.get('eot_auc', 0):.3f}), tier={tier} "
+          f"thr={thr:.3f} [frozen calib quantiles — no refit], "
+          f"expert effort=low", flush=True)
+
+    asr = pd.concat([pd.read_parquet(s) for s in
+                     sorted(_glob.glob(f"{SDQA_ASR}.shard*.parquet"))],
+                    ignore_index=True).drop_duplicates(subset="id",
+                                                       keep="last")
+    transcript = dict(zip(asr["id"], asr["transcript"]))
+
+    if shard is not None:
+        queries = shard
+    else:
+        queries = [q for q in _read_jsonl(SDQA_Q)
+                   if q["id"] in transcript][:limit or None]
+    queries = [q for q in queries if q["id"] in transcript]
+    print(f">>> {len(queries)} sdqa queries", flush=True)
+
+    def call_def(fn, /, **kw):
+        params = set(inspect.signature(fn).parameters)
+        return fn(**{k: v for k, v in kw.items() if k in params})
+
+    def gen_text(**kw):
+        kw.setdefault("max_new_tokens", 512)
+        res = call_def(model.streaming_generate, tokenizer=tok,
+                       temperature=0.1, generate_audio=False, **kw)
+        parts = []
+        if inspect.isgenerator(res) or hasattr(res, "__next__"):
+            for r in res:
+                t = getattr(r, "text", None)
+                if t is None and isinstance(r, dict):
+                    t = r.get("text")
+                if t is None and isinstance(r, (tuple, list)) and r:
+                    t = r[0]
+                if isinstance(t, str):
+                    parts.append(t)
+        else:
+            parts.append(str(res))
+        return "".join(parts).strip()
+
+    holder = {}
+
+    def hook(_m, _inp, out):
+        hs = out[0] if isinstance(out, tuple) else out
+        holder["h"] = hs[0, -1, :].detach().float().cpu().numpy()
+
+    traces = []
+    for qi, q in enumerate(queries):
+        au, _ = librosa.load(f"{SDQA_AUDIO}/{q['id']}.wav", sr=16000,
+                             mono=True)
+        chunks = [au[i:i + 16000] for i in range(0, len(au), 16000)]
+        model.reset_session()
+        sys_msg = call_def(model.get_sys_prompt, mode="omni", language="en")
+        call_def(model.streaming_prefill, session_id="s1", msgs=[sys_msg],
+                 tokenizer=tok)
+        h = model.llm.model.layers[LAYER].register_forward_hook(hook)
+        scores = []
+        try:
+            for i, ch in enumerate(chunks):
+                if len(ch) < 16000:
+                    ch = np.pad(ch, (0, 16000 - len(ch)))
+                call_def(model.streaming_prefill, session_id="s1",
+                         msgs=[{"role": "user",
+                                "content": [ch.astype(np.float32)]}],
+                         tokenizer=tok,
+                         is_last_chunk=(i == len(chunks) - 1))
+                scores.append(round(float(probe.score(holder["h"])), 4))
+            t_eot0 = time.time()
+            call_def(model.streaming_prefill, session_id="s1",
+                     msgs=[{"role": "assistant", "content": [" "]}],
+                     tokenizer=tok, is_last_chunk=True)
+            eot_score = float(probe.score(holder["h"]))
+            eot_ms = int((time.time() - t_eot0) * 1000)
+        finally:
+            h.remove()
+
+        fired = eot_score >= thr
+        t_eot = time.time()
+        row = {"id": q["id"], "pool": q["pool"], "tier": tier,
+               "audio_s": round(len(au) / 16000, 2),
+               "n_chunks": len(chunks), "scores": scores,
+               "eot_score": round(eot_score, 4), "eot_read_ms": eot_ms,
+               "reference_answer": q.get("reference_answer"),
+               "query": q["query"], "transcript": transcript[q["id"]]}
+        if not fired:
+            ans = gen_text(session_id="s1")
+            row.update(mode="local", answer=ans,
+                       answer_ms=int((time.time() - t_eot) * 1000))
+        else:
+            expert = {}
+
+            def expert_call(query_text):
+                t0 = time.time()
+                r = escalate.ask_expert(query_text, effort="low",
+                                        cache_dir=EXPERT_CACHE)
+                expert["answer"] = r.get("answer") or f"[error: {r.get('error')}]"
+                expert["cached_latency_s"] = r.get("latency_s")
+                expert["wall_s"] = time.time() - t0
+
+            th = threading.Thread(target=expert_call,
+                                  args=(transcript[q["id"]],), daemon=True)
+            th.start()
+            call_def(model.streaming_prefill, session_id="s1",
+                     msgs=[{"role": "assistant", "content": [STALL]}],
+                     tokenizer=tok, is_last_chunk=True)
+            t_stall = time.time()
+            th.join(timeout=120)
+            t_expert = time.time()
+            call_def(model.streaming_prefill, session_id="s1",
+                     msgs=[{"role": "user", "content":
+                            [RELAY_TMPL.format(
+                                ans=expert.get("answer", ""))]}],
+                     tokenizer=tok, is_last_chunk=True)
+            relay = gen_text(session_id="s1")
+            row.update(mode="escalated", relay=relay,
+                       expert_answer=expert.get("answer", ""),
+                       expert_latency_s=round(
+                           expert.get("cached_latency_s") or
+                           expert.get("wall_s", -1), 2),
+                       stall_ms=int((t_stall - t_eot) * 1000),
+                       relay_ms=int((time.time() - t_expert) * 1000))
+        traces.append(row)
+        print(f"  [{qi}] {q['id']} eot={eot_score:.3f} "
+              f"{'ESC' if fired else 'local':>5s} "
+              f"| {(row.get('relay') or row.get('answer', ''))[:60]!r}",
+              flush=True)
+
+    out = (f"{SDQA_TRACES}.{tier}.smoke" if shard_id < 0
+           else f"{SDQA_TRACES}.{tier}.shard{shard_id}")
+    with open(out, "a", encoding="utf-8") as fh:
+        for r in traces:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    gate_data.commit()
+    print(f">>> appended {len(traces)} traces to {out}", flush=True)
+    return [r["id"] for r in traces]
+
+
+@gen_app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 5)
+def _read_sdqa_gen() -> list:
+    return _read_jsonl(SDQA_Q)
+
+
+@gen_app.local_entrypoint()
+def run_sdqa_live(tier: str = "balanced", workers: int = 3, limit: int = 0):
+    """workers=3 keeps worst-case expert concurrency at 3 (probation cap);
+    --limit N runs a single-worker smoke into the .smoke trace file."""
+    qs = _read_sdqa_gen.remote()
+    if limit:
+        qs = qs[:limit]
+        workers = 1
+    shards = [qs[i::workers] for i in range(workers)]
+    print(f">>> sdqa live tier={tier}: {len(qs)} queries, {workers} workers")
+    done = list(sdqa_live.starmap(
+        [(0, tier, shards[i], i if not limit else -1)
+         for i in range(workers)]))
+    print(f">>> tier {tier} complete: {sum(len(d) for d in done)} traces")
+
+
+@gen_app.function(image=util_st, volumes={DATA: gate_data}, secrets=[OPENAI],
+                  timeout=60 * 30, region=API_REGION)
+def sdqa_report(n_boot: int = 10000, seed: int = 42):
+    """Judge heard answers (gpt-5.4-mini, same prompt as gated_report),
+    per-tier heard-acc + realized escalation, paired bootstrap for the
+    balanced-minus-never delta, and the threshold-transfer readout (sdqa
+    eot-score distribution vs the calib distribution the thresholds were
+    quantiled on). Writes sdqa_live.json + sdqa_traces.parquet."""
+    import asyncio
+    import glob as _glob
+    import numpy as np
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    paths = sorted(_glob.glob(f"{SDQA_TRACES}.*.shard*"))
+    print(f">>> trace files: {paths}", flush=True)
+    rows = []
+    for p in paths:
+        rows += [json.loads(l) for l in open(p, encoding="utf-8")]
+    df = pd.DataFrame(rows).drop_duplicates(subset=["id", "tier"],
+                                            keep="last")
+    print(f"=== sdqa traces: n={len(df)} "
+          f"({df.groupby('tier').size().to_dict()}) ===", flush=True)
+
+    heard = [{"query": r["query"], "reference_answer": r["reference_answer"],
+              "answer": (r.get("relay") if r["mode"] == "escalated"
+                         else r.get("answer", ""))} for _, r in df.iterrows()]
+    labeled = asyncio.run(escalate.judge_many(heard, concurrency=8))
+    df["heard_ok"] = [1 - x["escalate_label"] if x["escalate_label"] is not None
+                      else None for x in labeled]
+    ok = df[df["heard_ok"].notna()]
+
+    print("\n=== heard accuracy (real human speech, zero recalibration) ===",
+          flush=True)
+    stats = {}
+    for tname, g in ok.groupby("tier"):
+        e, l = g[g["mode"] == "escalated"], g[g["mode"] == "local"]
+        stats[tname] = {
+            "n": int(len(g)), "esc": float(len(e) / max(1, len(g))),
+            "heard": float(g["heard_ok"].mean()),
+            "heard_escalated": (float(e["heard_ok"].mean()) if len(e)
+                                else None),
+            "heard_local": (float(l["heard_ok"].mean()) if len(l)
+                            else None)}
+        print(f"  [{tname}] n={len(g)} esc={stats[tname]['esc']:.2f} "
+              f"overall {stats[tname]['heard']:.3f} | escalated "
+              f"{e['heard_ok'].mean() if len(e) else float('nan'):.3f} | "
+              f"local {l['heard_ok'].mean() if len(l) else float('nan'):.3f}",
+              flush=True)
+        if len(e):
+            lat = e["expert_latency_s"].astype(float)
+            print(f"    expert latency P50={lat.median():.1f}s "
+                  f"P95={lat.quantile(.95):.1f}s", flush=True)
+
+    # paired bootstrap: ids common to both tiers, balanced − never
+    piv = ok.pivot(index="id", columns="tier", values="heard_ok").dropna()
+    A = piv[["never", "balanced"]].to_numpy(float)
+    n = len(piv)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, size=(n_boot, n))
+    bs = A[idx].mean(axis=1)                     # (n_boot, 2)
+    ci = lambda v: [float(x) for x in np.percentile(v, [2.5, 97.5], axis=0)]
+    d = bs[:, 1] - bs[:, 0]
+    delta = float(A[:, 1].mean() - A[:, 0].mean())
+    d_ci = ci(d)
+    print(f"\n=== paired bootstrap (n={n} common ids, {n_boot} resamples, "
+          f"seed {seed}) ===", flush=True)
+    print(f"  never    {A[:, 0].mean():.3f} {ci(bs[:, 0])}", flush=True)
+    print(f"  balanced {A[:, 1].mean():.3f} {ci(bs[:, 1])}", flush=True)
+    print(f"  delta    {delta:+.3f} [{d_ci[0]:+.3f},{d_ci[1]:+.3f}]"
+          f"{' *' if d_ci[0] > 0 else ' n.s.'}", flush=True)
+
+    # threshold transfer: sdqa eot distribution vs the calib one the
+    # thresholds were quantiled on (eot_gate_report)
+    art = json.load(open(GATE_ART))
+    thr = art["eot_thresholds"]
+    eot_sdqa = (df.sort_values("tier").drop_duplicates(subset="id")
+                ["eot_score"].astype(float).to_numpy())
+    cal = pd.concat([pd.read_parquet(s) for s in
+                     sorted(_glob.glob(f"{EOT_SCORES}.shard*.parquet"))],
+                    ignore_index=True).drop_duplicates(subset="id",
+                                                       keep="last")
+    eot_cal = cal["eot_score"].dropna().astype(float).to_numpy()
+    q3 = lambda v: [float(np.percentile(v, p)) for p in (25, 50, 75)]
+    print(f"\n=== eot-score threshold transfer ===", flush=True)
+    print(f"  calib (thresholds' source, n={len(eot_cal)}): "
+          f"P25/50/75 {q3(eot_cal)}", flush=True)
+    print(f"  sdqa  (n={len(eot_sdqa)}):                    "
+          f"P25/50/75 {q3(eot_sdqa)}", flush=True)
+    for t in ("conservative", "balanced", "aggressive"):
+        print(f"  fire@{t} thr={thr[t]:.3f}: calib "
+              f"{(eot_cal >= thr[t]).mean():.2f} -> sdqa "
+              f"{(eot_sdqa >= thr[t]).mean():.2f}", flush=True)
+
+    out = {"n_common": n, "n_boot": n_boot, "seed": seed,
+           "tiers": stats,
+           "delta_balanced_minus_never": delta,
+           "delta_ci": d_ci,
+           "never_ci": ci(bs[:, 0]), "balanced_ci": ci(bs[:, 1]),
+           "eot_calib_p25_50_75": q3(eot_cal),
+           "eot_sdqa_p25_50_75": q3(eot_sdqa),
+           "fire_rates": {t: {"calib": float((eot_cal >= thr[t]).mean()),
+                              "sdqa": float((eot_sdqa >= thr[t]).mean())}
+                          for t in thr}}
+    with open(f"{DATA}/sdqa_live.json", "w") as fh:
+        json.dump(out, fh, indent=1)
+    df.to_parquet(f"{DATA}/sdqa_traces.parquet")
+    gate_data.commit()
+    print(f"\n>>> wrote {DATA}/sdqa_live.json + sdqa_traces.parquet",
           flush=True)

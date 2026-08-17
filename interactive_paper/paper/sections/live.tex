@@ -36,8 +36,10 @@ chunk-vs-turn joint-calibration problem disappears.
 The remaining role for mid-stream firing would be \emph{speculative}
 expert prefetch --- start the cloud call early, veto at end of turn. We
 kill this with a measurement before building it. Framing the design as
-query-level speculative execution \citep{leviathan2023fast} at sentence
-granularity, its acceptance rate is the probability that an expert answer
+\emph{speculative escalation} --- speculative decoding's
+draft--verify skeleton \citep{leviathan2023fast} applied to the
+escalation decision itself, at sentence granularity --- its acceptance
+rate is the probability that an expert answer
 to the \emph{partial} transcript answers the full question --- a wait-$k$
 style tradeoff \citep{ma2019stacl}. Judged on calibration texts truncated
 at 25/50/75\% of the words, acceptance is \textbf{.07/.19/.51}; at the
@@ -183,9 +185,106 @@ the gap to the offline curve, which the two views separate:
   for a larger knowledge loss), and even external ASR (Whisper) recovers
   only .62 of the .82 gold ceiling --- the damaging errors are
   internally-coherent entity substitutions with no textual residue to
-  correct from. We treat ASR robustness as an orthogonal channel
-  property, not a contribution of this system.
+  correct from. A trace-level decomposition of the 108 escalated
+  heard-failures confirms the loss sits upstream of the relay: 64\%
+  are corrupted transcripts (the expert answers the wrong question),
+  24\% are expert misses on clean transcripts (dominated by trap ---
+  an expert knowledge limit shared with the gold arm), and only 5
+  cases show a correct expert answer dropped in relay --- consistent
+  with the measured relay compliance of 1.00 on the deployed channel
+  and with expert micro-turn answers being short (median 76
+  characters), which rules out talker context length as a mechanism.
+  A final controlled arm closes the attribution: sending the
+  \emph{original wavs} directly to an audio-capable expert
+  (gpt-audio), with a same-model gold-text control to subtract its
+  capability gap, shows the audio channel itself is lossless for
+  speakable content --- trap and easy-fact lose zero crossing it, and
+  the same recordings the talker garbled (``999 $-$ 103'' with the
+  minus dropped; ``Mustafa Adebayo Balogun'') are heard verbatim by
+  the stronger ear. The synthesis is therefore exonerated along with
+  the relay; the leak is the talker's own transcription step. We treat
+  ASR robustness as an orthogonal channel property, not a contribution
+  of this system.
 \end{itemize}
+
+\paragraph{What escalation costs in wall-clock time.} The same frozen
+traces carry per-session timers, so the latency price of each operating
+point is measured, not modeled (Table~\ref{tab:latency}). The gate
+itself is free at this scale: the end-of-turn read costs 25\,ms at P50
+and the stall prefill another 30\,ms; the expert round-trip
+(\textsc{gpt-5.5}, low effort; P50 4.8\,s, P95 20.8\,s) accounts for
+85--88\% of escalated-session wall time. The consequence is a specific
+distributional signature: at the balanced tier the \emph{mean} response
+time rises only +1.7\,s and the P50 +2.0\,s over the never floor, but
+the P99 nearly doubles (17.8\,$\to$\,30.4\,s) --- escalation is cheap on
+average and expensive exactly in the expert-latency tail ($n=240$ per
+arm, so P99 rests on the two worst sessions and is indicative only).
+Figure~\ref{fig:timeline-live} replays three real balanced-arm sessions
+from their recorded timers, showing the three shapes a session takes:
+the expert beating the stall phrase (seamless handoff), the expert
+outliving it (dead air --- the tail case above), and the gate staying
+closed (first token in 0.4\,s).
+Figure~\ref{fig:pareto-latency} joins the accuracy and latency readouts
+into the exchange rate actually paid at the median: +4.6 points of heard
+accuracy for +0.7\,s (never$\to$conservative), +8.3 for +1.2\,s
+(conservative$\to$balanced), and +10.4 for +0.7\,s
+(balanced$\to$aggressive). The steepest tier transition is also the
+cheapest per second, for two measured reasons: the marginal escalations
+are easier queries whose experts return faster (escalated-row expert
+mean 8.9/7.5/6.7\,s across the three tiers), and each escalation
+displaces a local decode that itself averages 4.6\,s.
+
+\begin{table}[t]
+\centering\small
+\caption{Measured response latency (end of user query $\to$ answer text
+complete; seconds), live sweep traces, $n=240$ per arm. $\Delta$ columns:
+loss vs.\ the never floor at the same statistic. Text-mode pipeline;
+speech synthesis excluded. P99 on $n=240$ is indicative only.}
+\label{tab:latency}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+tier & mean & P50 & P95 & P99 & $\Delta$mean & $\Delta$P50 & $\Delta$P95 & $\Delta$P99 \\
+\midrule
+never (floor) & 4.6 & 2.0 & 15.8 & 17.8 & --- & --- & --- & --- \\
+conservative  & 4.9 & 2.8 & 16.3 & 20.3 & +0.3 & +0.7 & +0.6 & +2.5 \\
+balanced      & 6.3 & 4.0 & 18.1 & 30.4 & +1.7 & +2.0 & +2.3 & +12.6 \\
+aggressive    & 6.6 & 4.7 & 18.0 & 32.9 & +2.0 & +2.7 & +2.3 & +15.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{timeline_live}
+  \caption{Three real live sessions (balanced arm), replotted from their
+  recorded timers. (a) The expert returns at 1.9\,s, while the talker is
+  still voicing the stall phrase: the answer is injected mid-stall and
+  the handoff has zero dead air. (b) The trap-pool case: the expert takes
+  10.3\,s, the stall ends first, and 5.9\,s of dead air follow --- the
+  P99 signature of Table~\ref{tab:latency} as a single session. (c) The
+  gate stays closed and the local answer's first token arrives at
+  0.4\,s. Hatched speech bars are the one estimated quantity (150\,wpm;
+  the live loop emits text); every event timestamp is measured.}
+  \label{fig:timeline-live}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.9\linewidth]{pareto_latency}
+  \caption{The live accuracy--latency tradeoff: per-arm P50 response
+  latency (Table~\ref{tab:latency}) against accuracy with 95\%
+  paired-bootstrap CIs (Table~\ref{tab:live}), in the honest heard view
+  (blue) and the channel-controlled gold-inject view (green) of the
+  same sessions --- rescoring changes outcomes, not timing, so the two
+  views share their $x$ positions. Segment labels give the median
+  exchange rate on the heard curve. The always-escalate ceiling is
+  synthesized from frozen gold answers and has no live latency; the
+  random reference appears only in rate space (Figure~\ref{fig:dualview})
+  because random arms were not run live and their latency cannot be
+  placed honestly from frozen data. Median view --- the expert P99 tail
+  is priced in Table~\ref{tab:latency}.}
+  \label{fig:pareto-latency}
+\end{figure}
 
 \subsection{Signal boundary: a third blind spot}
 \label{sec:falseqa}

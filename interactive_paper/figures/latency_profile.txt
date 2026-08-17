@@ -1,0 +1,30 @@
+=== component timers (rows where the stage ran, seconds) ===
+  eot_read_ms  n=960  mean=  0.03  P50=  0.03  P95=  0.03  P99=  0.05
+  stall_ms     n=250  mean=  0.03  P50=  0.03  P95=  0.04  P99=  0.19
+  answer_ms    n=710  mean=  4.57  P50=  2.34  P95= 15.90  P99= 17.86
+  relay_ms     n=250  mean=  1.14  P50=  0.69  P95=  3.64  P99=  8.61
+  expert_ms    n=250  mean=  7.28  P50=  4.78  P95= 20.77  P99= 32.80
+
+=== per-arm total response latency (query end -> answer text done, s) ===
+  never        esc= 0.0%  mean=  4.61  P50=  2.02  P95= 15.76  P99= 17.79
+  conservative esc=14.2%  mean=  4.93  P50=  2.76  P95= 16.31  P99= 20.32
+    escalated    n= 34  mean= 10.13  P50=  9.23  P95= 21.80  P99= 29.46
+    local        n=206  mean=  4.07  P50=  2.35  P95= 14.03  P99= 16.93
+  balanced     esc=35.0%  mean=  6.27  P50=  4.00  P95= 18.06  P99= 30.37
+    escalated    n= 84  mean=  8.61  P50=  6.05  P95= 22.40  P99= 33.13
+    local        n=156  mean=  5.01  P50=  2.64  P95= 17.05  P99= 18.32
+  aggressive   esc=55.0%  mean=  6.58  P50=  4.69  P95= 18.01  P99= 32.94
+    escalated    n=132  mean=  7.91  P50=  5.39  P95= 21.85  P99= 33.76
+    local        n=108  mean=  4.95  P50=  3.07  P95= 16.11  P99= 17.84
+
+=== the loss: arm minus never-floor, same percentile (s) ===
+  conservative mean +0.32  P50 +0.74  P95 +0.55  P99 +2.53
+  balanced     mean +1.66  P50 +1.98  P95 +2.30  P99+12.58
+  aggressive   mean +1.97  P50 +2.67  P95 +2.25  P99+15.15
+
+=== escalated-row decomposition (escalated rows only, s) ===
+  conservative n= 34  expert mean= 8.88 P50= 7.42 P95=21.31 P99=28.79 | relay P50=0.68 | share of total: expert 88%
+  balanced     n= 84  expert mean= 7.49 P50= 5.16 P95=20.49 P99=32.41 | relay P50=0.60 | share of total: expert 87%
+  aggressive   n=132  expert mean= 6.74 P50= 4.36 P95=19.75 P99=33.00 | relay P50=0.75 | share of total: expert 85%
+
+wrote interactive_paper/figures/latency_profile.json

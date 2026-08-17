@@ -1,14 +1,15 @@
 # When Does a Small Model Know to Hand Off?
 ## Zero-Training Escalation Gates for Full-Duplex Speech Models
 
-**Technical Report — v4** (v1: 2026-07-13, probe gate; v2: 2026-07-14, audit +
+**Technical Report — v5** (v1: 2026-07-13, probe gate; v2: 2026-07-14, audit +
 p(True) + 3-backbone replication; v3: 2026-07-24, adds Phases 5c–6d + system
 profiling — the duplex-damage mechanism story, audio-input replication, the
 thinking ablation, and the fork/overlap latency analysis; v4: 2026-07-30,
 adds §8b — Part 2 executed: live duplex gate, conflict injection, live
 tradeoff curve with bootstrap + dual-view decomposition, router baseline,
-FalseQA blind spot)
-Date: 2026-07-30 · Seed: 42 · Status: Parts 1 and 2 complete (Phases 0–8g)
+FalseQA blind spot; v5: 2026-08-05, router training receipt + RouterBench
+grounding + probe receipt in §8b.5)
+Date: 2026-08-05 · Seed: 42 · Status: Parts 1 and 2 complete (Phases 0–8j)
 
 ---
 
@@ -521,6 +522,43 @@ all signals); LOPO collapse (.38–.57; trap mean score .230 = misses the
 100%-fail pool). Query-feature routing IS the type shortcut, now with
 numbers; the structural argument (§7) holds under identical data.
 
+**Router receipt + RouterBench grounding (8j, ~$1):** training receipt —
+n=360, 15,103 features; train logloss .377/acc .917 vs OOF logloss
+.588/**acc .678 = exactly the majority rate** (test .613 vs majority
+.588): a ranking-only signal, no usable classifier. Same recipe trained
+on RouterBench 0-shot (36,497 prompts, mixtral-8x7b→gpt-4, escalate rate
+.432): in-domain OOF AUC .710 / acc .660 (majority .568) / deferral area
++.033 — 100× data buys .669→.710, so the 8f baseline is
+information-starved, not data-starved (not a strawman).
+Leave-one-benchmark-out is at chance on format-disjoint benchmarks
+(hellaswag .502, GSM8K .509, winogrande .498) = the LOPO collapse
+reproduced on public data; our calib-trained router transfers to
+RouterBench below chance (AUC .440). Full AIQ cost-quality protocol +
+preference-trained routers remain future work.
+
+**RouteLLM released checkpoints, zero-shot (8m, ~$1):** bert/mf
+_gpt4_augmented (~100k preference pairs) on our 600 labeled queries:
+test AUC .523/.533, area +.011/+.007 — near chance, below even the
+same-data TF-IDF router (.721/+.040); both rank the 100%-fail trap pool
+below the ordinary hard pools. Mirror of 8j's .440 reverse transfer:
+routing knowledge is model-pair-specific in both directions.
+
+**Audio-modality router (8n, $0):** the 8f recipe vs the audio labels:
+gold text OOF .743 / test .814, self-ASR transcript .738/.805 (ASR
+input nearly free) — stronger than on text labels (audio failure is
+more type-correlated), but the audio L22 probe still leads every
+readout (.843/.879 AUC; acc .800 vs .696) and the router structurally
+cannot fire mid-utterance.
+
+**Probe receipt (8k, $0) — the same accounting for our own gates:** text
+h_prompt probe (LR C=.001, 4096d) OOF acc **.772** vs majority .678,
+test **.779** vs .588 (AUC .828/.819); audio L22 live-gate probe OOF
+**.764** vs .592, test **.800** vs .512 (AUC .843/.879; test logloss
+.446, best-calibrated signal). Same n=360 labels, same LR machinery as
+the router that scored +.000 over majority — the difference is purely
+the input representation. Budget-threshold classification acc (test):
+text .70/.78/.70, audio .69/.75/.80 at 15/30/50%.
+
 **FalseQA audition (8g, ~$8): the third blind spot.** False-premise
 questions (transcription-fair by design): small model fails .63 text /
 .47 audio, expert adequacy .80 — but the end-of-turn gate is blind
@@ -531,6 +569,61 @@ the pre-answer signal is specifically a retrieval-failure detector.
 Discussion frame: three failure species × perceivability (retrieval =
 observable empty lookup at prefill; execution = emerges during decode;
 metacognitive = no failure event ever occurs in the model's experience).
+
+### 8b.6 Probe v3: RL/SFT rejected; calibration width + multi-position reads (8z, 2026-08-16)
+
+Asked whether RL (or SFT) should train the probe, we declined both on
+structural grounds: the gate is a **single-step decision whose both
+counterfactuals are observable offline** (never/always arms) — i.e.
+cost-sensitive supervised classification, where policy-gradient RL
+re-derives the same Bayes classifier at far worse sample efficiency;
+SFT on the backbone would break the zero-training frozen-checkpoint
+claim and invalidate every measured curve by shifting the talker's
+answer distribution (and small-n training is already falsified by the
+8f/8s router receipts). The binding constraint — domain shift + judge
+label noise (OOF .878 vs external .76–.78) — is addressed by neither.
+
+The two supervised levers were executed instead. (1) **Calibration
+width**: +1150 queries from 7 new public families (PopQA, TruthfulQA,
+CommonsenseQA, OpenBookQA, HotpotQA, SVAMP, MMLU; fail-rates .10–.84,
+pooled .50), train n = 2310. (2) **Multi-position features**: one
+streaming replay per query over all 9 pools (3901 replays) stored
+L{14,18,22,26,30} × (eot rolling last-8 window + user-audio mean) in
+float16 (`eoth2_*.npz`) — probe refits are now CPU-only forever. The
+OOF sweep reproduced the 5d layer structure (L22 best single layer;
+multi-layer concat hurts) and picked `eot_last+eot_mean8+user_mean @
+L22` (all three reads online-computable at zero eot latency), C=1e-4,
+OOF .864.
+
+| fit | striviaqa | swebq | sdqa | sllama | sreason | frozen-test | ext-mean |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v2 (stored, sanity-exact) | .761 | .779 | .775 | .815 | .621 | .860 | .750 |
+| + expansion2 (data lever) | .762 | .804 | .780 | .817 | .682 | .872 | .769 |
+| + features (= **v3**) | .789 | .785 | .792 | .806 | .683 | **.879** | **.771** |
+
+Data is again the bigger lever (+.019 vs +.005); the pre-registered
+in-mix guard passed with headroom (.860→.879, selection never saw the
+externals). Headline transfer finding: **sreason .621→.683 (+.062) —
+new English multihop/long-tail calibration data improves CHINESE
+reasoning transfer**, evidence the probed difficulty signal is
+language-general. One small regression: sllama .815→.806. Artifacts:
+`midlayer_gate_audio_v3.json`, per-domain `gate_v3_{pool}.json`
+(label-free quantiles). The live 4-arm re-run with v3 is a separate
+spend decision; AUC gains are threshold-independent.
+
+**Live v3 re-run (8z-live): the offline gains survive deployment.**
+21 sweeps (7 pools × 3 tiers, 4773 sessions), never/ceiling arms
+reused, everything re-judged; OAB pools on the official judge. Where
+the offline AUC moved, the live curve moved: striviaqa balanced
+.764→.800, sreason (Chinese) +.010–.030 on every arm — the
+cross-lingual transfer finding survives live — and sllama's headline
+strengthens: **selective escalation @50% = .948 > always-escalate
+.928**. swebq/sdqa flat (probe-flat offline too). Honest notes: the
+frozen pool's aggressive arm dropped .621→.596 because calib-quantile
+thresholds overshoot on the test split (esc .61 vs .50), pushing extra
+math/LaTeX queries through the transcript-tax channel; valpaca remains
+a negative result (agg 4.35 < random ≈4.45, species-3 pool). All 14
+figures regenerated on v3 traces (v2 archived); gallery redeployed.
 
 ## 9. Remaining gaps (honest list)
 
@@ -555,7 +648,7 @@ metacognitive = no failure event ever occurs in the model's experience).
   unimplemented.
 - Paired bootstrap done for the live arms; DeLong for same-test signal
   comparisons and the +0.012 gate-vs-pool-oracle residual test still open.
-- Total spend ≈ **$462** of the $2000 budget.
+- Total spend ≈ **$545** of the $2000 budget.
 
 ## 10. Artifacts
 

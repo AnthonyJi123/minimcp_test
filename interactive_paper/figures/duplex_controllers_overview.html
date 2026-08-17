@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三篇外挂式 full-duplex 控制器：高层概览</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --hairline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --accent:         #2a78d6;   /* series-1: 控制器/头（每篇的新东西） */
+    --accent-soft:    #cde2fb;
+    --ours:           #eb6834;   /* series-2: 我们的 gate 对照 */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --hairline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --accent:         #3987e5;
+      --accent-soft:    #104281;
+      --ours:           #d95926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    padding: 32px 24px 40px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px; max-width: 72ch; line-height: 1.55; }
+  .sub b { color: var(--text-primary); }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 18px 14px;
+    display: flex; flex-direction: column;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 2px; }
+  .card .arxiv { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+  .card .oneliner { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px; min-height: 3.9em; }
+  .card .oneliner b { color: var(--text-primary); }
+
+  /* diagram */
+  .diagram { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; flex: 1; }
+  .box {
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: transparent;
+    text-align: center;
+  }
+  .box .t { color: var(--text-primary); font-weight: 600; display: block; font-size: 12.5px; }
+  .box.ctrl {
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-1));
+  }
+  .box.ctrl .t { color: var(--accent); }
+  .arrow { text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1; }
+  .arrow .lbl { font-size: 11px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  .facts { border-top: 1px solid var(--hairline); padding-top: 10px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .fact .k { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .fact .v { font-size: 12.5px; color: var(--text-primary); font-weight: 600; }
+
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px; padding: 2px 9px; margin-bottom: 10px;
+    align-self: flex-start;
+  }
+
+  /* bottom contrast strip */
+  .axes {
+    margin-top: 20px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .axes h3 { font-size: 14px; margin: 0 0 12px; }
+  .axisrow { display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+  .axisname { width: 200px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .axisname.theirs { color: var(--accent); }
+  .axisname.ours { color: var(--ours); }
+  .axisbar {
+    flex: 1; min-width: 260px; display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--text-secondary);
+  }
+  .pole { border: 1px solid var(--hairline); border-radius: 6px; padding: 5px 12px; background: var(--surface-1); color: var(--text-primary); }
+  .axisline { flex: 1; height: 0; border-top: 2px solid var(--hairline); position: relative; min-width: 40px; }
+  .axisline.blue { border-color: var(--accent); }
+  .axisline.orange { border-color: var(--ours); }
+  .axes .note { font-size: 12.5px; color: var(--text-secondary); margin: 12px 0 0; line-height: 1.55; }
+  .axes .note b { color: var(--text-primary); }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+
+  <h1>三篇「外挂式 full-duplex 控制器」在做什么</h1>
+  <p class="sub">共同点：<b>生成模型保持半双工不动</b>，旁边放一个判定器决定「现在该听还是该说」——判的是<b>信道占用</b>（谁现在说话），
+  没有一家判「该不该升级到更大的模型」。形态上分两种：真外挂独立模型（FlexDuo），或搭在主 LLM hidden states 上的轻量头（MinMo、Freeze-Omni）。</p>
+
+  <div class="cards">
+
+    <!-- FlexDuo -->
+    <div class="card">
+      <h2>FlexDuo</h2>
+      <div class="arxiv">arXiv 2502.13472 · 快手</div>
+      <span class="badge">真外挂：独立第二个模型</span>
+      <p class="oneliner">给任何半双工对话系统<b>加装</b>全双工：一个独立 7B 模型站在门口，
+      每 120ms 判一次该听、该说、还是<b>当没听见（Idle）</b>。</p>
+      <div class="diagram">
+        <div class="box">用户音频（滑窗）+ 对话历史</div>
+        <div class="arrow">▼</div>
+        <div class="box ctrl"><span class="t">控制器（Qwen2-audio-7B 微调）</span>三态 FSM：Speak / Listen / <b>Idle</b></div>
+        <div class="arrow">▼</div>
+        <div class="row2">
+          <div class="box"><span class="t">半双工 LLM</span>Listen：音频放行<br>Idle：噪声直接丢弃</div>
+          <div class="box"><span class="t">TTS</span>用户真插话时<br>掐断播报</div>
+        </div>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">判定节奏</div><div class="v">每 120ms</div></div>
+        <div class="fact"><div class="k">Idle 的价值</div><div class="v">噪声下 F1 +15.7%</div></div>
+      </div>
+    </div>
+
+    <!-- MinMo -->
+    <div class="card">
+      <h2>MinMo</h2>
+      <div class="arxiv">arXiv 2501.06282 · 阿里</div>
+      <span class="badge">头搭在 LLM hidden states 上</span>
+      <p class="oneliner">不外挂模型：在语音 LLM 自己的 hidden states 上加一个<b>单层 Transformer 头</b>，
+      实时判两件事——<b>该接话吗、该停嘴去听吗</b>（backchannel 不算打断）。</p>
+      <div class="diagram">
+        <div class="box ctrl"><span class="t">Full-Duplex Predictor（单层 Transformer + softmax）</span>① 现在该接话吗　② 该停下听吗</div>
+        <div class="arrow">▲ <span class="lbl">读 hidden embeddings</span></div>
+        <div class="box"><span class="t">语音 LLM（Qwen2.5-7B 底座）</span>正在说 / 正在听</div>
+        <div class="arrow">▼</div>
+        <div class="box">判「接话」→ 起播；判「停嘴」→ 停播去听</div>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">判定延迟</div><div class="v">250ms</div></div>
+        <div class="fact"><div class="k">全链路</div><div class="v">理论 600 / 实测 ~800ms</div></div>
+      </div>
+    </div>
+
+    <!-- Freeze-Omni -->
+    <div class="card">
+      <h2>Freeze-Omni</h2>
+      <div class="arxiv">arXiv 2411.00774 · 腾讯/西工大</div>
+      <span class="badge">frozen LLM + 分类层</span>
+      <p class="oneliner">LLM 完全冻结，最后一层后加一个<b>分类层</b>，VAD 触发后逐 chunk 判：
+      这是<b>真打断、假打断，还是继续听</b>。</p>
+      <div class="diagram">
+        <div class="box">用户音频 → VAD 触发 → 逐 chunk 流入</div>
+        <div class="arrow">▼</div>
+        <div class="box"><span class="t">Frozen LLM（Qwen2-7B ❄）</span>参数不动，只过 forward</div>
+        <div class="arrow">▼</div>
+        <div class="box ctrl"><span class="t">分类层（chunk 末帧判态）</span>0 继续听　·　1 真打断→重新生成　·　2 假打断→不理</div>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">判定延迟</div><div class="v">160–320ms</div></div>
+        <div class="fact"><div class="k">全链路均值</div><div class="v">745ms</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 对照我们 -->
+  <div class="axes">
+    <h3>和我们 gate 的关系：两条正交的决策轴</h3>
+    <div class="axisrow">
+      <div class="axisname theirs">他们判：信道占用</div>
+      <div class="axisbar"><span class="pole">Listen 先听</span><span class="axisline blue"></span><span class="pole">Speak 先说</span></div>
+    </div>
+    <div class="axisrow">
+      <div class="axisname ours">我们的 gate 判：能力</div>
+      <div class="axisbar"><span class="pole">本地 talker 直接答</span><span class="axisline orange"></span><span class="pole">升级到 thinker</span></div>
+    </div>
+    <p class="note">两轴<b>正交、可同机共存</b>：他们决定「什么时候开口」，我们决定「开口的该是谁」。
+    机械上还同构——MinMo / Freeze-Omni 的头读的就是 LLM hidden states，和我们 mid-layer gate 用的是<b>同一个接口</b>，
+    一个 escalation 头可以骑在完全相同的位置上。</p>
+  </div>
+
+</div></div>
+</body>
+</html>

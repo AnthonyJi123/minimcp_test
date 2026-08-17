@@ -1,0 +1,42 @@
+{
+ "tiers": {
+  "aggressive": {
+   "n": 250,
+   "esc": 0.5,
+   "heard": 0.836,
+   "heard_escalated": 0.808,
+   "heard_local": 0.864
+  },
+  "balanced": {
+   "n": 250,
+   "esc": 0.3,
+   "heard": 0.764,
+   "heard_escalated": 0.7733333333333333,
+   "heard_local": 0.76
+  },
+  "conservative": {
+   "n": 250,
+   "esc": 0.152,
+   "heard": 0.672,
+   "heard_escalated": 0.8421052631578947,
+   "heard_local": 0.6415094339622641
+  },
+  "never": {
+   "n": 250,
+   "esc": 0.0,
+   "heard": 0.616,
+   "heard_escalated": null,
+   "heard_local": 0.616
+  }
+ },
+ "eot_p25_50_75": [
+  0.26585,
+  0.46775,
+  0.654725
+ ],
+ "fire_rates": {
+  "conservative": 0.02,
+  "balanced": 0.16,
+  "aggressive": 0.388
+ }
+}

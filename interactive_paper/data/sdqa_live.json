@@ -1,0 +1,72 @@
+{
+ "n_common": 200,
+ "n_boot": 10000,
+ "seed": 42,
+ "tiers": {
+  "aggressive": {
+   "n": 200,
+   "esc": 0.44,
+   "heard": 0.72,
+   "heard_escalated": 0.8409090909090909,
+   "heard_local": 0.625
+  },
+  "balanced": {
+   "n": 200,
+   "esc": 0.165,
+   "heard": 0.595,
+   "heard_escalated": 0.8181818181818182,
+   "heard_local": 0.5508982035928144
+  },
+  "conservative": {
+   "n": 200,
+   "esc": 0.03,
+   "heard": 0.535,
+   "heard_escalated": 1.0,
+   "heard_local": 0.520618556701031
+  },
+  "never": {
+   "n": 200,
+   "esc": 0.0,
+   "heard": 0.495,
+   "heard_escalated": null,
+   "heard_local": 0.495
+  }
+ },
+ "delta_balanced_minus_never": 0.09999999999999998,
+ "delta_ci": [
+  0.03500000000000003,
+  0.16499999999999998
+ ],
+ "never_ci": [
+  0.425,
+  0.565
+ ],
+ "balanced_ci": [
+  0.525,
+  0.665
+ ],
+ "eot_calib_p25_50_75": [
+  0.3589,
+  0.55495,
+  0.7437
+ ],
+ "eot_sdqa_p25_50_75": [
+  0.418375,
+  0.5307999999999999,
+  0.653475
+ ],
+ "fire_rates": {
+  "conservative": {
+   "calib": 0.15,
+   "sdqa": 0.03
+  },
+  "balanced": {
+   "calib": 0.3,
+   "sdqa": 0.165
+  },
+  "aggressive": {
+   "calib": 0.5,
+   "sdqa": 0.44
+  }
+ }
+}

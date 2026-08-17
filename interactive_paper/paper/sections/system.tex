@@ -31,14 +31,70 @@ identical data conditions --- TF-IDF (word 1--2\,gram + character
 labels, seeing only the query surface. In-mix it lands \emph{below} even
 the pool oracle (OOF AUC .669 vs.\ .715; tradeoff area $+.040$ vs.\ the
 probe's $+.054$, mid-layer $+.064$, $\ptrue$-post $+.068$ on the same
-test set and frozen expert answers). Under LOPO it collapses entirely
+test set and frozen expert answers); a 24-configuration sweep over
+feature space and regularization tops out at .689, so the shipped
+configuration is the query surface's ceiling, not a tuning artifact. Under LOPO it collapses entirely
 (held-out-pool AUC .38--.57 vs.\ the mid-layer probe's .93 on math) and
 its mean score on the 100\%-fail trap pool is .230 --- it \emph{misses}
-the pool a router most needs to catch. Query-feature routing is the type
-shortcut and nothing else; the comparison against preference-trained
-routers on the LLMRouterBench protocol \citep{llmrouterbench2026} remains
+the pool a router most needs to catch. The training receipt makes the
+point starkly: at the argmax threshold the router's out-of-fold accuracy
+on the calibration split, .678, \emph{exactly matches the majority-class
+rate} (test .613 vs.\ majority .588) --- 360 queries of surface text buy
+a weak ranking signal (train log-loss .38 vs.\ out-of-fold .59) and no
+usable classifier. The internal probes pass the same accounting: at the
+same threshold, same labels, and same logistic-regression machinery, the
+text probe's out-of-fold accuracy is .772 (majority .678) and .779 on
+test (majority .588), and the live audio mid-layer probe reaches
+.764/.800 against .592/.512 --- real classifiers, not merely rankers;
+the difference is purely the input representation
+(Figure~\ref{fig:receipt}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{receipt_compare}
+  \caption{The same training receipt for the external router and the two
+  internal probes (identical labels, identical logistic-regression
+  machinery). (a)~Accuracy at the 0.5 threshold on the calibration
+  (out-of-fold) and frozen test splits, against each split's
+  majority-class baseline (dashed): the router never clears majority;
+  both probes clear it by 9--29 points. (b)~Train vs.\ eval log-loss:
+  the audio probe generalizes cleanly (.278 train / .446 test, the
+  best-calibrated signal); the text probe memorizes in-sample
+  (4096 dims $\gg$ 360 queries) yet its held-out accuracy holds --- all
+  reported numbers are out-of-fold or test.}
+  \label{fig:receipt}
+\end{figure}
+
+Nor is the baseline data-starved. The identical recipe trained on
+RouterBench \citep{hu2024routerbench} --- 36{,}497 public prompts,
+routing \texttt{mixtral-8x7b} $\to$ \texttt{gpt-4} (escalation base rate
+.432) --- reaches out-of-fold AUC .710 in-domain (accuracy .660 vs.\
+majority .568; deferral area over random $+.033$): a hundred times the
+data buys .04 of AUC, landing at our pool-oracle's level and still short
+of the probe's .828. Its leave-one-benchmark-out transfer sits at chance
+on the format-disjoint benchmarks (HellaSwag .502, GSM8K .509,
+Winogrande .498), reproducing our LOPO collapse on public data, and our
+calibration-trained router transfers to RouterBench \emph{below} chance
+(AUC .440). The transfer failure is symmetric: RouteLLM's
+\emph{released} preference-trained routers (BERT and
+matrix-factorization, $\sim$100k GPT-4-vs-mixtral preference pairs),
+scored zero-shot on our pool by their own inference code, reach test AUC
+only .523/.533 --- below even the 360-sample same-data router --- and
+both rank the 100\%-fail trap pool \emph{below} the ordinary hard pools.
+The audio modality narrows but does not close the gap: against the live
+gate's audio labels the same recipe reaches OOF AUC .743 / test .814
+(gold text; the talker's own ASR transcript costs it only
+$-$.005--.009) --- stronger than on text labels, because the audio
+channel makes hard pools fail more uniformly and the type shortcut buys
+more --- yet the audio mid-layer probe still leads every readout
+(.843/.879 AUC, accuracy .800 vs.\ .696), and the router still requires
+the full utterance plus transcription, so it cannot fire mid-stream.
+Query-feature routing is the type shortcut and nothing else; the
+standardized LLMRouterBench protocol \citep{llmrouterbench2026} remains
 future work, but the information-source question is settled under
-identical data.
+identical data, the ceiling replicates at $100\times$ the data on a
+public benchmark, and routing knowledge fails to port across talkers in
+either direction.
 
 \begin{figure}[t]
   \centering

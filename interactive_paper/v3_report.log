@@ -1,0 +1,349 @@
+=== 16:43:23 modal_bench.py::report --bench frozen --suffix _v3 --never-glob /data/gated_traces_v2.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-0ERzGT40AZAhUfoCDkp2Rl
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/frozen_v3_traces.jsonl.aggressive.shard0', '/data/frozen_v3_traces.jsonl.aggressive.shard1', '/data/frozen_v3_traces.jsonl.aggressive.shard2', '/data/frozen_v3_traces.jsonl.balanced.shard0', '/data/frozen_v3_traces.jsonl.balanced.shard1', '/data/frozen_v3_traces.jsonl.balanced.shard2', '/data/frozen_v3_traces.jsonl.conservative.shard0', '/data/frozen_v3_traces.jsonl.conservative.shard1', '/data/frozen_v3_traces.jsonl.conservative.shard2', '/data/gated_traces_v2.jsonl.never.shard0', '/data/gated_traces_v2.jsonl.never.shard1', '/data/gated_traces_v2.jsonl.never.shard2', '/data/gated_traces_v2.jsonl.never.shard3']
+=== frozen traces: n=960 ({'aggressive': 240, 'balanced': 240, 'conservative': 240, 'never': 240}) ===
+
+=== frozen heard accuracy (zero recalibration) ===
+  [aggressive] n=240 esc=0.61 overall 0.596
+  [balanced] n=240 esc=0.35 overall 0.554
+  [conservative] n=240 esc=0.16 overall 0.483
+  [never] n=240 esc=0.00 overall 0.383
+>>> wrote /data/frozen_v3_live.json + frozen_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-0ERzGT40AZAhUfoCDkp2Rl
+=== 16:45:43 modal_bench.py::report --bench striviaqa --suffix _v3 --never-glob /data/striviaqa_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-pBsJZCWZmRkZgwFPWw53cD
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/striviaqa_v3_traces.jsonl.aggressive.shard0', '/data/striviaqa_v3_traces.jsonl.aggressive.shard1', '/data/striviaqa_v3_traces.jsonl.aggressive.shard2', '/data/striviaqa_v3_traces.jsonl.balanced.shard0', '/data/striviaqa_v3_traces.jsonl.balanced.shard1', '/data/striviaqa_v3_traces.jsonl.balanced.shard2', '/data/striviaqa_v3_traces.jsonl.conservative.shard0', '/data/striviaqa_v3_traces.jsonl.conservative.shard1', '/data/striviaqa_v3_traces.jsonl.conservative.shard2', '/data/striviaqa_traces.jsonl.never.shard0', '/data/striviaqa_traces.jsonl.never.shard1', '/data/striviaqa_traces.jsonl.never.shard2']
+=== striviaqa traces: n=1000 ({'aggressive': 250, 'balanced': 250, 'conservative': 250, 'never': 250}) ===
+
+=== striviaqa heard accuracy (zero recalibration) ===
+  [aggressive] n=250 esc=0.50 overall 0.836
+  [balanced] n=250 esc=0.30 overall 0.764
+  [conservative] n=250 esc=0.15 overall 0.672
+  [never] n=250 esc=0.00 overall 0.616
+>>> wrote /data/striviaqa_v3_live.json + striviaqa_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-pBsJZCWZmRkZgwFPWw53cD
+=== 16:47:53 modal_bench.py::report --bench swebq --suffix _v3 --never-glob /data/swebq_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-XUyz0R5eo9rUUK69rcHCnD
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/swebq_v3_traces.jsonl.aggressive.shard0', '/data/swebq_v3_traces.jsonl.aggressive.shard1', '/data/swebq_v3_traces.jsonl.aggressive.shard2', '/data/swebq_v3_traces.jsonl.balanced.shard0', '/data/swebq_v3_traces.jsonl.balanced.shard1', '/data/swebq_v3_traces.jsonl.balanced.shard2', '/data/swebq_v3_traces.jsonl.conservative.shard0', '/data/swebq_v3_traces.jsonl.conservative.shard1', '/data/swebq_v3_traces.jsonl.conservative.shard2', '/data/swebq_traces.jsonl.never.shard0', '/data/swebq_traces.jsonl.never.shard1', '/data/swebq_traces.jsonl.never.shard2']
+=== swebq traces: n=1000 ({'aggressive': 250, 'balanced': 250, 'conservative': 250, 'never': 250}) ===
+
+=== swebq heard accuracy (zero recalibration) ===
+  [aggressive] n=250 esc=0.50 overall 0.596
+  [balanced] n=250 esc=0.30 overall 0.476
+  [conservative] n=250 esc=0.15 overall 0.480
+  [never] n=250 esc=0.00 overall 0.372
+>>> wrote /data/swebq_v3_live.json + swebq_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-XUyz0R5eo9rUUK69rcHCnD
+=== 16:50:44 modal_bench.py::report --bench sdqa --suffix _v3 --never-glob /data/sdqa_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-z17n6m6XSNlS9bITSfehbv
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/sdqa_v3_traces.jsonl.aggressive.shard0', '/data/sdqa_v3_traces.jsonl.aggressive.shard1', '/data/sdqa_v3_traces.jsonl.aggressive.shard2', '/data/sdqa_v3_traces.jsonl.balanced.shard0', '/data/sdqa_v3_traces.jsonl.balanced.shard1', '/data/sdqa_v3_traces.jsonl.balanced.shard2', '/data/sdqa_v3_traces.jsonl.conservative.shard0', '/data/sdqa_v3_traces.jsonl.conservative.shard1', '/data/sdqa_v3_traces.jsonl.conservative.shard2', '/data/sdqa_traces.jsonl.never.shard0', '/data/sdqa_traces.jsonl.never.shard1', '/data/sdqa_traces.jsonl.never.shard2']
+=== sdqa traces: n=800 ({'aggressive': 200, 'balanced': 200, 'conservative': 200, 'never': 200}) ===
+
+=== sdqa heard accuracy (zero recalibration) ===
+  [aggressive] n=200 esc=0.50 overall 0.795
+  [balanced] n=200 esc=0.30 overall 0.720
+  [conservative] n=200 esc=0.15 overall 0.600
+  [never] n=200 esc=0.00 overall 0.515
+>>> wrote /data/sdqa_v3_live.json + sdqa_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-z17n6m6XSNlS9bITSfehbv
+=== 16:52:37 modal_bench.py::report --bench sllama --suffix _v3 --never-glob /data/sllama_v2_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-9vxZBj1voFaAWPGNZ1Vkoj
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/sllama_v3_traces.jsonl.aggressive.shard0', '/data/sllama_v3_traces.jsonl.aggressive.shard1', '/data/sllama_v3_traces.jsonl.aggressive.shard2', '/data/sllama_v3_traces.jsonl.balanced.shard0', '/data/sllama_v3_traces.jsonl.balanced.shard1', '/data/sllama_v3_traces.jsonl.balanced.shard2', '/data/sllama_v3_traces.jsonl.conservative.shard0', '/data/sllama_v3_traces.jsonl.conservative.shard1', '/data/sllama_v3_traces.jsonl.conservative.shard2', '/data/sllama_v2_traces.jsonl.never.shard0', '/data/sllama_v2_traces.jsonl.never.shard1', '/data/sllama_v2_traces.jsonl.never.shard2']
+=== sllama traces: n=1000 ({'aggressive': 250, 'balanced': 250, 'conservative': 250, 'never': 250}) ===
+
+=== sllama heard accuracy (zero recalibration) ===
+  [aggressive] n=250 esc=0.50 overall 0.888
+  [balanced] n=250 esc=0.30 overall 0.852
+  [conservative] n=250 esc=0.15 overall 0.828
+  [never] n=250 esc=0.00 overall 0.776
+>>> wrote /data/sllama_v3_live.json + sllama_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-9vxZBj1voFaAWPGNZ1Vkoj
+=== 16:54:45 modal_bench.py::report --bench sreason --suffix _v3 --never-glob /data/sreason_v2_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-CkAt8b3RtF24LXr4h3P9MF
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/sreason_v3_traces.jsonl.aggressive.shard0', '/data/sreason_v3_traces.jsonl.aggressive.shard1', '/data/sreason_v3_traces.jsonl.aggressive.shard2', '/data/sreason_v3_traces.jsonl.balanced.shard0', '/data/sreason_v3_traces.jsonl.balanced.shard1', '/data/sreason_v3_traces.jsonl.balanced.shard2', '/data/sreason_v3_traces.jsonl.conservative.shard0', '/data/sreason_v3_traces.jsonl.conservative.shard1', '/data/sreason_v3_traces.jsonl.conservative.shard2', '/data/sreason_v2_traces.jsonl.never.shard0', '/data/sreason_v2_traces.jsonl.never.shard1', '/data/sreason_v2_traces.jsonl.never.shard2']
+=== sreason traces: n=808 ({'aggressive': 202, 'balanced': 202, 'conservative': 202, 'never': 202}) ===
+
+=== sreason heard accuracy (zero recalibration) ===
+  [aggressive] n=202 esc=0.50 overall 0.772
+  [balanced] n=202 esc=0.30 overall 0.713
+  [conservative] n=202 esc=0.15 overall 0.653
+  [never] n=202 esc=0.00 overall 0.589
+>>> wrote /data/sreason_v3_live.json + sreason_v3_traces.parquet
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-CkAt8b3RtF24LXr4h3P9MF
+=== 16:57:13 modal_bench.py::valpaca_report --suffix _v3 --never-glob /data/valpaca_v2_traces.jsonl.never.shard* ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-G365cXCYIV0AM730sAUwPK
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> trace files: ['/data/valpaca_v3_traces.jsonl.aggressive.shard0', '/data/valpaca_v3_traces.jsonl.aggressive.shard1', '/data/valpaca_v3_traces.jsonl.aggressive.shard2', '/data/valpaca_v3_traces.jsonl.balanced.shard0', '/data/valpaca_v3_traces.jsonl.balanced.shard1', '/data/valpaca_v3_traces.jsonl.balanced.shard2', '/data/valpaca_v3_traces.jsonl.conservative.shard0', '/data/valpaca_v3_traces.jsonl.conservative.shard1', '/data/valpaca_v3_traces.jsonl.conservative.shard2', '/data/valpaca_v2_traces.jsonl.never.shard0', '/data/valpaca_v2_traces.jsonl.never.shard1', '/data/valpaca_v2_traces.jsonl.never.shard2']
+
+=== valpaca judge score (1-5) per arm ===
+  [aggressive] n=199 esc=0.50 score 4.35
+  [balanced] n=199 esc=0.30 score 4.23
+  [conservative] n=199 esc=0.15 score 3.96
+  [never] n=199 esc=0.00 score 3.99
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-G365cXCYIV0AM730sAUwPK
+=== 16:59:19 modal_bench.py::oab_rejudge_live --bench striviaqa --suffix _v3 ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-rDr4CUqvs9FELuuLDUQeIJ
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> OAB-judging 1000 live striviaqa answers
+>>> OAB-judging 250 ceiling answers
+
+=== striviaqa under the OFFICIAL (OpenAudioBench) judge ===
+  [aggressive] n=250 ours=0.836 -> official-judge 0.860
+  [balanced] n=250 ours=0.764 -> official-judge 0.800
+  [conservative] n=250 ours=0.672 -> official-judge 0.732
+  [never] n=250 ours=0.616 -> official-judge 0.664
+  ceiling: 0.968
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-rDr4CUqvs9FELuuLDUQeIJ
+=== 17:11:42 modal_bench.py::oab_rejudge_live --bench swebq --suffix _v3 ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-jq093ZmISowOhsphbYNi19
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> OAB-judging 1000 live swebq answers
+>>> OAB-judging 250 ceiling answers
+
+=== swebq under the OFFICIAL (OpenAudioBench) judge ===
+  [aggressive] n=250 ours=0.596 -> official-judge 0.732
+  [balanced] n=250 ours=0.476 -> official-judge 0.680
+  [conservative] n=250 ours=0.480 -> official-judge 0.628
+  [never] n=250 ours=0.372 -> official-judge 0.568
+  ceiling: 0.864
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-jq093ZmISowOhsphbYNi19
+=== 17:24:36 modal_bench.py::oab_rejudge_live --bench sllama --suffix _v3 ===
+✓ Initialized. View run at 
+https://modal.com/apps/rhe9527/main/ap-cj5JpxNeSWJkjjrinU3W2t
+✓ Created objects.
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\modal_app.py
+├── 🔨 Created mount 
+│   F:\Claude_Proj\minimcp_test\interactive_paper\modal_bench.py
+├── 🔨 Created mount F:\Claude_Proj\minimcp_test\interactive_paper\src
+├── 🔨 Created function label.
+├── 🔨 Created function label_hf.
+├── 🔨 Created function eval_expert.
+├── 🔨 Created function oab_rejudge.
+├── 🔨 Created function oab_rejudge_live.
+├── 🔨 Created function valpaca_ceiling.
+├── 🔨 Created function valpaca_report.
+├── 🔨 Created function debug_judge.
+├── 🔨 Created function score_chatmode.
+├── 🔨 Created function _read_bench_gen.
+├── 🔨 Created function ceiling.
+├── 🔨 Created function report.
+├── 🔨 Created function e2e_demo.
+├── 🔨 Created function eval_paraphrase.
+└── 🔨 Created function bench_live.
+>>> OAB-judging 1000 live sllama answers
+>>> OAB-judging 250 ceiling answers
+
+=== sllama under the OFFICIAL (OpenAudioBench) judge ===
+  [aggressive] n=250 ours=0.888 -> official-judge 0.948
+  [balanced] n=250 ours=0.852 -> official-judge 0.904
+  [conservative] n=250 ours=0.828 -> official-judge 0.904
+  [never] n=250 ours=0.776 -> official-judge 0.836
+  ceiling: 0.928
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/rhe9527/main/ap-cj5JpxNeSWJkjjrinU3W2t
+=== REPORTS DONE Sun Aug 16 17:35:19 PDT 2026 ===

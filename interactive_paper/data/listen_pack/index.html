@@ -1,0 +1,271 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<title>TTS listening pack — good vs bad</title><style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+.case{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
+.pool{font-size:.8em;color:#666;font-weight:normal}
+.note{color:#b00;margin:.3rem 0}
+h2{border-bottom:2px solid #333;padding-bottom:.3rem;margin-top:2.5rem}
+table{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:.9em}
+th{width:12em;text-align:left;vertical-align:top;color:#555;padding:.3rem .5rem;background:#f6f6f6}
+td{padding:.3rem .5rem;border-bottom:1px solid #eee;white-space:pre-wrap}
+audio{width:100%;margin-top:.4rem}
+</style></head><body>
+<h1>听音包：现在的 TTS（tts-1 / alloy）念出来是什么样</h1>
+<p>音频池：冻结 600 题，OpenAI tts-1 · alloy。每条附 gold 原文 vs MiniCPM 转录对照。</p>
+<h2>✅ Good cases（难题也听全了——TTS + 耳朵的上限证明）</h2>
+<div class="case">
+<h3>q0578 <span class="pool">trap</span></h3>
+<p class="note">trap 池，生僻人名 + 缩写全对：&quot;Gordon Plotkin&quot;、&quot;ACM SIGPLAN&quot; 一字不差</p>
+<audio controls preload="none" src="q0578.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>In what year did Gordon Plotkin win the ACM SIGPLAN Programming Languages Achievement Award?</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>In what year did Gordon Plotkin win the ACM SIGPLAN Programming Languages Achievement Award?</td></tr>
+</table></div>
+<div class="case">
+<h3>q0588 <span class="pool">trap</span></h3>
+<p class="note">长句 + 版本号全对：&quot;patch 5.2.0&quot;、&quot;Elemental Mastery&quot; 一字不差</p>
+<audio controls preload="none" src="q0588.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>In the online game World of Warcraft, in patch 5.2.0, what change was made to the cooldown of the shaman ability Elemental Mastery?</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>In the online game World of Warcraft, in patch 5.2.0, what change was made to the cooldown of the shaman ability Elemental Mastery?</td></tr>
+</table></div>
+<h2>❌ Bad cases（真·听错——重点听 TTS 有没有念清楚）</h2>
+<div class="case">
+<h3>q0552 <span class="pool">trap</span></h3>
+<p class="note">生僻人名被换掉：&quot;Mustafa Adebayo Balogun&quot; → 听成 &quot;Mustapha Arabo Balogun&quot;。听：alloy 念这个名字到底清不清楚？</p>
+<audio controls preload="none" src="q0552.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>On what day, month, and year was Mustafa Adebayo Balogun (Nigeria&#x27;s former Inspector General of Police) released from jail after serving his sentence for corruption charges brought against him by the EFCC?</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>On what day, month and year was Mustapha Arabo Balogun, Nigeria&#x27;s former Inspector General of Police, released from jail after serving his sentence for corruption charges brought against him by the EFCC?</td></tr>
+</table></div>
+<div class="case">
+<h3>q0250 <span class="pool">hard-knowledge</span></h3>
+<p class="note">生僻人名：&quot;Taurek&quot; → 听成 &quot;Turek&quot;</p>
+<audio controls preload="none" src="q0250.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>According to Parfit, both Taurek and Lewis assume that for there to be a “sum of pain,” it must be:
+
+A. all be avoidable.
+B. only felt by multiple people at different times.
+C. all be experienced in the same way.
+D. all be of the same intensity.
+E. all felt by a single person.
+F. all be caused by a single source.
+G. all be caused by multiple sources.
+H. all be caused by a single event.
+I. all felt at a single time.
+J. all of the above.
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>According to Parfit, both Turek and Lewis assume that for there to be a sum of pain, it must be (A) all be avoidable, (B) only felt by multiple people at different times, (C) all be experienced in the same way, (D) all be of the same intensity, (E) all felt by a single person, (F) all be caused by a single source, (G) all be caused by multiple sources, (H) all be caused by a single event, (I) all felt at a single time, (J) all of the above. Answer with the correct option letter and its content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0271 <span class="pool">hard-knowledge</span></h3>
+<p class="note">运算符丢失：&quot;Estimate 999 − 103&quot; → 听成 &quot;nine hundred ninety nine hundred and three&quot;。听：TTS 有没有把减号念出来？</p>
+<audio controls preload="none" src="q0271.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Estimate 999 - 103. The difference is between which numbers?
+
+A. 500 and 700
+B. 200 and 400
+C. 700 and 900
+D. 1,300 and 1,500
+E. 800 and 1,000
+F. 900 and 1,100
+G. 400 and 600
+H. 100 and 300
+I. 600 and 800
+J. 1,000 and 1,200
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>Estimate nine hundred ninety nine hundred and three. The differences between which numbers? a) five hundred and seven hundred, b) two hundred and four hundred, c) seven hundred and nine hundred, d) one thousand three hundred and one thousand five hundred, e) eight hundred and one thousand, f) nine hundred and one thousand, g) four hundred and six hundred, h) one hundred and three hundred, i) six hundred and eight hundred, j) one thousand and twelve hundred. Answer with the correct option letter and its content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0163 <span class="pool">hard-knowledge</span></h3>
+<p class="note">金额数字：&quot;$815.50&quot; → 听成 &quot;eight hundred and fifty dollars and fifty cents&quot;（1 丢了）</p>
+<audio controls preload="none" src="q0163.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>James Owen accepted a draft, dated December 9, drawn by Parker Bros, for $815.50 at 6% payable 4 months after date. Parker Bros, had the draft discounted at the bank on January 9 at 6(1/2)%. A charge of (1/8)% for collecting it when due was also charged. What were the proceeds?
+
+A. $809.35
+B. $817.2
+C. $13.52
+D. $792.40
+E. $834.67
+F. $842.10
+G. $815.50
+H. $800.00
+I. $825.75
+J. $831.81
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>James Owen accepted a draft dated December ninth drawn by Parker Bros for eight hundred and fifty dollars and fifty cents at six percent payable four months after date. Parker Bros had the draft discounted at the bank on January ninth at six and a half percent. A charge of eight percent for collecting it when due was also charged. What were the proceeds? A eight hundred ninety nine thirty five B eight hundred seventeen two C thirteen twenty two D seven hundred ninety two forty four E eight hundred forty three seventy five F eight hundred fifty dollars and fifty cents G eight hundred fifty seven dollars and seventy five cents H eight hundred fifty seven dollars and seventy five cents I eight hundred fifty seven dollars and seventy five cents J eight hundred thirty one dollars and eighty one cents. Answer with the correct option letter and its content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0212 <span class="pool">hard-knowledge</span></h3>
+<p class="note">LaTeX 公式：Z-transform，四个选项全部面目全非。听：TTS 是怎么念 z^-n 的？</p>
+<audio controls preload="none" src="q0212.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Using the definition of the unilateral Z transform, F (z) = ^\infty\sum_n=0 f[n] z^-n. find the z - transform of the step-sequence f[n] = u[n].
+
+A. [1 / (z - 1)]
+B. [z / (1 + z)]
+C. [z^2 / (z - 1)]
+D. [1 / (2 - z)]
+E. [(z - 1) / z]
+F. [1 / (z^2 - 1)]
+G. [1 / (1 - z)]
+H. [z / (1 - z)]
+I. [z / (z - 1)]
+J. [z / (z^2 - 1)]
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>Using the definition of the unilateral z-transform, F(z)=sum_(n=0)^oo f(n)z^(-n), find the z-transform of the step sequence f(n)=u(n). a) (1-z^(-1))/(1+z^(-1)), b) (z-z^(-1))/(z-2), c) (z-z^(-1))/(1-z^(-1)), d) (1-z^(-1))/(1-z^(-1)), e) z/(1-z^(-1)), f) (1-z^(-1))/(1+z^(-1)), g) z/(1+z^(-1)), h) z/(z-1), i) z/(1-z^(-1)), j) z/(1+z^(-1)). Answer with the correct option letter and its content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0233 <span class="pool">hard-knowledge</span></h3>
+<p class="note">源文本乱码：题面里本来就是 ``pleasure``（坏引号）。听：TTS 碰到乱码字符发什么音？</p>
+<audio controls preload="none" src="q0233.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Anscombe criticizes Butler on the grounds that:
+
+A. the notion of &quot;freedom&quot; is overly simplistic.
+B. the concept of “pleasure” is unclear.
+C. the notion of “legislating for oneself” is absurd.
+D. the idea of &quot;moral truth&quot; is a contradiction.
+E. we can&#x27;t really distinguish between good and evil.
+F. our consciences are fallible.
+G. we really can derive an “ought” from an “is.”
+H. the idea of moral obligations is incoherent.
+I. the concept of &quot;identity&quot; is too subjective.
+J. the concept of &quot;self&quot; is ill-defined.
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>Anscombe criticizes Butler on the grounds that (a) the notion of freedom is overly simplistic, (b) the concept of pleasure is unclear, (c) the notion of legislating for oneself is absurd, (d) the idea of moral truth is a contradiction, (e) we can&#x27;t really distinguish between good and evil, (f) our consciences are fallible, (g) we really can derive an ought from an is, (h) the idea of moral obligations is incoherent, (i) the concept of identity is too subjective, (j) the concept of self is ill-defined.</td></tr>
+</table></div>
+<h2>其他（坏文件 / 不是听错 / 对照）</h2>
+<div class="case">
+<h3>q0208 <span class="pool">hard-knowledge</span></h3>
+<p class="note">⚠️ 整段 49 秒纯静音（TTS 渲染坏了，601 里唯一一个）——模型说&quot;音频是静音的&quot;是对的</p>
+<audio controls preload="none" src="q0208.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Third-year student is studying contracts. He has learned that generally all contractual rights may be assigned, but there are some exceptions. Which of the following is not an exception?
+
+A. An assignment that substantially changes obligor&#x27;s duty or risk.
+B. An assignment that changes the nature of the contract.
+C. An assignment that continues the obligor&#x27;s duty or risk.
+D. An assignment that transfers rights to an incapable party.
+E. An assignment that causes undue hardship or loss to the obligor.
+F. An assignment that reduces the value of the contract to the obligor.
+G. An assignment of future rights from future contracts.
+H. An assignment that is made without the consent of the other party.
+I. An assignment not allowed by law.
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>I&#x27;m sorry, but I can&#x27;t provide a transcription for this audio clip because it appears to be completely silent or contain no discernible speech content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0213 <span class="pool">hard-knowledge</span></h3>
+<p class="note">不是听错：模型直接回答 &quot;D) Mongolia&quot; 而不是转述题目（指令遵循失败）</p>
+<audio controls preload="none" src="q0213.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Which country faces a serious trade disadvantage due to its location?
+
+A. Canada
+B. Japan
+C. Germany
+D. Mongolia
+E. Brazil
+F. Italy
+G. Singapore
+H. Spain
+I. United States
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>D) Mongolia</td></tr>
+</table></div>
+<div class="case">
+<h3>q0237 <span class="pool">hard-knowledge</span></h3>
+<p class="note">不是听错：96 秒长题，模型输出了答案而非转录</p>
+<audio controls preload="none" src="q0237.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>(a) A 4-pole machine has lap winding with 36 winding elements. What are the back and front pitches of this winding, expressed in commutator bars? (b) A 4-pole machine has wave winding with 37 winding elements. What are the three pitches of this winding expressed in commutator bars?
+
+A. Back pitch for lap winding is 12, front pitch is 13. Back pitch for wave winding is 7, front pitch is 6 or 7.
+B. Back pitch for lap winding is 9, front pitch is 10. Back pitch for wave winding is 9, front pitch is 8 or 9.
+C. Back pitch for lap winding is 8, front pitch is 9. Back pitch for wave winding is 10, front pitch is 11 or 12.
+D. Back pitch for both windings is 8, front pitch is 9 or 10.
+E. Back pitch for both windings is 9, front pitch is 11 or 12.
+F. Back pitch for lap winding is 11, front pitch is 9. Back pitch for wave winding is 10, front pitch is 8 or 9.
+G. Back pitch for lap winding is 7, front pitch is 6. Back pitch for wave winding is 11, front pitch is 12 or 13.
+H. Back pitch for lap winding is 10, front pitch is 8. Back pitch for wave winding is 9, front pitch is 9 or 10.
+I. Back pitch for lap winding is 10, front pitch is 11. Back pitch for wave winding is 8, front pitch is 7 or 8.
+J. Back pitch for lap winding is 9, front pitch is 8. Back pitch for wave winding is 9, front pitch is 9 or 10.
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>(a) Back pitch for lap winding is twelve, front pitch is thirteen. Back pitch for wave winding is seven, front pitch is six or seven. (b) Back pitch for lap winding is nine, front pitch is ten. Back pitch for wave winding is nine, front pitch is eight or nine. (c) Back pitch for lap winding is eight, front pitch is nine. Back pitch for wave winding is ten, front pitch is eleven or twelve. (d) Back pitch for both windings is eight, front pitch is nine or ten. (e) Back pitch for both windings is nine, front pitch is eleven or twelve. (f) Back pitch for lap winding is eleven, front pitch is nine. Back pitch for wave winding is ten, front pitch is eight or nine. (g) Back pitch for lap winding is seven, front pitch is six. Back pitch for wave winding is eleven, front pitch is twelve or thirteen. (h) Back pitch for lap winding is ten, front pitch is eight. Back pitch for wave winding is nine, front pitch is nine or ten. (i) Back pitch for lap winding is ten, front pitch is eleven. Back pitch for wave winding is eight, front pitch is seven or eight. (j) Back pitch for lap winding is nine, front pitch is eight. Back pitch for wave winding is nine, front pitch is nine or ten.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0169 <span class="pool">hard-knowledge</span></h3>
+<p class="note">对照-良性：sim 分数低只因数字被拼成英文，内容完好（说明 sim 指标高估腐坏率）</p>
+<audio controls preload="none" src="q0169.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>A coil of 60 ohms inductive reactance in series with a resistance of 25 ohms is connected to an a-c line of 130 volts. What will be the current through the circuit?
+
+A. 2.5 amp
+B. 0.5 amp
+C. 2.8 amp
+D. 3.0 amp
+E. 1.0 amp
+F. 2.0 amp
+G. 1.5 amp
+H. 4.0 amp
+I. 3.5 amp
+J. 1.2 amp
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>A coil of sixty ohms inductive reactance in series with a resistance of twenty five ohms is connected to an AC line of one hundred thirty volts. What will be the current through the circuit? (A) 2.5 amp, (B) .5 amp, (C) 2.8 amp, (D) 3.0 amp, (E) 1.0 amp, (F) 2.0 amp, (G) 1.5 amp, (H) 4.0 amp, (I) 3.5 amp, (J) 1.2 amp. Answer with the correct option letter and its content.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0164 <span class="pool">hard-knowledge</span></h3>
+<p class="note">LaTeX：sqrt 项丢失，选项里的 10 位小数被打乱</p>
+<audio controls preload="none" src="q0164.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>Finding all the real roots of the equation $\sqrt{x^2+x+1}+\sqrt{2 x^2+x+5}=\sqrt{x^2-3 x+13}$. Return the answer as a list with ascending order.
+
+A. [0.2807764064, -1.7807764064]
+B. [-2.2807764064, 1.2807764064]
+C. [1.7807764064, -0.2807764064]
+D. []
+E. [-1.2807764064, 2.2807764064]
+F. [0.2807764064, 2.7807764064]
+G. [-3.7807764064, 0.7807764064]
+H. [-0.2807764064, 1.7807764064]
+I. [-1.7807764064, 0.2807764064]
+J. [0, 2]
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>Finding all the real roots of the equation (x^2 + 1) + sqrt(2x^2 + x + 5) = sqrt(x^2 - 3x + 13). Return the answer as a list with ascending order. (A) {0.280764, 1.786404}. (B) {-2.28064, 1.28664}. (C) {1.780764, 2.28064}. (D) {0.28064, 2.78064}. (E) {-2.28064, 2.78064}. (F) {0.28064, 1.28664}. (G) {-3.28064, 2.78064}. (H) {0.28064, 1.78664}. (I) {1.780764, 2.28064}. (J) {0, 2}.</td></tr>
+</table></div>
+<div class="case">
+<h3>q0256 <span class="pool">hard-knowledge</span></h3>
+<p class="note">源文本就是裸 LaTeX（2-k\Omega、1-\muF）——听 TTS 怎么念</p>
+<audio controls preload="none" src="q0256.wav"></audio>
+<table>
+<tr><th>GOLD（TTS 被要求念的原文）</th><td>A voltage source 60cos1000t V is in series with a 2-k\Omega resistor and a 1 -\muFcapacitor. Findi_forced.
+
+A. i_forced= 28cos1000t - 14 sin 1000tmA
+B. i_forced= 24cos1000t - 12 sin 1000tmA
+C. i_forced= 20cos1000t + 10 sin 1000tmA
+D. i_forced= 30cos1000t - 15 sin 1000tmA
+E. i_forced= 15cos1000t - 30 sin 1000tmA
+F. i_forced= 30cos1000t + 15 sin 1000tmA
+G. i_forced= 24cos1000t + 12 sin 1000tmA
+H. i_forced= 20cos1000t - 10 sin 1000tmA
+I. i_forced= 26cos1000t - 13 sin 1000tmA
+J. i_forced= 28cos1000t + 14 sin 1000tmA
+
+Answer with the correct option letter and its content.</td></tr>
+<tr><th>HEARD（MiniCPM 转录出来的）</th><td>A voltage source 60 cos(1000t) V is in series with a 2 kΩ resistor and a 1-μF capacitor. Find iforce. (a) iforce = 28 cos(1000t) - 14 sin(1000t) mA. (b) iforce = 24 cos(1000t) + 12 sin(1000t) mA. (c) iforce = 20 cos(1000t) + 10 sin(1000t) mA. (d) iforce = 30 cos(1000t) - 15 sin(1000t) mA. (e) iforce = 15 cos(1000t) - 30 sin(1000t) mA. (f) iforce = 30 cos(1000t) + 15 sin(1000t) mA. (g) iforce = 24 cos(1000t) + 12 sin(1000t) mA. (h) iforce = 20 cos(1000t) - 10 sin(1000t) mA. (i) iforce = 26 cos(1000t) - 13 sin(1000t) mA. (j) iforce = 28 cos(1000t) + 14 sin(1000t) mA. Answer with the correct option letter and its content.</td></tr>
+</table></div>
+</body></html>

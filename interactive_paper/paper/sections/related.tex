@@ -37,7 +37,10 @@ distribution shift, whereas the model-internal mid-layer signal transfers.
 Classical learning-to-defer \citep{madras2018predict} and early-exit
 computation \citep{schuster2022confident} are the same decision inside one
 model; speculative decoding \citep{leviathan2023fast} inverts our roles
-(large model verifies small drafts). Reasoning-mode escalation
+(large model verifies small drafts) --- our prefetch analysis
+(\S\ref{sec:liveloop}) is its query-level mirror, \emph{speculative
+escalation}, with the completeness curve as acceptance rate.
+Reasoning-mode escalation
 (\S\ref{sec:system}) connects to test-time-compute models
 \citep{guo2025deepseekr1}: we find self-escalation to a thinking mode is
 dominated by external escalation because the flagged failures are
@@ -50,7 +53,39 @@ End-to-end spoken dialogue models now span duplex designs --- dGSLM
 streaming omni models such as Qwen2.5-Omni \citep{xu2025qwen25omni};
 Freeze-Omni \citep{wang2024freezeomni} attaches speech adapters to a frozen
 LLM, and Qwen2-Audio \citep{chu2024qwen2audio} covers audio-understanding
-fine-tunes. Our target, MiniCPM-o~4.5
+fine-tunes. A related line retrofits full-duplex \emph{behavior} onto a
+half-duplex generator by adding a dedicated \emph{turn-taking controller}
+beside or on top of it --- perception stays always-on while generation
+remains half-duplex: FlexDuo \citep{liao2025flexduo}
+is an external pluggable module driving a three-state Speak/Listen/Idle
+FSM at 120\,ms intervals; MinMo \citep{chen2025minmo} and Freeze-Omni
+attach lightweight state heads to the LLM's own hidden states (a
+single-layer Transformer and a chunk-level classification layer,
+respectively) to decide when to start or stop speaking. These controllers
+arbitrate \emph{channel occupancy} --- whether the local model should
+listen or speak next --- whereas our gate arbitrates \emph{competence} ---
+whether whoever speaks should be the local model at all. The two decisions
+are orthogonal and mechanically compatible: two of the three implement
+their decision as a readout over the same hidden states our mid-layer gate
+uses, so an escalation head could ride the identical interface. A
+head-to-head comparison would be ill-posed --- they optimize turn-taking F1
+on human-human corpora, we optimize adequacy--latency on QA pools --- but
+they serve as two indirect references. First, their arbitration cadences (a
+decision every 120\,ms for FlexDuo, 160--320\,ms chunk-level for
+Freeze-Omni, 250\,ms for MinMo) establish what a live duplex loop already
+tolerates. These budgets are set by \emph{evidence accumulation}, not
+compute: turn-taking predicts the interlocutor's behavior, so the
+controller must wait for audio to disambiguate a backchannel from an
+interruption (FlexDuo inserts an explicit 500\,ms semantic buffer), whereas
+competence is a property of the model's own state, available the moment the
+prompt is encoded. The decision compute itself is near-free for the two
+head-based designs, exactly as our gate's readout is ($\sim$0.03\,ms,
+Table~\ref{tab:latency}); only FlexDuo pays real compute (an extra 7B
+forward per 120\,ms tick). Second, their shared design choice of a
+\emph{last-layer} readout is one point on our per-layer curve
+(\S\ref{sec:system}), where the mid-layer point dominates it for
+competence.
+Our target, MiniCPM-o~4.5
 \citep{yao2024minicpmv,openbmb2026minicpmo}, is a 9B omni/duplex fine-tune
 of Qwen3-8B \citep{yang2025qwen3}. We use this landscape as a
 \emph{controlled independent variable}: matched pairs separating raw

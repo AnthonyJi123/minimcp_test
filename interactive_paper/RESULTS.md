@@ -1816,6 +1816,1096 @@ resamples, seed 42):
   text-mode output, conservative n.s.), todo.tex items marked DONE.
   TECHNICAL_REPORT.md bumped to v4 (§8b).**
 
+### 8i — latency profile of the live sweep + real-session timelines ($0, 2026-08-05)
+
+User ask: "what did escalation actually cost us — mean / P95 / P99 — and
+show real timestamped sessions." All from the frozen
+`gated_traces_v2.parquet` per-session timers (no re-runs). Scripts:
+`figures/latency_profile.py` (numbers → `latency_profile.{txt,json}`),
+`figures/timeline_live.py` (figure). Reconstruction: local total =
+eot_read + answer decode; escalated total = eot_read + max(stall prefill,
+expert round-trip) + relay decode (the expert thread launches at the gate
+decision, concurrent with the stall prefill). `expert_latency_s` is the
+TRUE API latency (cache-corrected; min 0.98 s, no timeouts, no ~0 s cache
+artifacts in the 250 escalated rows). Text-mode pipeline; speech
+synthesis not included.
+
+**Component timers (rows where the stage ran; seconds):**
+
+| stage | n | mean | P50 | P95 | P99 |
+|---|---:|---:|---:|---:|---:|
+| eot gate read | 960 | .03 | .03 | .03 | .05 |
+| stall prefill | 250 | .03 | .03 | .04 | .19 |
+| local answer decode | 710 | 4.57 | 2.34 | 15.90 | 17.86 |
+| relay decode | 250 | 1.14 | 0.69 | 3.64 | 8.61 |
+| expert round-trip (gpt-5.5 low) | 250 | 7.28 | 4.78 | 20.77 | 32.80 |
+
+**Per-arm total response latency (query end → answer text done; s), and
+the loss vs the never floor at the same percentile:**
+
+| arm | esc | mean | P50 | P95 | P99 | Δmean | ΔP50 | ΔP95 | ΔP99 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| never | 0% | 4.61 | 2.02 | 15.76 | 17.79 | — | — | — | — |
+| conservative | 14% | 4.93 | 2.76 | 16.31 | 20.32 | +0.32 | +0.74 | +0.55 | +2.53 |
+| balanced | 35% | 6.27 | 4.00 | 18.06 | 30.37 | +1.66 | +1.98 | +2.30 | +12.58 |
+| aggressive | 55% | 6.58 | 4.69 | 18.01 | 32.94 | +1.97 | +2.67 | +2.25 | +15.15 |
+
+- **The average price is small; the tail price is real.** Balanced buys
+  +.13 heard-acc for +1.7 s mean / +2.0 s P50 — but the P99 doubles
+  (17.8 → 30.4 s), and the P99 loss is entirely the expert tail: within
+  escalated rows the expert round-trip is 85–88% of total wall time
+  (relay decode P50 ≈ 0.7 s, gate + stall prefill ≈ 50 ms combined are
+  noise). P95 moves little (+2.3 s) because at 35% escalation the 95th
+  percentile is still mostly local long-decode rows; P99 (n=240, ≈2
+  worst rows — noisy) is where escalation shows.
+- Escalated-row totals: conservative P50 9.2 / P95 21.8; balanced P50
+  6.1 / P95 22.4; aggressive P50 5.4 / P95 21.9 (conservative escalates
+  the hardest queries → slowest experts, mean 8.9 s vs aggressive 6.7 s).
+- **Figure `figures/timeline_live.png`** — three REAL balanced-arm
+  sessions, every event a recorded timer: (a) q0254 escalated, expert
+  ready at 1.9 s while the talker is still voicing the stall → seamless
+  handoff, zero dead air; (b) q0593 (trap) escalated, expert 10.3 s
+  outlives the stall → 5.9 s dead air (the 8e/6c prediction,
+  live-confirmed on a real session); (c) q0388 not escalated → local
+  answer, first token 0.4 s. Speech bars are the one estimated quantity
+  (150 wpm; the live loop outputs text — RESULTS 8e).
+- **Paper sync (same session): latency paragraph + Table~tab:latency +
+  Figure~fig:timeline-live added to sections/live.tex
+  (§"The live curve"); figure copied to paper/figures/.**
+
+### 8j — router training receipt + RouterBench grounding (~$1, 2026-08-05)
+
+User ask: "what is the router's training accuracy — give a receipt, and a
+score on a routing bench." Two runs, both CPU-only: `router_baseline`
+re-run with a full receipt, and new `router_bench` on **RouterBench**
+(withmartian/routerbench 0-shot, public — no self-made data).
+
+**Training receipt (8f router, `router_baseline.json` → `receipt`):**
+TF-IDF (word 1-2gram + char_wb 3-5gram, min_df=2) → LR (C=1.0, L2,
+lbfgs, max_iter=3000), 5-fold stratified OOF, seed 42. n_train=360 calib
+(escalate rate .322), 15,103 features.
+
+| split | logloss | acc | majority |
+|---|---:|---:|---:|
+| train (in-sample) | .377 | .917 | .678 |
+| calib OOF (= eval) | .588 | **.678** | **.678** |
+| test | .629 | .613 | .588 |
+
+- **The headline answer: at the 0.5 threshold the router's eval accuracy
+  exactly equals the majority-class rate** (and test is +.025 over it).
+  360 queries of surface text buy a weak ranking signal (OOF AUC .669)
+  and no usable classifier — train↔OOF loss gap .38→.59 is textbook
+  small-n overfit. AUCs reproduce 8f exactly.
+
+**RouterBench (`router_bench.json`): n=36,497, pair mixtral-8x7b-chat
+(correct .568) → gpt-4-1106-preview (.843), label = weak incorrect
+(escalate rate .432), same TF-IDF+LR recipe.**
+
+- **In-domain (trained on RouterBench, 5-fold OOF): AUC .710, acc .660
+  (majority .568), logloss .615; deferral area over random +.033
+  (pair acc @30% escalation .691).** 100× the training data buys
+  .669→.710 — the recipe lands at our pool-oracle's level (.715) and
+  stays far below the probe (.828). **The 8f baseline is not
+  data-starved, it is information-starved — not a strawman.**
+- **Leave-one-benchmark-out (the LOPO mirror on public data): the
+  format-disjoint benchmarks sit at chance** — hellaswag .502
+  (n=10,042), grade-school-math .509 (n=7,450), winogrande .498,
+  arc-challenge .581; Chinese_character_riddles .112 (fail rate .98 —
+  misses the near-100%-fail pool, the trap-pool signature again). MMLU
+  subjects read .55–.69 only because the other 56 subjects stay in
+  training (within-format type prior transfers; cross-format it dies).
+- **Zero-shot transfer (our calib-trained router → RouterBench): AUC
+  .440, area −.022** — below chance; the 8f router learned our pools'
+  surface regularities and nothing portable.
+- Scope: pair routing readout (AUC/acc/deferral curve), not the full
+  RouterBench cost-quality AIQ protocol; that and preference-trained
+  routers (RouteLLM 100k) remain the LLMRouterBench future-work item.
+- **Paper sync (same session): receipt + RouterBench numbers written
+  into the trained-router paragraph in sections/system.tex
+  (\citep{hu2024routerbench} already in refs.bib); todo.tex item
+  updated; TECHNICAL_REPORT.md bumped to v5 (§8b.5).**
+
+Project total ≈ **$447** (RouterBench run ~$1: 16 CPU + 32 GB, ~25 min).
+
+### 8k — the same receipt for our probes ($0, 2026-08-05)
+
+User follow-up on 8j: "then how does OUR trained probe do on this
+accounting?" `probe_receipt` — the identical receipt (train/OOF/test
+logloss, acc@0.5 vs majority, AUC, budget-threshold classification acc)
+for the two shipped internal gates, exact shipped recipes
+(`probe_receipt.json`):
+
+| signal | OOF AUC | OOF acc (maj) | test AUC | test acc (maj) |
+|---|---:|---:|---:|---:|
+| router 8f (query surface) | .669 | .678 (**= .678**) | .721 | .613 (.588) |
+| text h_prompt probe, LR C=.001 | .828 | **.772** (.678) | .819 | **.779** (.588) |
+| audio L22 probe (live gate) | .843 | **.764** (.592) | .879 | **.800** (.512) |
+
+- **The probes pass the accounting the router failed**: at the same 0.5
+  threshold they clear majority by +.09/+.19 (text, OOF/test) and
+  +.17/+.29 (audio) where the router cleared it by +.000/+.025. Same
+  n=360 labels, same LR machinery — the difference is purely the input
+  representation. (Prediction miss, recorded: I expected C=0.001 score
+  compression to pin probe acc@0.5 at majority too — wrong; the internal
+  separation survives even heavy regularization.)
+- Audio rows use the audio-modality label set (calib esc rate .408, test
+  .488 → majority .512) — not the same labels as the text rows; compare
+  within-row, not across.
+- Budget-threshold classification acc (test): text .704/.775/.700 at
+  15/30/50%; audio .692/.750/.800 (realized rates track targets:
+  .142/.329/.529 text, .204/.329/.496 audio).
+- Honesty notes: the text probe memorizes in-sample even at C=0.001
+  (train logloss .009, acc 1.000; 4096 dims ≫ n=360) — all headline
+  numbers are OOF/test. Audio probe test logloss .446 — the
+  best-calibrated signal we have. AUC headlines reproduce (.828 text
+  OOF, .843 audio OOF, .879 audio test).
+- **Figure `figures/receipt_compare.png`** (`receipt_figure`, reads both
+  receipt jsons — no hardcoded numbers): (a) acc@0.5 vs majority per
+  split, (b) train→OOF→test logloss per signal. Loss verdicts: audio
+  probe healthy (.278/.483/.446 — eval below base-rate entropy, test
+  below OOF, best-calibrated); text probe memorizes in-sample
+  (.009 train vs .688 OOF — OOF logloss WORSE than predicting the base
+  rate, i.e., uncalibrated probabilities, but held-out acc/AUC hold and
+  the gate thresholds on score quantiles, not probabilities); router
+  .377/.588 — normal gap, low ceiling.
+- **Paper sync (same session): probe-receipt sentence added to the
+  trained-router paragraph in sections/system.tex +
+  Figure~fig:receipt (receipt_compare.png copied to paper/figures/);
+  TECHNICAL_REPORT §8b.5 extended (v5).**
+
+### 8l — router fairness sweep ($0, 2026-08-05)
+
+User challenge: "prove you didn't train a deliberately weak router to
+flatter the probe." `router_sweep` (`router_sweep.json`): 24-config grid
+— features {word, char, word+char} × min_df {1, 2} × C {.01, .1, 1, 10},
+identical 5-fold OOF protocol on the same 360 calib labels.
+
+- **Every config lands in .625–.689; best .689** (word+char, min_df=1,
+  C=0.1) vs the shipped .669 (+.020, within small-n noise). Probe: .828.
+- The query-surface ceiling on this data is ≈.69 by exhaustive grid,
+  ≈.71 by 100× public data (8j RouterBench in-domain) — two independent
+  routes to the same ceiling; the shipped config is not a tuning
+  artifact. Written into the system.tex router paragraph.
+
+### 8m — RouteLLM released checkpoints, zero-shot on our pool (~$1, 2026-08-05)
+
+User ask: "have you compared against an actually-trained router (e.g.
+RouteLLM's)?" `routellm_baseline` (`routellm_baseline.json`): the two
+released preference-trained routers — `bert_gpt4_augmented` and
+`mf_gpt4_augmented`, trained on ~100k GPT-4-vs-mixtral preference pairs
+— scored zero-shot on all 600 labeled queries
+(score = calculate_strong_win_rate, their own inference code via the
+routellm package).
+
+| router | calib AUC | test AUC | area | acc@30% |
+|---|---:|---:|---:|---:|
+| RouteLLM BERT | .584 | .523 | +.011 | .688 |
+| RouteLLM MF | .602 | .533 | +.007 | .688 |
+| our same-data TF-IDF router (8f) | .669 | .721 | +.040 | .717 |
+| probe (h_prompt / L22) | .828 / .843 | .819 / .879 | +.054… | .779… |
+
+- **The real preference-trained routers land near chance on our labels
+  (test .52–.53)** — below even the 360-sample same-data router. 100k
+  preference pairs of "is this hard for mixtral vs GPT-4" carry almost
+  nothing about "will MiniCPM-o-4.5 fail this" — the exact mirror of our
+  router's .440 transfer TO RouterBench (8j). Routing knowledge is
+  model-pair-specific; it does not port across talkers in either
+  direction.
+- **Trap-pool blindness, again**: BERT ranks trap (.444 mean score)
+  BELOW hard-knowledge (.642) and hard-math (.668); MF likewise (trap
+  .274 ≤ hard .31). The 100%-fail pool looks "easy" to a router trained
+  on another model's preferences — the type-shortcut failure mode
+  reproduced on the strongest available external router.
+- Scope: zero-shot released checkpoints (their intended deployment
+  mode); retraining them on our 360 labels is the same-data condition
+  8f already covers. The standardized LLMRouterBench protocol remains
+  future work.
+- **Same scores vs the AUDIO (TTS) labels** (user ask, apples-to-apples
+  with the audio probe): BERT calib .559 / test .600; MF .603 / .581 —
+  vs audio L22 probe .843 / .879 and our audio-label TF-IDF router
+  .743 / .814 (8n). Context from their own paper (APGR, random=.500):
+  even on RouteLLM's own bench their routers reach only .53–.62 on
+  MMLU/GSM8K-style objective tasks (strong only on MT-Bench chat,
+  .68–.80), so .52–.60 on our pool is consistent with their published
+  profile, not an artifact of our setup.
+- **Paper sync (same session): system.tex router paragraph — future-work
+  clause replaced with the zero-shot RouteLLM numbers; TECHNICAL_REPORT
+  §8b.5 extended.** Project total ≈ **$448**.
+
+### 8n — audio-modality router baseline ($0, 2026-08-05)
+
+User: "is there an audio router?" There wasn't — every router number so
+far was text-modality. `router_audio` (`router_audio.json`): the 8f
+recipe vs the AUDIO labels (the live gate's label set, esc rate
+.408 calib / .488 test), two inputs, both with 600/600 coverage:
+gold query text, and the talker's own ASR transcript (what an external
+router would actually see live).
+
+| signal (audio labels) | OOF AUC | oof acc (maj .592) | test AUC | test acc (maj .512) |
+|---|---:|---:|---:|---:|
+| router, gold text | .743 | .706 | .814 | .696 |
+| router, self-ASR transcript | .738 | .689 | .805 | .704 |
+| audio L22 probe | **.843** | **.764** | **.879** | **.800** |
+
+- **Honest headline: on audio labels the surface router is STRONGER
+  than on text labels** (.743/.814 vs .669/.721) — the audio channel
+  makes hard pools fail harder and more uniformly, so failure is more
+  type-correlated and the type shortcut buys more. Reported as-is.
+- The probe still leads every readout: AUC +.10 OOF / +.065 test,
+  accuracy +10 points (.800 vs .696). The residual is exactly what the
+  surface cannot carry: instance-level knowledge state + whether THIS
+  utterance was heard correctly.
+- **ASR input costs the router almost nothing** (−.005/−.009 AUC vs
+  gold text): its handicap is not transcription quality; it is the
+  information source, plus the structural live constraint (full
+  utterance + ASR needed; cannot fire mid-stream — todo.tex note).
+- **Paper sync (same session): audio-router sentences added to the
+  system.tex router paragraph; TECHNICAL_REPORT §8b.5 extended.**
+
+### 8m — channel-cost trace-level decomposition: relay exonerated ($0, 2026-08-05)
+
+User hypotheses for the blue↔green gap: (H1, Changyi) talker context too
+short to hold the expert micro-turn answer; (H2) talker doesn't follow /
+second-guesses the relay instruction. Both testable from
+`gated_traces_v2.parquet` alone (250 escalated rows across the three
+partial tiers, 108 heard-fail; ref-string containment + query↔transcript
+similarity, `difflib` ratio):
+
+- **H1 REFUTED.** Expert micro-turn answers are short: median 76 chars,
+  p90 376, max 1948 (~500 tokens) — nowhere near any context limit; the
+  single >1500-char answer relayed successfully (heard_ok=1).
+- **H2 REFUTED (again).** Only **5/108** fails have the reference inside
+  the expert answer but missing from the relay; 8b already measured
+  deployed-channel comply = 1.00 (n=24). One degenerate-repetition relay
+  observed (Taylor MCQ) — on an already-wrong expert answer.
+- **The loss is upstream of the relay (~95%).** Fail split: **69/108
+  (64%) corrupted transcript** (fails' query↔transcript sim median .809
+  vs .995 on heard-ok rows; MCQ options and formulas garbled —
+  hard-knowledge 39, hard-math 27 dominate) → the expert answers the
+  wrong question; **26/108 (24%) clean transcript but expert wrong**
+  (trap 17 — expert knowledge limit, shared with the gold arm, so partly
+  not channel loss at all); 5 relay-drop; ~8 ref/judge noise (7 blank
+  refs + 1 in-both-but-judged-fail; one easy-fact ref is broken —
+  "first Boston Marathon finishers" keyed to "$85,000").
+- Magnitude cross-check: per-escalated gap at aggressive = gold-inject
+  .864 − heard .621 = .243 ≈ the five-arm ASR-distill gap (gold .82 −
+  self-1best .58 = .24). The relay adds ≈ nothing on top.
+- **Consequence: "better relay paradigm" / "keep the talker silent" /
+  seq-length ablations target ≤5% of the loss.** The lever is what the
+  expert *receives* (the question uplink), not how the answer is spoken.
+  Paper sync same session: decomposition sentence added to the
+  speech-channel-cost bullet in sections/live.tex.
+
+### 8o — acc × latency joined: the Pareto tradeoff figure ($0, 2026-08-09)
+
+User ask (Aug-3 comment): "a matrix of how much latency bought how much
+acc + a Pareto-frontier figure, cherry-picking allowed." Pure join of
+frozen readouts — acc + CIs from `live_dualview.json` (8h), per-arm
+latency from `latency_profile.json` (8i); no re-runs. Script
+`figures/pareto_latency.py` → `pareto_latency.{png,pdf}` (repo +
+paper/figures).
+
+**Marginal exchange rates (heard-acc, P50 view; per-arm table in 8i):**
+
+| segment | Δacc | ΔP50 |
+|---|---:|---:|
+| never → conservative | +4.6 pts (n.s.) | +0.7 s |
+| conservative → balanced | +8.3 pts | +1.2 s |
+| balanced → aggressive | +10.4 pts | +0.7 s |
+
+- **balanced→aggressive is the cheapest segment per second**, for two
+  measured reasons: the marginal escalations are easier queries whose
+  experts return faster (escalated-row expert mean 8.9/7.5/6.7 s across
+  the tiers), and each escalation displaces a local decode that itself
+  averages ~4.6 s.
+- Sanctioned cherry-picks in the figure: x = P50 (typical experience);
+  the P99 expert tail stays in the table + a figure footnote. Both views
+  drawn — gold-inject shares x positions (rescoring changes outcomes,
+  not timing). Always ceiling = asymptote (synthesized, no live
+  latency).
+- **Random reference deliberately NOT drawn in latency space**: random
+  arms were never run live, and random@matched-rate would have slightly
+  *lower* latency than the gate arms (the gate escalates harder queries
+  with slower experts), so any placement from frozen data would either
+  flatter the gate or require unmeasured expert latencies on
+  never-escalated queries. Gate-vs-random lives in rate space
+  (fig:dualview) where it is exact.
+- **Paper sync (same session): exchange-rate sentence + 
+  Figure~fig:pareto-latency added to the latency paragraph in
+  sections/live.tex; figure copied to paper/figures/.**
+- **Legend relabel (2026-08-09, after teammate + user both misread the
+  two curves):** "heard-acc (honest)" / "gold-inject (channel-
+  controlled)" → "deployed: expert answers the talker's transcript" /
+  "counterfactual: expert answers the gold text", and the gap annotation
+  now states the 8m attribution (95% upstream of the relay: corrupted
+  transcripts). The misreading being corrected: green is NOT the
+  always-big arm (that is the .917 asymptote) — it is the same sessions
+  at the same escalation rates with escalated rows re-scored on
+  gold-text expert answers; the blue↔green gap is an *uplink* property,
+  not a relay/injection property (8m: 64% corrupted transcript / 24%
+  expert-wrong-shared-with-gold / 5 relay drops of 108).
+
+### 8p — wav-pool integrity audit + listening pack ($0, 2026-08-12)
+
+Meeting follow-up ("先解决TTS的问题 — 真正听一下现在读出来的声音"):
+before re-rendering anything, audit whether the frozen pool's TTS files
+are physically sound, and package the worst uplink failures for human
+listening. Modal scan `scan_wavs.py` (stdlib peak/lead-silence over all
+of `audio_pool`) → `figures/wav_audit.json`; listening pack at
+`data/listen_pack/` (14 wavs + `cases.json` gold-vs-transcript +
+README), served for phone listening at
+https://rhe9527--tts-listen-web.modal.run/62dc5cd9 (`listen_app.py`,
+`modal deploy`; scales to zero, stop with `modal app stop tts-listen`).
+Pack = 2 good cases (q0578/q0588 — rare names + version numbers
+transcribed verbatim, so the channel CAN be clean) + 6 true mishears + 6
+broken/not-mishearing controls. Gotcha for anyone reusing the wavs: they
+were written streaming, so RIFF/data sizes are 0xFFFFFFFF and players
+show a 24-day duration and refuse to seek — patch the header to the real
+byte length (librosa in the pipeline is unaffected).
+
+- **File-level TTS is fine: 1/601 wavs broken** — `q0208` is 49 s of
+  pure digital silence (peak=0, streaming render failure). The talker's
+  "audio appears to be completely silent" transcript on that row was
+  CORRECT, not a hallucination. No quiet renders (peak<3000: 0), no
+  long leading silences. → The 🌟 "TTS 没读出来" hypothesis is FALSE at
+  the file level; whatever TTS contributes is pronunciation-clarity,
+  not broken audio.
+- **The "corrupted transcript" bucket (8m's 64%) is heterogeneous** —
+  eyeballing the 132 escalated ids ranked by query↔transcript difflib
+  sim, at least four species: (a) rare-entity substitution (Mustafa
+  Adebayo Balogun→Mustapha Arabo Balogun; Taurek→Turek); (b) spoken-math
+  loss (999 − 103 heard as "nine hundred ninety nine hundred and three"
+  — the operator vanishes; plus the known TTS-of-LaTeX artifact,
+  `\Omega`/`\muF` read raw); (c) **not-transcription behavior: the
+  talker sometimes ANSWERS instead of transcribing** (q0213 transcript =
+  "D) Mongolia"; q0237 = a full answer to a 96 s question) — this
+  corrupts the uplink but is an instruction-following failure, not
+  hearing. [CORRECTION same day: an earlier draft listed source-text
+  mojibake as species (d) based on `��pleasure��` in console output —
+  the actual characters are U+201C/201D curly quotes (normal
+  typography); the `��` was this machine's GBK console failing to print
+  them. No mojibake exists in the pool; q0233's garbling is ordinary
+  option-content mishearing.] Also: the difflib sim metric
+  overstates corruption on rows that merely spell out digits (q0169
+  content-intact at sim .054) — don't use it as a corruption *rate*.
+- Meeting's proposed "orange line" (uplink transcript → expert, no
+  relay) needs no new runs: 8d's five-arm table IS that arm on the
+  escalated subset (self-1best .58 vs gold .82, expert answers scored
+  directly), and 8m bounds the relay at 5/108 fails — orange ≈ blue
+  ≈ 2 pts above it; the gap is uplink. Documented here so the ask
+  doesn't resurface as an experiment.
+- Next actions recorded in todo.tex: human listening verdict on the
+  pack (does alloy enunciate entities/operators clearly?); re-render
+  the escalated-fail wavs with a newer TTS (gpt-4o-mini-tts,
+  instructed enunciation) and re-run the escalated subset — if heard-acc
+  moves, the dual-view gap narrows and the figure gets redrawn;
+  separate (c)-species rate from true mishearing (cheap: classify 132
+  transcripts).
+
+### 8q — input-side fairness audit: the "speakable subset" curve ($0, 2026-08-12)
+
+User challenge: the bad cases make the live acc unfair — how to remove
+the drop caused by "unfair" questions? Methodological rule enforced:
+**exclusion must be decidable from the INPUT alone (query text + wav
+bytes), never from outcomes** — anything else is cherry-picking.
+Script `figures/fair_subset.py` → `figures/fair_subset_audit.json`.
+
+Flags (pre-registered, input-side): `latex` = formula-symbolic content
+(backslash commands, `^{`/`_{`/`^x` exponents, `$..$` only when the
+inside contains math operators — plain dollar amounts like "$815.50"
+deliberately NOT flagged, first draft over-flagged them);
+`broken_wav` = digital silence from the 8p audit. Rare entities and
+hard names are deliberately NOT flags — mishearing them is the
+phenomenon. Result: **22/240 test ids unfair** (12 hard-knowledge with
+embedded LaTeX, 10 hard-math formula problems; q0208 among them).
+[Also corrected in the same pass: no mojibake exists in the pool —
+8p's species (d) was a GBK console display artifact.]
+
+**Dual-view on the fair subset (n=218, paired bootstrap 10k, seed 42):**
+
+| tier | esc | heard (full→fair) | channel gap (full→fair) [CI fair] |
+|---|---:|---|---|
+| never | 0% | .400→.440 | — |
+| conservative | 12% | .446→.486 | .054→.032 [+.014,+.060] |
+| balanced | 32% | .529→.569 | .108→.069 [+.037,+.106] |
+| aggressive | 52% | .633→.688 | .133→.083 [+.041,+.124] |
+| always (synth) | 100% | .917→.922 | — |
+
+- **~38% of the measured channel cost was the unspeakable-content
+  artifact** (aggressive gap .133→.083); the remaining .083 is still
+  significant and is the honest speech-channel price (entity
+  substitutions, spoken-number slips) — it must NOT be excluded.
+- Clean asymmetry as the sanity check: the gold-inject ceiling barely
+  moves (.917→.922) — LaTeX questions specifically destroy the SPEECH
+  channel, they are not intrinsically harder for the expert.
+- Flagged rows account for 17/50 aggressive escalated heard-fails
+  (34%), 12/39 balanced, 7/19 conservative.
+- This formalizes 8d's existing scope note ("formula-symbolic math out
+  of scope for the audio arm — nobody speaks LaTeX at a voice
+  assistant") into a per-id filter applied uniformly to all arms.
+- Borderline case NOT excluded: q0271 ("Estimate 999 − 103") is
+  speakable arithmetic; whether the TTS actually voiced the minus is a
+  render-quality question → if the listening pass confirms the minus is
+  unvoiced, a third input-side flag (`render_defect`, verified by ear)
+  becomes legitimate. Pending the user's listening verdict.
+- Paper decision PENDING (user to ratify): make the speakable-subset
+  curve the headline dual-view figure with the full-pool curve in the
+  appendix, criteria stated as pre-registered input-side filters.
+
+### 8r — audio-direct-to-expert: TTS exonerated, the leak is the talker's ears (~$5, 2026-08-12)
+
+User-approved follow-up to 8q. For all 132 unique escalated test ids,
+the ORIGINAL pool wav went straight to an audio-capable expert
+(`modal_expert_audio.py::audio_expert`; auto-picked **gpt-audio** — no
+gpt-5.5-class audio model exists in the API today) — no MiniCPM
+self-transcription anywhere in the uplink. Judged against gold query +
+reference by the standard judge (identical protocol to
+`expert_adequate`). Control arm `::text_control`: SAME model, SAME
+questions as gold text (gpt-audio rejects text-only requests, so the
+text rides with a 0.25 s silent placeholder wav the model is told to
+ignore). The two arms split "gpt-audio is a weaker brain than gpt-5.5"
+from "the audio channel loses content". Anti-flag measures inherited
+(per-id volume cache, user= attribution, concurrency 3, region-pinned).
+132/132 + 132/132 collected, zero errors. Artifacts:
+`audio_expert{,_text}.parquet` on gate-data + repo `data/`; analysis
+`figures/audio_uplink.py`.
+
+**Four-arm decomposition (same 132 escalated ids, same judge):**
+
+| pool (fair subset, n=113) | gpt-5.5 text | gpt-audio text | gpt-audio audio | brain / channel |
+|---|---:|---:|---:|---|
+| easy-chat (24) | .88 | .83 | .71 | +.04 / +.12 |
+| easy-fact (28) | .93 | .86 | .86 | +.07 / **.00** |
+| hard-knowledge (34) | .91 | .59 | .41 | +.32 / +.18 |
+| hard-math (9) | 1.00 | .89 | .56 | +.11 / +.33 |
+| trap (18) | .61 | .50 | .50 | +.11 / **.00** |
+| ALL | .87 | .72 | .61 | +.15 / +.11 |
+
+(Full 132-id set: .86 / .71 / .54, brain +.15 / channel +.17 — the
+extra channel loss vs the fair subset is the 8q LaTeX rows.)
+
+- **⭐ TTS EXONERATED for speakable content.** On the two pools whose
+  failures drove the "TTS 没读清楚" hypothesis, a good ear loses ZERO
+  crossing the audio channel: trap .50→.50, easy-fact .86→.86. Star
+  cases from the same wavs MiniCPM garbled: gpt-audio heard "Estimate
+  999 − 103" (the minus IS voiced — q0271 adequate) and "Mustafa
+  Adebayo Balogun" verbatim (q0552 adequate). **The meeting's 🌟
+  root-cause question is answered: the alloy renders carry the content;
+  the deployment loss is MiniCPM's own ASR.** Re-rendering with a
+  better TTS is now PREDICTED NEGATIVE for entity/operator errors.
+- **The remaining .083 fair gap attribution chain is CLOSED:** relay
+  ≤5% (8m) → TTS 0 on speakable pools (8r) → expert fine on gold (.87)
+  → the leak is the talker's transcription step, and it is not
+  prompt-fixable (8d). Fixes are model-side (better duplex ASR) or
+  architecture-side (forward audio, below).
+- **Audio-direct as a deployment direction: REJECTED by user (same
+  day).** The backend thinker stays TEXT-BASED — reasoning frontier is
+  text-first, and binding the expert to an audio-native model accepts
+  a permanent brain discount (measured −.15 here: gpt-audio gold-TEXT
+  .72 vs gpt-5.5 .87; net swap negative, aggressive .638 vs deployed
+  .688, `audio_uplink.py`). 8r stands as a DIAGNOSTIC control only.
+  The one text-backend-compatible variant (audio uplink → cloud ASR →
+  gpt-5.5 text) is already lower-bounded by the 8d Whisper arm (+4pp
+  overall; fixes trap entities to gold-low, cannot fix MCQ option
+  walls) — judged not worth further spend.
+- **Long MCQ blocks are inherently audio-hostile even for the best
+  ears** (hard-knowledge channel +.18 on speakable rows): holding 10
+  spoken options is the failure, not entity perception. Strengthens the
+  8q scope position and the public-benchmark arm (short open
+  questions, no option walls).
+- Caveats: easy-chat channel +.12 = 3 rows of open-ended judge
+  variance (n=24); hard-math fair n=9; silent-placeholder control is
+  mildly unnatural (declared in the prompt).
+
+Spend ≈ $5 (264 gpt-audio calls + 264 judge). Project total ≈ **$380**.
+
+**Addendum (earlier same day, 8q) — what the remaining fair gap is made of.** The 72
+fair-subset escalated heard-fail rows split by transcript cleanliness
+(sim .85): **35 clean-transcript** (trap 20, easy 12 — the expert is
+wrong on gold too; these fail in BOTH views so they do NOT contribute
+to the gap) vs **37 dirty-transcript** = genuine uplink loss,
+concentrated in hard-knowledge 23 + hard-math 9 (long MCQ option
+blocks). Of the 37, the gold expert answers **34/37 correctly** → the
+remaining .083 gap is almost entirely recoverable-in-principle: deliver
+the question faithfully and it converts. Species check: answered-
+instead-of-transcribed contributes ~nothing to the LOSS — when the
+talker answers instead of transcribing it usually already knows the
+answer (q0213 "D) Mongolia": heard_ok=1 in both arms); only q0237
+(96 s query) is a not-transcription fail. Next lever ranked: (1)
+audio-direct-to-expert (send the wav, skip self-transcription — bounds
+channel-inherent loss with the best available ears, ~250 calls, and
+directly separates "TTS pronounces entities lossily" from "MiniCPM's
+ears are weak"); (2) better-TTS re-render; (3) already measured
+NEGATIVE: robust prompt, k-best GER; Whisper ears +4pp only.
+
+---
+
+### 8s — external-benchmark arm: the 8-figure deliverable (~$40, 2026-08-12/13)
+
+User request: 8 figures — {our pool fair-subset, Speech TriviaQA, Speech
+Web Questions, SD-QA} × {latency↔acc, escalation↔acc}. Infra:
+`modal_bench.py` (build/transcribe/bench_live/ceiling/report — the sdqa
+pipeline generalized to OpenAudioBench pools; 250 q each, seed 42,
+official pre-rendered audio, NOT our TTS), SD-QA got its missing tiers
+via the existing `run_sdqa_live`. All sweeps ran the FROZEN L22 gate +
+frozen eot thresholds — zero recalibration; expert gpt-5.5 low, cached,
+concurrency ≤3 throughout. Figures `figures/{bench}_{dualview,pareto}.*`
++ `fair_{dualview,pareto_latency}.*`, numbers in `bench_figures.json` /
+`fair_figures.json`; all copied to paper/figures/. Gallery:
+https://rhe9527--figures-gallery-web.modal.run/62dc5cd9
+
+**Heard-acc per arm (never/cons/bal/agg), realized esc, ceiling:**
+
+| pool | floor | cons | bal | agg | esc (c/b/a) | gpt-5.5 gold | official |
+|---|---:|---:|---:|---:|---|---:|---:|
+| ours-fair (218) | .440 | .486 | .569 | .688 | 12/32/52% | .922 | — |
+| striviaqa (250) | .620 | .632 | .688 | .784 | 2/19/46% | .968 | 75.5 |
+| swebq (250) | .412 | .436 | .456 | .604 | 6/23/47% | .736 | 70.2 |
+| sdqa (200) | .495 | .535 | .595 | .720 | 3/16/44% | .930 | — |
+
+**Gold-inject (green) added to the external figures (user question
+2026-08-13 — the ceiling parquets already carry per-id gold-text expert
+verdicts, so the counterfactual costs $0):** agg-arm gold-inject
+striviaqa .824 / swebq .628 / sdqa .745. Two readouts: (1) **external
+channel cost is small** — agg blue↔green gap .040/.024/.025 vs our
+pool's .083, exactly the 8q prediction (short open questions transcribe
+cleanly; no option walls); (2) **in the channel-controlled view the
+gate DOES clear random on striviaqa** (+.044 at 46% vs the gold-paired
+random line) — part of the deployed-view "gate ≈ random" is channel
+cost eating the selection margin, same structure as the 600-pool
+dual-view.
+
+- **The gate TRANSFERS mechanically everywhere**: frozen thresholds
+  fire at sane (compressed) rates on easier pools, curves rise
+  monotonically, aggressive lifts +16/+19/+22 pts over the floors.
+  P50 latency stays cheap (striviaqa 1.2→2.1 s, sdqa 1.4→2.3 s).
+- **⚠️ Honest headline: gate ≈ random on Speech TriviaQA** (agg .784 vs
+  random-at-46% .780); above random on swebq (+.04 at 47%) and sdqa
+  (+.034 at 44%), both within per-arm CI width (n=250/200 — likely
+  n.s. individually). Consistent with the 5b/8f audit: on our mixed
+  pool a large share of the gate's random-margin is the pool/type
+  shortcut; single-type external pools remove that shortcut and expose
+  the thin per-query residual. The transferability figure honestly
+  shows: mechanism ports, selectivity margin is small on easy
+  homogeneous pools.
+- Floors sit below the official chat-mode numbers (striviaqa .620 vs
+  .755) — live streaming loop + judge severity, same offline→live tax
+  as the 600-pool (8h: .588→.400). WebQ ceiling is only .736 (strict
+  Freebase refs cap even gpt-5.5), so the .412 floor reads relative to
+  that, not to 1.0.
+- SD-QA escalated-subset acc .82-.84 at bal/agg — on REAL human speech
+  the escalation payload works (expert latency P50 3.1-3.4 s).
+- Judge protocol identical throughout (gpt-5.4-mini, ref-anchored;
+  TriviaQA refs carry accepted-alias lists).
+
+**Router-quality decomposition (user question 2026-08-13, $0):** eot
+score's AUC against the never-arm local-fail label, plus
+aggressive-arm escalation precision/recall:
+
+| pool | base-fail | eot AUC | esc | precision (lift) | recall |
+|---|---:|---:|---:|---|---:|
+| ours-fair | .56 | .751 | 52% | .74 (×1.33) | .69 |
+| striviaqa | .38 | .676 | 46% | .51 (×1.34) | .62 |
+| swebq | .59 | .759 | 47% | .78 (×1.33) | .63 |
+| sdqa | .51 | .719 | 44% | .68 (×1.35) | .59 |
+
+Per-query discrimination is real and transfers (.68-.76 OOD vs .751
+in-mix; in-calibration OOF was .843) with an eerily uniform ×1.33-1.35
+precision lift — the transferring component looks like a generic
+difficulty/confidence signal, not pool structure. The acc margin this
+buys over random (+4-6 pts, gold view) is what AUC ≈ .7 mathematically
+yields at these rates. Threshold quantiles transfer conservatively
+(conservative tier fires 2-6% vs 14% in-mix — score distributions
+shift on easier pools). Verdict logged: mechanism trained "enough to
+transfer", not "enough to be decisive"; levers = calib-pool expansion
+(todo, 500-1000/pool + more families) and unsupervised per-domain
+threshold rescaling; the zero-training pitch survives as-is.
+
+Spend ≈ $40 (experts for ~600 escalated + 700 ceiling calls, low
+effort + judges + ~12 H100-hours). Project total ≈ **$420**.
+
+**SD-QA dualview redraw ($0, 2026-08-13, user call):** on the SD-QA
+escalation-vs-acc figure only, the grey random-escalation reference is
+dropped and a **local-only floor line at 0.495** is drawn instead, so the
+curve is read between the two bounds that matter (floor it starts from,
+gpt-5.5 ceiling 0.930 it walks toward). `bench_figures.py` now takes
+per-bench `random_line` / `floor_line` flags; the other three pools keep
+the random reference (their gate-vs-random margin is the point there).
+Regenerated + copied to paper/figures/; numbers unchanged.
+
+---
+
+### 8t — probe v2: retrain on the deployed signal + expanded pool ⭐ (~$25, 2026-08-13)
+
+User: "你继续训练吧" — act on the 8s router diagnosis. `modal_train.py`
+fixes BOTH diagnosed gaps at once: (1) **train/deploy signal mismatch**
+— v1 was fit on chat-style full-prefill `h_last` but deployed on the
+streaming end-of-turn read; v2 trains directly on the eot-read hidden;
+(2) **calib coverage** — +800 public-benchmark queries (TriviaQA 150,
+dolly 150, SimpleQA 100, GSM8K 150, **NQ-open 150**, **ARC-Challenge
+100** — two new families), 8q speakable-filtered, deduped vs the frozen
+pool, seed 43 (decorrelated from the eval seed), tts-1/alloy rendered,
+answered from audio by MiniCPM and judged with the standard judge.
+Expansion fail-rate spectrum: trap .98 / know-open .65 / easy-fact .38
+/ easy-chat .32 / hard-math .09 / ARC .09 (pooled .41 — better balanced
+than the original .56). **External eval pools stayed strictly out of
+training; frozen 600 untouched; artifact = `midlayer_gate_audio_v2.json`
+(v1 intact).** EOT hiddens captured once for all five pools (2100
+streaming replays → `eoth_{tag}.shard*.npz`), so any future refit is
+CPU-only.
+
+**Transfer (AUC vs never-arm local-fail, identical eot hiddens):**
+
+| pool | v1 | **v2** | Δ |
+|---|---:|---:|---:|
+| striviaqa | .676 | **.761** | +.085 |
+| swebq | .759 | **.779** | +.020 |
+| sdqa (real speech) | .719 | **.775** | +.056 |
+| frozen-test (in-mix) | .811 | **.860** | +.049 |
+
+In-mix does NOT regress (the pre-registered guard) — it improves. v2
+OOF on its own train set = .878 (C=.0003, n=1160).
+
+**Ablation — what bought the gain (external mean AUC):**
+
+| fit | mean |
+|---|---:|
+| v1 (full-prefill signal, 360) | .718 |
+| frozen-360 only, eot signal | .741 |
+| expansion-800 only, eot signal | .765 |
+| **both = v2 (1160)** | **.772** |
+
+**Both levers real, roughly equal**: signal-match +.023, data +.031.
+Notably expansion-alone already beats frozen-alone by +.024 — the new
+families (open-domain NQ + ARC) carry transferable difficulty signal
+the original five pools did not.
+
+**Deployment readout at a matched 30% budget** (per-domain quantile
+thresholds — label-free, needs only unlabeled score history):
+
+| pool | base fail | v1 prec/rec | **v2 prec/rec** |
+|---|---:|---|---|
+| striviaqa | .38 | .53 / .42 | **.63 / .49** |
+| swebq | .59 | .83 / .42 | **.84 / .43** |
+| sdqa | .51 | .75 / .45 | **.80 / .48** |
+
+striviaqa precision lift ×1.39→**×1.66** over base — the pool where 8s
+found "gate ≈ random" is exactly where v2 helps most.
+
+- **⚠️ Threshold-quantile transfer is STILL broken, and v2 flips its
+  sign**: at the frozen global thresholds v1 under-fires (sdqa balanced
+  16% vs 30% target) while v2 over-fires (sdqa balanced 47%,
+  aggressive 80%). Score distributions shift per domain; a global
+  quantile cannot follow. **Deployment recommendation: per-domain
+  quantile thresholds** (used in the table above — label-free, exactly
+  hits the budget by construction, and the AUC gain is
+  threshold-independent so it survives). The zero-training claim is
+  unaffected: still no gradient through the backbone, still a linear
+  read on frozen activations; the calibration set simply grew.
+- Live re-run DONE — see 8u below (this bullet's "not yet done" is
+  resolved).
+
+Spend ≈ $25 (800 TTS + 800 judge + ~10 H100-hours). Project ≈ **$445**.
+
+### 8u — v2 live re-run: all 8 figures refreshed ⭐ (~$35, 2026-08-13)
+
+User: "重新跑曲线". 12 live sweeps (4 pools × 3 escalating tiers, 2760
+sessions) with the v2 probe + **per-domain quantile thresholds**;
+never-arm rows reused from the v1 runs (thr=1e9 → probe never fires →
+rows are probe-independent by construction; documented in
+`report(never_glob=...)`). `modal_bench.py` generalized: POOLS registry
+(frozen/striviaqa/swebq/sdqa), `art_path` + `suffix` params, so v1
+artifacts and traces stay untouched. Figures regenerated from
+`{pool}_v2_traces.parquet`; v1 versions archived as `*_v1.{png,pdf}`.
+
+**Fix #1 confirmed live — thresholds now hit their budgets** (the 8t
+diagnosis): realized rates 15/35/55% (frozen), 15/30/50%, 15/30/50%,
+15/31/50% — versus v1's 2/19/46% (striviaqa) and 3/16/44% (sdqa).
+
+**Curves (heard-acc, v1 → v2):**
+
+| pool | never | conservative | balanced | aggressive |
+|---|---|---|---|---|
+| ours-fair | .440→.436 | .486→**.500** | .569→**.573** | .688→.670 |
+| striviaqa | .620→.624 | .632→**.684** | .688→**.728** | .784→**.840** |
+| swebq | .412→.404 | .436→.436 | .456→**.532** | .604→.560 |
+| sdqa | .495→.510 | .535→**.610** | .595→**.740** | .720→**.785** |
+
+Raw acc is rate-confounded (v2 escalates more at conservative/balanced
+because its thresholds are now correct). **Rate-normalised selectivity
+(lift over the random line, channel-controlled view) is the honest
+comparison:**
+
+| pool | cons v1→v2 | bal v1→v2 | agg v1→v2 |
+|---|---|---|---|
+| ours-fair | +.021→+.027 | +.045→+.048 | +.081→+.083 |
+| striviaqa | +.004→**+.028** | +.013→**+.053** | +.043→**+.092** |
+| swebq | +.002→−.002 | −.026→**+.044** | +.063→**+.010** |
+| sdqa | +.027→**+.052** | +.043→**+.125** | +.059→**+.100** |
+
+- **8s's headline finding is overturned on striviaqa**: the pool where
+  v1 was indistinguishable from random (+.004/+.013/+.043) now clears
+  it at every tier (+.028/+.053/+.092) — selectivity roughly doubled
+  to tripled. sdqa likewise (balanced +.043→+.125). In-mix (ours-fair)
+  is unchanged, as designed.
+- **⚠️ swebq is the exception and it is not clean**: balanced improves
+  a lot (−.026→+.044) but aggressive DROPS (+.063→+.010) and heard-acc
+  falls .604→.560. Its ceiling is only .736 (strict Freebase refs), so
+  at 50% escalation the headroom left to select from is thin and the
+  arm is noisy at n=250; also the only pool where v2's conservative
+  lift is ≈0. Reported as-is; a rerun at larger n is the honest way to
+  settle it, not a re-pick of the tier.
+- Latency essentially unchanged (P50 within ±0.5 s of v1 at matched
+  tiers); the gate read itself stays ~30 ms.
+- Figures: `fair_{dualview,pareto_latency}` + `{bench}_{dualview,pareto}`
+  ×3, all v2, in figures/ + paper/figures/; gallery redeployed
+  (same URL).
+
+Spend ≈ $35. Project total ≈ **$480**.
+
+### 8v — VoiceBench AlpacaEval: the official-matrix row ⭐ (~$20, 2026-08-13)
+
+User challenge: "官方 benchmark 表里没有你用的那两行". **Verified by
+fetching the raw README/model-card HTML (no summarizer in the loop):
+`Speech TriviaQA` 75.5, `Speech Web Questions` 70.2 and `Speech CMMLU`
+59.2 DO exist — in the full Audio-Understanding table; the screenshot is
+the condensed matrix, which lists only `VoiceBench AlpacaEval` 4.8 as
+its speech-QA row.** So 8s/8u's anchors were right, but sourced through
+a WebFetch summary (which had garbled an earlier fetch) — the raw-text
+verification is now on record. Everything else in the condensed matrix
+is out of scope by construction: vision rows (we run
+`init_vision=False`; meeting scoped audio-only), ASR rows (measure WER,
+not answering — routing cannot fix ears, and 8r scoped ASR out), speech
+GENERATION rows (our loop emits text), Omni rows (audio+video).
+
+Fourth external pool added: **VoiceBench AlpacaEval, all 199 items**,
+same v2 probe + per-domain quantile thresholds, four arms.
+**Scoring uses VoiceBench's own judge**: gpt-4o-mini + their
+`meta_prompt_open` copied verbatim from `MatthewCYM/VoiceBench`
+`api_judge.py` (1-5, bare number out) — our first pass with a
+home-grown rubric gave 2.78/4.86, i.e. ~2 points below the official
+scale, confirming the rubric (not the model) drives the absolute level.
+
+| arm | esc | judge score (1-5) | gold-inject |
+|---|---:|---:|---:|
+| never | 0% | 3.94 | 3.94 |
+| conservative | 15% | 4.08 | 4.12 |
+| balanced | 30% | 4.09 | 4.16 |
+| aggressive | 50% | **4.26** | 4.37 |
+| always (gpt-5.5, gold text) | 100% | — | **4.96** |
+
+- **⭐ Chat-mode control settles the fairness question (user challenge,
+  same day): the SAME 199 wavs answered offline with `model.chat`
+  (1024-token budget, no streaming loop, no chunked prefill, no EOT
+  read), judged identically, score **4.86** — i.e. we REPRODUCE the
+  official 4.8 (slightly above it).** `valpaca_chatmode.parquet`,
+  `modal_bench.py::valpaca_chatmode`. Therefore the entire 3.94→4.86
+  gap is OUR LIVE LOOP, not model capability and not the judge:
+  paired, the live loop is worse on 115/199 queries, better on 3.
+  Mechanism = answer length: chat-mode median 2186 chars vs live 820.
+  The duplex/omni system prompt puts the model in *spoken-reply* mode
+  (short, conversational) while AlpacaEval's rubric rewards complete
+  written answers; the live 512-token cap adds truncation on top
+  (27% of live answers end mid-sentence, and the worst paired case —
+  chat 5 vs live 1 — is a 3030-char answer cut off mid-clause).
+  Consequence for the paper: **the official 4.8 line must be labelled
+  as an offline-chat-mode number, and our own chat-mode 4.86 is the
+  honest capability reference; only the four live arms are comparable
+  to each other.** Ruled out as explanations along the way: degenerate
+  repetition (4/199 rows, removing them moves 3.94→3.96) and the
+  scoring rubric (already VoiceBench's own).
+- **⚠️ On this pool the gate does NOT beat random** (aggressive 4.26 vs
+  random-at-50% ≈ 4.45), and the mechanism is now measured, not
+  inferred: **the queries the gate selected score 3.90 on the never
+  arm vs 3.98 for those it skipped — no discrimination at all**, while
+  escalated rows still gain (3.90→4.71) purely because gpt-5.5 writes
+  better long-form answers. So the gain is expert quality, not
+  selection; random picks would harvest the same. Root cause:
+  open-ended instruction following has no "the model doesn't know this
+  fact" event for the probe to read — every answer is partially
+  creditable and the score range is compressed (3.94→4.96 = 1.0 point
+  vs 40 accuracy points on our pool). Textbook species-3 of the
+  three-failure taxonomy. Reported as a NEGATIVE result.
+- Latency here is higher (P50 4.6 → 9.7 s) because AlpacaEval answers
+  are long-form essays; the local decode dominates, not the expert.
+- Figures `valpaca_{dualview,pareto}.{png,pdf}` (figures/ +
+  paper/figures/), gallery now shows 10.
+- Judge-infra gotcha: gpt-4o-mini 429s under batch load silently
+  produced None scores concentrated at the tail of the batch (never arm
+  lost 131/199 in the first pass). Fixed with concurrency 3 + 6-step
+  backoff + persisted `score_err`; all four arms now n=199.
+
+Spend ≈ $20. Project total ≈ **$500**.
+
+---
+
+### 8w — judge-protocol alignment: the official numbers ARE reproducible ⭐ (~$15, 2026-08-13)
+
+User asked for comparison models on the figures; the chat-mode control
+(8v's machinery, generalized to every pool) exposed a prerequisite
+problem first. Offline chat mode under OUR judge: striviaqa .684 vs
+official .755, **swebq .464 vs official .702** — a 24-point hole that
+no loop tax explains. Root cause: **the judge**. We now copy
+OpenAudioBench's own judging verbatim from
+`tasks/trivia_qa_audio.py` (gpt-4o-2024-08-06, JSON
+`analysis`+`judgment`, "correct if it matches **at least one** of the
+reference aliases"; `_oab_judge` / `oab_rejudge_live` in
+modal_bench.py) and re-scored every arm plus both ceilings.
+
+**Chat-mode control under each judge (n=250):**
+
+| pool | our judge | **OAB judge** | official |
+|---|---:|---:|---:|
+| striviaqa | .684 | **.712** | .755 |
+| swebq | .464 | **.716** | .702 |
+
+**We reproduce the official numbers** (swebq slightly above; striviaqa
+4 pts below = subsample + protocol). Our reference-anchored judge is
+simply much stricter on WebQ's Freebase alias lists. **Consequence: the
+"swebq ceiling is only .736 / headroom is thin" story in 8s/8u was a
+judge artifact — under the official judge the ceiling is .844.**
+
+**All arms re-scored on the official scale (v2 probe):**
+
+| pool | never | cons | bal | agg | ceiling | official MiniCPM | Qwen3-Omni-30B | Kimi-Audio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| striviaqa | .664 | .720 | .764 | **.860** | .972 | .755 | .629 | .419 |
+| swebq | .572 | .648 | .680 | **.736** | .844 | .702 | .749 | .464 |
+
+- **⭐ The headline comparison the paper needs**: on Speech TriviaQA a
+  9B duplex model + our gate at 50% escalation scores **.860 live**,
+  vs **.629** for Qwen3-Omni-30B-A3B (3.3× the parameters, offline) and
+  .755 for MiniCPM-o's own official offline number. Routing beats
+  scaling the speech model here. On swebq we clear the official
+  MiniCPM number (.736 vs .702) and land just under Qwen3-Omni (.749).
+- **Loop tax is now fully accounted**: striviaqa live floor .664 vs
+  our chat-mode .712 (−.048 = the streaming loop) vs official .755
+  (−.043 = 250-item subsample + protocol). No unexplained gap remains.
+- **v1 vs v2 on the correct scale (lift over random, gold view)**:
+  striviaqa +.024/+.031/+.052 → **+.033/+.062/+.080** (v2 wins at every
+  tier, confirming 8u). swebq conservative −.001 → **+.045** and
+  balanced +.045 → +.035, but **aggressive +.092 → +.066** — so the
+  8u "swebq aggressive regression" SURVIVES the judge correction
+  (smaller: −.026 lift instead of −.044 raw acc). It remains the one
+  arm where v1 selected better; n=250, not re-picked.
+- Comparison-model numbers extracted from the official table by
+  position-mapping the raw HTML (verified against three values in the
+  user's screenshot): Kimi-Audio and Qwen3-Omni-30B-A3B-Instruct, both
+  offline chat mode — figure captions must say so.
+
+### 8x — two more external pools: Llama Questions + Reasoning QA (~$25, 2026-08-13)
+
+Added to cover the failure species the external arms still missed.
+`sllama` = OpenAudioBench Llama Questions (250 of 300, English short
+factoid), `sreason` = OpenAudioBench Reasoning QA (all 202,
+**Chinese**, execution-type reasoning — no official MiniCPM number
+exists for it, so no official line on its figure; it doubles as a
+cross-lingual transfer test since the probe is calibrated mostly on
+English). Four arms each, v2 probe, per-domain thresholds — realized
+rates 15/30/49% on both.
+
+**Data-integrity bug found and fixed while building these:**
+`reasoning_qa`'s CSV keys audio by `.mp3` filenames while the builder
+stripped only `.wav`, so keying failed and silently **fell back to
+row-order pairing** — questions would have been matched to the wrong
+audio. Now: strip any extension, and the row-order fallback raises
+instead of guessing. The first sreason build was discarded. (Also
+added `参考答案` to the reference-column detector.)
+
+Per-domain thresholds again show why a global quantile cannot work:
+the aggressive threshold is .111 on sllama vs .603 on sdqa — the same
+probe's score distribution shifts by 5× across pools.
+
+**Results (sllama on the OAB judge, sreason on ours):**
+
+| pool | never | cons | bal | agg | always (gpt-5.5) |
+|---|---:|---:|---:|---:|---:|
+| sllama | .840 | .884 | .912 | **.944** | .924 |
+| sreason (zh) | .584 | .624 | .683 | **.762** | .871 |
+
+**⭐⭐ sllama: selective escalation BEATS always-escalate (.944 > .924)
+— the strongest positive result in the project so far.** Decomposed on
+the aggressive arm (n=250, official judge):
+
+| gate decision | local model alone | gpt-5.5 alone |
+|---|---:|---:|
+| kept local (125) | **.976** | .960 |
+| escalated (125) | .704 | **.888** |
+
+The probe cleanly split a .976 subset from a .704 subset — genuine
+per-query discrimination, not a pool/type shortcut (single-type pool).
+And because the small model *beats* the expert on the easy half
+(.976 vs .960 — gpt-5.5 over-elaborates short factoids), **"escalate
+everything" is NOT an accuracy upper bound**; only a selective router
+collects the max of both. This is the cleanest external evidence for
+the system's premise, measured with the benchmark's own judge. Judge
+noise checked: 4 rows where the relay is right and gpt-5.5 wrong vs 2
+the other way — an order of magnitude below the structural effect.
+
+sreason adds the missing failure species (execution-type reasoning) and
+a cross-lingual test: the probe was calibrated almost entirely on
+English yet still lifts Chinese reasoning .584→.762 at 50%. Its
+official-rubric scoring (per-item 打分prompt) was NOT replicated —
+numbers are on our judge, no official line drawn.
+
+**Why the P50 latency curves zigzag (verified 2026-08-14).** sllama's
+per-arm P50 is non-monotonic — never 1.52s → cons **1.19s** → bal
+1.73s → agg 1.64s — and this is a median-of-a-mixture effect, not a
+measurement or gate bug. The probe escalates exactly the queries whose
+*local* decode is longest (escalation@balanced by never-arm answer-length
+quintile: 2/12/34/46/56%; conservative's 38 escalated ids had local P50
+2.52s vs 1.27s for the 212 that stayed). At 15% the local pool loses its
+slowest members (local-only P50 1.52→0.98s) while only 38/250 rows pay
+the ~4.3s expert path, so the overall median *falls below never*; at 30%
+the escalated mass reaches the median and pushes it back up. Mean
+latency is monotonic (1.65/1.75/2.37/2.38s) — the fold-back lives only
+in the quantile. On sreason the P50 is monotonic (3.17→3.84s) but the
+**tail improves with escalation: P90 13.25→10.94s** (mean 5.08/5.20/
+4.73/5.16) — long local CoT decodes (tail >13s) get replaced by 3–4s
+expert round-trips, so on reasoning pools escalation buys accuracy AND
+truncates the latency tail. Same frozen probe in all arms — nothing is
+trained, and no latency model exists to "train"; the x-positions are
+measured wall-clock medians.
+
+### 8y — figures refreshed with comparison models (2026-08-13)
+
+All 14 figures regenerated: 5 external pools × {escalation↔acc,
+latency↔acc} + our pool × 2 + AlpacaEval × 2. OpenAudioBench pools now
+carry four reference lines on one scale (their own judge): official
+MiniCPM-o 4.5, **Qwen3-Omni-30B-A3B**, **Kimi-Audio**, and our own
+offline chat-mode control. Gallery (14 figures):
+https://rhe9527--figures-gallery-web.modal.run/62dc5cd9
+
+Headline for the paper: on Speech TriviaQA, **9B + gate @50% = .860
+live**, vs Qwen3-Omni-30B **.629** and MiniCPM-o's own official
+**.755** — routing beats scaling the speech backbone, and on
+Llama Questions it also beats escalating everything.
+
+### 8z — probe v3: RL/SFT rejected; data + multi-position features executed ⭐ (~$45, 2026-08-16)
+
+User asked whether RL (or SFT) should train the probe. **Decision: NO
+to both** (rationale recorded in `todo.tex`): (1) the gate is a
+single-step decision whose BOTH counterfactuals are observable offline
+(never/always arms) — that is cost-sensitive supervised classification,
+and policy-gradient RL would re-derive the same Bayes classifier with
+orders-of-magnitude worse sample efficiency at n≈1k; (2) SFT on the
+backbone breaks the zero-training frozen-checkpoint claim, shifts the
+talker's answer distribution (invalidating every measured curve), and
+small-n training is already falsified in-house (8f/8s router .669 <
+pool-oracle .715); (3) the binding constraint is domain shift + judge
+label noise (OOF .878 vs external .76–.78), which neither touches.
+Executed the two supervised levers instead (`modal_train2.py`):
+
+**1. expansion2** — 1150 new queries, 7 families NONE in the v1 mix
+(dedup vs frozen + expansion + all 6 external pools, seed 44, tts-1
+alloy, MiniCPM audio answers, standard judge). Fail-rate spectrum:
+easy-mathword(SVAMP) .10 / know-openbook .17 / know-mmlu .31 /
+know-commonsense .32 / trap-truthful .45 / hard-multihop(HotpotQA) .79
+/ know-longtail(PopQA) .84 — pooled .50, adds the high-difficulty mass
+the .41 expansion1 mix lacked. Train pool now 360+800+1150 = **2310**.
+
+**2. multi-layer capture (`eoth2_*.npz`)** — ONE streaming replay per
+query over all 9 pools (3901 replays, zero missing) storing
+L{14,18,22,26,30} × (eot rolling last-8-token window + user-audio-mean)
+in float16 → every future probe refit is CPU-only forever. Engineering
+note (caught in smoke): the streaming assistant prefill runs 1-token
+forwards, so "last-8 of the final forward" degenerates to a single
+token — the tail window must roll ACROSS forwards.
+
+**Refit sweep (19 configs, 5-fold OOF on train only):** L22 is still
+the best single layer (eot_last .858; matches 5d), **multi-layer
+concat HURTS** (L18+22+26 .837 — regularization cost exceeds the
+information), **position diversity helps**: winner =
+`eot_last + eot_mean8 + user_mean @ L22` (12288-d), C=1e-4, OOF
+**.864**. All three reads are online-computable at zero eot latency
+(running audio mean + rolling tail + last token).
+
+**Transfer (AUC vs never-arm local fail, externals read once):**
+
+| fit | striviaqa | swebq | sdqa | sllama | sreason | frozen-test | ext-mean |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v2 stored artifact (sanity) | .761 | .779 | .775 | .815 | .621 | .860 | .750 |
+| A v2-recipe refit (L22 last, frozen+x) | .761 | .779 | .775 | .815 | .621 | .860 | .750 |
+| B data lever (A + expansion2) | .762 | .804 | .780 | .817 | .682 | .872 | .769 |
+| C feature lever (winner cfg, frozen+x) | .791 | .758 | .788 | .811 | .628 | .873 | .755 |
+| **D v3 = winner cfg + all data** | **.789** | **.785** | **.792** | .806 | **.683** | **.879** | **.771** |
+
+- **Sanity anchor exact**: the re-captured L22 eot hidden reproduces
+  8t's v2 numbers to 3 decimals, and refit A equals the stored
+  artifact — capture + fit fully deterministic.
+- **Data is the bigger lever again** (+.019 ext-mean vs +.005), same
+  structure as 8t; combined +.021 (.750→.771).
+- **⭐ Cross-lingual transfer jump: sreason .621→.683 (+.062)** — the
+  new ENGLISH multihop/long-tail families improve CHINESE reasoning
+  transfer; the difficulty signal the probe reads is language-general.
+- striviaqa .761→.789 (+.028), sdqa .775→.792 (+.017); the one
+  regression is sllama .815→.806 (−.009, was the best pool).
+- **Guard passed with headroom**: frozen-test .860→.879 (pre-registered
+  "must not regress"; selection never saw the externals).
+- Honest note: B ≈ D on ext-mean (.769/.771) — if deployment ever
+  wants a single-vector probe, B (plain L22 eot_last on 2310) keeps
+  ~all the external gain; D wins in-mix and on striviaqa/sdqa.
+
+Deployment artifacts: `midlayer_gate_audio_v3.json` +
+`gate_v3_{pool}.json` per-domain quantile thresholds (label-free,
+8t recipe). **Live 4-arm re-run with v3 NOT launched** — separate
+spend decision (~$35, as 8u); AUC gains are threshold-independent.
+
+Spend ≈ $45 (1150 TTS + 1150 answers + 1150 judge + 3901 replays ≈ 14
+H100-h). Project ≈ **$490**.
+
+**8z-live — v3 live re-run, all 14 figures refreshed (~$55, 2026-08-16).**
+User: "图刷新一下". `modal_bench.py::bench_live` got a v3 path (rolling
+last-8 tail across forwards + running user-audio mean at L22, concat →
+same `Probe.score`; v1/v2 path untouched); `make_thresholds3` scale bug
+fixed (raw logit → sigmoid, Probe.score convention) and regenerated.
+21 sequential sweeps (7 pools × 3 escalating tiers, 4773 sessions,
+expert concurrency ≤3 throughout), never arms + ceilings reused
+(probe-independent); reports re-judged everything fresh, OAB pools
+re-scored with the official judge. Realized rates on budget externally
+(15/30/50); frozen overshot to 16/35/61 (calib-quantile → test drift).
+
+**Live v2 → v3 per arm** (OAB pools = official judge; others = ours):
+
+| pool | judge | never | cons v2→v3 | bal v2→v3 | agg v2→v3 |
+|---|---|---:|---|---|---|
+| striviaqa | official | .664 | .720→.732 | .764→**.800** | .860→.860 |
+| swebq | official | .57 | .648→.628 | .680→.680 | .736→.732 |
+| sllama | official | .84 | .884→**.904** | .912→.904 | .944→**.948** |
+| sdqa | ours | .51 | .610→.600 | .740→.720 | .785→**.795** |
+| sreason (zh) | ours | .59 | .624→**.653** | .683→**.713** | .762→**.772** |
+| frozen (full) | ours | .39 | .467→.483 | .533→.554 | .621→.596 |
+| valpaca (1-5) | VoiceBench | 3.99 | 3.96→3.96 | 4.23→4.23 | 4.26→**4.35** |
+
+(never-arm deltas across versions are ±.005–.013 = pure judge re-run
+variance; same trace rows.)
+
+- **Gains land exactly where the offline AUC gained**: striviaqa
+  balanced +.036 (the probe's biggest AUC jump pool among OAB),
+  **sreason uniform +.010–.030 — the cross-lingual offline finding
+  (+.062 AUC) survives live**; sllama conservative +.020.
+- **sllama headline strengthens: selective @50% = .948 > always-escalate
+  .928** (both re-judged same run) — the project's strongest positive
+  result confirmed with the better probe.
+- swebq/sdqa ≈ flat (within judge noise; both were probe-flat in the
+  offline table too: swebq +.006, sdqa +.017 AUC).
+- ⚠️ Honest: frozen aggressive .621→.596 at esc .61 (vs .50) — the
+  overshoot pushes ~26 extra math/LaTeX-heavy queries through the
+  transcript-tax channel (8d: ASR-distill −.31 on knowledge entities);
+  balanced/conservative arms improved (+.021/+.016). Fair-subset curve
+  (fair_dualview): heard .422→.633 @ 57%, gold-inject .761.
+- valpaca stays a negative result: agg 4.35 < random@50% ≈4.45
+  (species-3 open-ended pool — no retrieval-failure event to read).
+
+All 14 figures regenerated from `{pool}_v3_traces.parquet` /
+`valpaca_v3_scored.parquet` (v2 versions archived as `*_v2.{png,pdf}`,
+jsons refreshed), copied into `paper/figures/`, gallery redeployed
+(same URL). Live-loop deployment artifacts now v3 end-to-end
+(`gate_v3_{pool}.json`, sigmoid-scale thresholds).
+
+Spend ≈ $55 (4773 live sessions ≈ 11 H100-h + ~1.6k expert calls
+mostly cache-hits + ~7k judge calls). Project ≈ **$545**.
+
 ---
 
 ### 2.1 public pools ✅ (2026-07-07)
