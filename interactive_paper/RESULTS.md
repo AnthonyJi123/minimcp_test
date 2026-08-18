@@ -2906,6 +2906,104 @@ jsons refreshed), copied into `paper/figures/`, gallery redeployed
 Spend ≈ $55 (4773 live sessions ≈ 11 H100-h + ~1.6k expert calls
 mostly cache-hits + ~7k judge calls). Project ≈ **$545**.
 
+### 8ab — Jisen review pass: kink mechanism, latency decomposition, matched-rate precision, random-pareto lines ($0 local, 2026-08-18)
+
+Jisen's figure numbers = the 14-figure gallery order (fair ×2,
+striviaqa ×2, swebq ×2, sllama ×2, sreason ×2, sdqa ×2, valpaca ×2).
+Everything below computed locally from the existing v3 traces — no
+model calls, no re-runs.
+
+**图4 (striviaqa_pareto) "small kink" is mechanism, not noise — and a
+seed-rerun would NOT remove it.** The conservative arm's P50 (1.186 s)
+sits LEFT of never (1.227 s). Decomposition: the 38 queries the probe
+escalated at 15% had never-arm local P50 **1.711 s** vs **1.198 s**
+for the 212 it kept — the probe preferentially escalates the slowest
+local decodes (same median-of-a-mixture effect as sllama, §8x), so the
+kept-local median falls (0.937 s) faster than the 3.8 s expert path
+can pull the mixture back up. Statistically the −41 ms dip is far
+inside noise (query-bootstrap CI on the P50 difference: [−285, +254]
+ms) — but because the mechanism is deterministic, 3–5 seeds would
+average toward the same left-fold, not away from it. If a definitive
+check is ever wanted: rerun never+conservative only, ~$6/seed.
+
+**图8 (sllama_pareto) latency zigzag decomposed → new figure
+`sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
+only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
+P50 1.52/1.17/1.60/1.42 s); (2) kept-local P50 falls 1.52→0.96→0.86→
+0.43 s as the probe strips slow decodes while escalated rows pay a
+flat ~3 s expert round-trip. The "weird" latency is a *positive*
+property: on this pool escalation buys accuracy AND (at the median)
+speed; the honest way to "remove the latency artifact" in a paper
+figure is to show the mean alongside the median, not to re-measure.
+
+**Escalation precision, v2→v3 at matched 50% rate** (rank never-arm
+fail labels by the aggressive arm's live eot_score, take top half —
+avoids the realized-rate confound; note the never-arm rows in the v3
+parquets carry reused v2-era scores, so aggressive-arm scores are the
+only valid v3 read):
+
+| pool | v2 prec@50 | v3 prec@50 | base-fail | cap = base/rate |
+|---|---:|---:|---:|---:|
+| frozen | .858 | **.867** | .62 | 1.00 |
+| striviaqa | .520 | **.544** | .34 | .68 |
+| swebq | .576 | **.608** | .43 | .86 |
+| sllama | .296 | **.304** | .16 | **.32** |
+| sdqa | .720 | .720 | .48 | .96 |
+| sreason | .525 | **.535** | .41 | .82 |
+
+Key reframe for "can you push precision above 74%": precision at a
+fixed escalation rate is CAPPED at base-fail/rate. The .74 Jisen
+remembers was the v1 ours-fair receipt (base .56, esc 52% → cap ≈1);
+on sllama the cap is .32 and v3's .304 is **95% of the theoretical
+maximum** (recall .93). The honest dial is (a) AUC (v2→v3: OOF
+.860→.879, ext-mean .750→.771) and (b) escalating at ≈ the base-fail
+rate instead of a fixed 50%. Remaining levers unchanged from 8z:
+calibration-pool width (the bigger lever, public families only),
+judge-label denoising, per-domain threshold drift (the 8z-live
+overshoot), asymmetric cost-sensitive thresholds.
+
+**Random-escalation reference added to ALL pareto figures** (Jisen:
+"所有图都可以加上 random escalation，不用重测"). Acc = the dualview
+random line (pairs with the gold view); x = simulated P50 of a random
+mixture at rate r — per-id local latency from the never arm, per-id
+escalated latency where any arm escalated that id, pool-draw
+otherwise (400 sims × 21 rates, seed-42 rng continuation). Patched
+into bench_figures.py, fair_figures.py, valpaca_figures.py; all 14+1
+figures regenerated and copied to paper/figures/. This supersedes the
+2026-08-13 "no random line on sdqa" call for the PARETO view only
+(dualview keeps the floor+ceiling design). Headline: on striviaqa and
+sllama the gated curve now visibly dominates random in BOTH axes —
+random needs ~3.4 s at the median to reach the ceiling striviaqa
+region the gate reaches at 2.0 s, and on sllama random@50% sits at
+~2.2 s/.88 vs the gate's 1.42 s/.948. Label bug fixed in the same
+pass: figure subtitles said "probe v2" while VER="_v3" — now derived
+from VER. `pareto_latency.py` (the frozen-pool paper figure) reads
+pre-aggregated JSONs with no per-query rows, so its random line needs
+a small rebuild from frozen_v3_traces — left as a todo.tex note.
+
+**NVIDIA NemotronLabs-VoiceChat-11B scoped (Jisen #3).** HF card
+verified live: 11B end-to-end **full-duplex** speech model — Fast
+Conformer speech encoder + Nemotron Nano v2 9B (hybrid
+Mamba/Transformer) + NVIDIA TTS decoder; in/out = user audio 16 kHz +
+text → agent text + 22.05 kHz audio + user transcription; OpenMDW
+1.1 license; vLLM + NeMo offline scripts + streaming WebSocket
+container; claims VoiceBench #2 and Full-Duplex-Bench 1.0 #2 among
+open FD models (0.82 smooth turn-taking, 448 ms). This is exactly the
+§9 pre-registered prediction test ("a new open-weight full-duplex
+model should show the late-layer text-input cliff"). Caveats before
+committing spend: hybrid Mamba backbone means the L22-style layer
+sweep must be redone from scratch (layer semantics differ; SSM states
+vs attention residuals), and hidden-state hooks need the NeMo/HF
+path, not the vLLM container. Plan (pre-registered order): (1) cliff
+replication — text-vs-duplex layer×position sweep, predict a
+late-layer cliff; (2) probe calibration on the same public calib
+pool + frozen-methodology 4-arm live curve on the same 5 external
+pools/judges → the transferability figure Jisen wants; (3) Anthony
+trains/fine-tunes the NVDA model, we run the identical gate harness
+on his checkpoints as the training-vs-routing ablation.
+
+---
+
 ---
 
 ### 2.1 public pools ✅ (2026-07-07)

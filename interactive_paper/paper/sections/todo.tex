@@ -299,4 +299,31 @@
   RESULTS.md --- surface them in tables beyond Table~\ref{tab:rq1}}
 \item \todonote{appendix: full per-pool tables, judge prompts, $\ptrue$
   prompts, reproducibility statement (seeds, pins, spend)}
+\item \todonote{2026-08-18 Jisen review pass (RESULTS \S 8ab, all $0
+  local): (a) every pareto figure now carries a simulated-P50
+  random-escalation curve --- on striviaqa/sllama the gate dominates
+  random in BOTH axes; cite this when writing the transferability
+  section. (b) the P50 left-fold (striviaqa conservative, sllama) is a
+  verified median-of-a-mixture mechanism, NOT noise --- the probe
+  escalates the slowest local decodes (never-arm P50 of escalated ids
+  1.71 s vs 1.20 s kept; dip CI [$-285$, $+254$] ms); use
+  \texttt{sllama\_latency\_decomp} (new figure) for the latency-shape
+  note, and report mean alongside median rather than re-measuring.
+  (c) escalation precision at a fixed rate is capped at
+  base-fail/rate; v3 hits 95\% of that cap on sllama --- frame router
+  quality via AUC + matched-rate precision, not raw precision.
+  (d) \texttt{pareto\_latency} (frozen-pool figure) still lacks the
+  random curve --- its script reads pre-aggregated JSONs; rebuild from
+  \texttt{frozen\_v3\_traces.parquet}. (e) figure subtitles said
+  ``probe v2'' while plotting v3 traces --- fixed, now derived from
+  VER; check any figure copied into the paper predates 2026-08-18.}
+\item \todonote{NVIDIA NemotronLabs-VoiceChat-11B (HF card verified
+  2026-08-18): open full-duplex 11B (Fast Conformer + Nemotron Nano v2
+  9B hybrid Mamba/Transformer + TTS, OpenMDW 1.1) --- the \S 9
+  pre-registered second-duplex-family prediction test is now
+  actionable. Order: (1) late-layer text-input cliff replication;
+  (2) frozen-methodology gate + 4-arm curve on the same 5 external
+  pools; (3) ablation vs Anthony's trained checkpoints. Hybrid Mamba
+  backbone $\Rightarrow$ redo the layer sweep from scratch; use the
+  NeMo/HF path for hidden states (the vLLM container exposes none).}
 \end{itemize}

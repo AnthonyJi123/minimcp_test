@@ -57,13 +57,29 @@ dfc = df[df["id"].isin(piv.index)]
 lat50 = [float(dfc[dfc["tier"] == a]["total_ms"].median() / 1000)
          for a in ARMS]
 
+# random-escalation reference for the pareto (Jisen note 2026-08-18)
+loc_ms = dfc[dfc["tier"] == "never"].set_index("id")["total_ms"] \
+    .reindex(piv.index)
+esc_med = dfc[dfc["mode"] == "escalated"].groupby("id")["total_ms"] \
+    .median().reindex(piv.index)
+esc_obs = dfc[dfc["mode"] == "escalated"]["total_ms"].to_numpy()
+esc_med[esc_med.isna()] = rng.choice(esc_obs, size=int(esc_med.isna().sum()))
+Lm, Xm = loc_ms.to_numpy(), esc_med.to_numpy()
+rand_r = np.linspace(0, 1, 21)
+rand_lat = [float(np.median(np.where(
+    rng.random((400, n)) < r, Xm, Lm), axis=1).mean() / 1000)
+    for r in rand_r]
+rand_acc = [sm[0] + (ceil - sm[0]) * r for r in rand_r]
+
 print(f"valpaca: n={n} esc={np.round(rates, 2)} score={np.round(sm, 2)} "
       f"gold-inj={np.round(gm, 2)} ceiling={ceil:.2f} "
       f"lat50={np.round(lat50, 2)}")
 json.dump({"n": n, "esc": rates.tolist(), "score": sm.tolist(),
            "score_ci": ciS.tolist(), "gold_inject": gm.tolist(),
            "gold_inject_ci": ciG.tolist(), "ceiling": ceil,
-           "official": OFFICIAL, "p50_latency_s": lat50},
+           "official": OFFICIAL, "p50_latency_s": lat50,
+           "random_pareto": {"esc": rand_r.tolist(), "lat": rand_lat,
+                             "acc": rand_acc}},
           open("valpaca_figures.json", "w"), indent=1)
 
 
@@ -78,7 +94,7 @@ def style(ax, xlab, ylab, title):
     ax.set_ylim(3.6, 5.05)
 
 
-SUB = ("probe v2, per-domain quantile thresholds; VoiceBench's own "
+SUB = ("probe v3, per-domain quantile thresholds; VoiceBench's own "
        "gpt-4o-mini judge prompt (1-5)")
 
 # ---- Fig 9: score vs escalation rate ------------------------------------
@@ -98,7 +114,7 @@ ax.errorbar(rates, gm, yerr=[gm - ciG[0], ciG[1] - gm], fmt="--s", ms=5.5,
             label="gold-inject — counterfactual: expert answers the gold text")
 ax.errorbar(rates, sm, yerr=[sm - ciS[0], ciS[1] - sm], fmt="-o", ms=6,
             color=BLUE, capsize=3, lw=1.7, zorder=4,
-            label="deployed live loop (probe v2)")
+            label="deployed live loop (probe v3)")
 for j, a in enumerate(ARMS):
     ax.annotate(a, (rates[j], sm[j]), xytext=(5, -13),
                 textcoords="offset points", fontsize=7.5, color=BLUE)
@@ -113,6 +129,8 @@ plt.close(fig)
 
 # ---- Fig 10: latency vs score -------------------------------------------
 fig, ax = plt.subplots(figsize=(6.4, 4.2))
+ax.plot(rand_lat, rand_acc, ls="--", lw=1.0, color=MUT, alpha=.8,
+        zorder=2, label="random escalation (simulated P50 latency)")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.0, alpha=.55, zorder=1)
 ax.text(lat50[0] + .02, ceil - .04, f"always-escalate ceiling {ceil:.2f} "
         "(synthesized — no live latency)", fontsize=7.5, color=MUT,
@@ -125,7 +143,7 @@ ax.errorbar(lat50, gm, yerr=[gm - ciG[0], ciG[1] - gm], fmt="--s", ms=5.5,
             label="gold-inject counterfactual")
 ax.errorbar(lat50, sm, yerr=[sm - ciS[0], ciS[1] - sm], fmt="-o", ms=6,
             color=BLUE, capsize=3, lw=1.7, zorder=4,
-            label="deployed live loop (probe v2)")
+            label="deployed live loop (probe v3)")
 for j, a in enumerate(ARMS):
     ax.annotate(f"{a} ({rates[j]:.0%})", (lat50[j], sm[j]), xytext=(4, -14),
                 textcoords="offset points", fontsize=7.5, color=BLUE)

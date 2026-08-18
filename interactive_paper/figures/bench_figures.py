@@ -115,12 +115,34 @@ for bench, spec in BENCHES.items():
     lat50 = [float(dfc[dfc["tier"] == a]["total_ms"].median() / 1000)
              for a in ARMS]
 
+    # random-escalation reference for the pareto (Jisen note 2026-08-18):
+    # acc = the dualview random line (pairs with the gold view); latency =
+    # simulated P50 of a random mixture at rate r -- per-id local latency
+    # from the never arm, per-id escalated latency where any arm escalated
+    # that id (draw from the pool's observed escalated rows otherwise)
+    loc_ms = dfc[dfc["tier"] == "never"].set_index("id")["total_ms"] \
+        .reindex(heard.index)
+    esc_med = dfc[dfc["mode"] == "escalated"].groupby("id")["total_ms"] \
+        .median().reindex(heard.index)
+    esc_obs = dfc[dfc["mode"] == "escalated"]["total_ms"].to_numpy()
+    esc_med[esc_med.isna()] = rng.choice(esc_obs,
+                                         size=int(esc_med.isna().sum()))
+    Lm, Xm = loc_ms.to_numpy(), esc_med.to_numpy()
+    rand_r = np.linspace(0, 1, 21)
+    rand_lat = [float(np.median(np.where(
+        rng.random((400, n)) < r, Xm, Lm), axis=1).mean() / 1000)
+        for r in rand_r]
+    rand_acc = [hm[0] + (ceil - hm[0]) * r for r in rand_r]
+
     summary[bench] = {"n": n, "esc": [float(x) for x in rates],
                       "heard": [float(x) for x in hm],
                       "heard_ci": ciA.tolist(), "ceiling": ceil,
                       "gold_inject": [float(x) for x in gm],
                       "gold_inject_ci": ciB.tolist(),
-                      "p50_latency_s": lat50}
+                      "p50_latency_s": lat50,
+                      "random_pareto": {"esc": rand_r.tolist(),
+                                        "lat": rand_lat,
+                                        "acc": rand_acc}}
     print(f"{bench}: n={n} esc={np.round(rates, 2)} "
           f"heard={np.round(hm, 3)} gold-inj={np.round(gm, 3)} "
           f"ceiling={ceil:.3f} lat50={np.round(lat50, 2)}")
@@ -165,12 +187,12 @@ for bench, spec in BENCHES.items():
                       "gold text")
     ax.errorbar(rates, hm, yerr=[hm - ciA[0], ciA[1] - hm], fmt="-o",
                 ms=6, color=BLUE, capsize=3, lw=1.7, zorder=4,
-                label="heard-acc — deployed" + (" (probe v2)" if VER else
+                label="heard-acc — deployed" + (f" (probe {VER[1:]})" if VER else
                                                 " (frozen thresholds)"))
     for j, a in enumerate(ARMS):
         ax.annotate(a, (rates[j], hm[j]), xytext=(5, -13),
                     textcoords="offset points", fontsize=7.5, color=BLUE)
-    sub = ("probe v2, per-domain quantile thresholds; "
+    sub = (f"probe {VER[1:]}, per-domain quantile thresholds; "
            + ("scored with OpenAudioBench's own judge (gpt-4o)"
               if col == "oab_ok" else "our reference-anchored judge")
            if VER else
@@ -190,6 +212,8 @@ for bench, spec in BENCHES.items():
 
     # ---- pareto: latency vs acc ------------------------------------------
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    ax.plot(rand_lat, rand_acc, ls="--", lw=1.0, color=MUT, alpha=.8,
+            zorder=2, label="random escalation (simulated P50 latency)")
     ax.axhline(ceil, color=GREEN, ls=":", lw=1.0, alpha=.55, zorder=1)
     ax.text(lat50[0] + .03, ceil - .012, f"always-escalate ceiling "
             f"{ceil:.3f} (synthesized — no live latency)", fontsize=7.5,

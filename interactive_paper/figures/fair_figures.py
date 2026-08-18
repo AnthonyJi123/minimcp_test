@@ -64,12 +64,29 @@ df_c = df[df["id"].isin(heard.index)]
 lat50 = [float(df_c[df_c["tier"] == a]["total_ms"].median() / 1000)
          for a in ARMS]
 
+# random-escalation reference for the pareto (Jisen note 2026-08-18)
+loc_ms = df_c[df_c["tier"] == "never"].set_index("id")["total_ms"] \
+    .reindex(heard.index)
+esc_med = df_c[df_c["mode"] == "escalated"].groupby("id")["total_ms"] \
+    .median().reindex(heard.index)
+esc_obs = df_c[df_c["mode"] == "escalated"]["total_ms"].to_numpy()
+esc_med[esc_med.isna()] = rng.choice(esc_obs, size=int(esc_med.isna().sum()))
+Lm, Xm = loc_ms.to_numpy(), esc_med.to_numpy()
+rand_r = np.linspace(0, 1, 21)
+rand_lat = [float(np.median(np.where(
+    rng.random((400, n)) < r, Xm, Lm), axis=1).mean() / 1000)
+    for r in rand_r]
+_h0 = float(A.mean(axis=0)[0])
+rand_acc = [_h0 + (ceil - _h0) * r for r in rand_r]
+
 hm, gm = A.mean(axis=0), B.mean(axis=0)
 print("fair n =", n, "| esc", np.round(rates, 2), "| heard",
       np.round(hm, 3), "| gold-inj", np.round(gm, 3),
       "| always", round(ceil, 3), "| P50 lat", np.round(lat50, 2))
 
 json.dump({"n": n, "always": float(ceil),
+           "random_pareto": {"esc": rand_r.tolist(), "lat": rand_lat,
+                             "acc": rand_acc},
            "arms": {a: {"esc": float(rates[j]), "heard": float(hm[j]),
                         "heard_ci": [float(ciA[0, j]), float(ciA[1, j])],
                         "gold_inject": float(gm[j]),
@@ -92,6 +109,8 @@ def style(ax, xlab, ylab, title):
 
 # ---- Fig 1: latency vs accuracy ------------------------------------------
 fig, ax = plt.subplots(figsize=(6.4, 4.2))
+ax.plot(rand_lat, rand_acc, ls="--", lw=1.0, color=MUT, alpha=.8,
+        zorder=2, label="random escalation (simulated P50 latency)")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.0, alpha=.55, zorder=1)
 ax.text(lat50[0] + .05, ceil - .012,
         f"always-escalate ceiling {ceil:.3f} (synthesized — no live "
@@ -122,7 +141,7 @@ ax.text(lat50[3] + .07, (hm[3] + gm[3]) / 2,
 style(ax, "P50 total response latency, query end → answer text done (s)",
       f"accuracy, speakable subset (n={n})",
       "What latency buys — speakable subset (“TTS-fair” view)\n"
-      + ("probe v2; points = escalation arms, labelled by escalation rate"
+      + (f"probe {VER[1:]}; points = escalation arms, labelled by escalation rate"
          if VER else
          "(points = escalation arms, labelled by escalation rate)"))
 ax.set_ylim(.30, 1.0)
@@ -155,7 +174,7 @@ for j, a in enumerate(ARMS):
 style(ax, "realized escalation rate",
       f"accuracy, speakable subset (n={n})",
       "Accuracy vs escalation rate — speakable subset (“TTS-fair” view)"
-      + ("\nprobe v2; blue = deployed channel, green = channel-controlled "
+      + (f"\nprobe {VER[1:]}; blue = deployed channel, green = channel-controlled "
          "counterfactual" if VER else
          "\nblue = deployed channel, green = channel-controlled "
          "counterfactual"))
