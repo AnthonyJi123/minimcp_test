@@ -301,15 +301,36 @@ def answer_shard(tag: str, shard: list, shard_id: int) -> int:
     items = [(q, f"{adir}/{q['id']}.wav") for q in shard]
     items = [(q, w) for q, w in items if os.path.exists(w)]
     items.sort(key=lambda t: os.path.getsize(t[1]))   # length buckets
-    BATCH = 8
+    # adaptive batches: the cacheless forward is O(T^2) in the longest
+    # clip, so budget = batch_size x largest wav in the window (frozen
+    # math queries reach 3 min and OOM at fixed B=8)
+    BUDGET = 8 * 1024 * 1024                          # ~ 8 x 32 s wavs
+    batches, cur = [], []
+    for it in items:
+        size = os.path.getsize(it[1])
+        if cur and (len(cur) + 1) * max(size, cur_max) > BUDGET:
+            batches.append(cur)
+            cur, cur_max = [], 0
+        if not cur:
+            cur_max = 0
+        cur.append(it)
+        cur_max = max(cur_max, size)
+        if len(cur) == 8:
+            batches.append(cur)
+            cur, cur_max = [], 0
+    if cur:
+        batches.append(cur)
     ids, E, M, rows = [], [], [], []
-    for k in range(0, len(items), BATCH):
-        chunk = items[k:k + BATCH]
+    k = 0
+    for chunk in batches:
         try:
             rs = _infer_batch(model, [w for _, w in chunk])
         except Exception as e:
             print(f"  !! batch@{k}: {type(e).__name__}: {str(e)[:150]}",
                   flush=True)
+            k += len(chunk)
+            import torch
+            torch.cuda.empty_cache()
             continue
         for (q, _), r in zip(chunk, rs):
             if r["eot"] is None:
@@ -321,11 +342,13 @@ def answer_shard(tag: str, shard: list, shard_id: int) -> int:
                          "answer_raw": r["text_raw"],
                          "secs": round(r["secs"], 2),
                          "n_frames_query": r["n_frames_query"]})
-        if k == 0 or (k // BATCH) % 4 == 0:
+        if k % 32 == 0:
             r0 = rs[0]
-            print(f"  [{k}/{len(items)}] batch {r0['batch_secs']:.0f}s "
+            print(f"  [{k}/{len(items)}] B={len(chunk)} "
+                  f"batch {r0['batch_secs']:.0f}s "
                   f"({r0['secs']:.1f}s/q) {repr(r0['text'])[:70]}",
                   flush=True)
+        k += len(chunk)
     np.savez_compressed(f"{NVDA_H}_{tag}.shard{shard_id}.npz",
                         ids=np.array(ids), H_eot=np.stack(E),
                         H_mean=np.stack(M),
@@ -517,4 +540,29 @@ def fit(calib_tags: str = "frozen", ext_tags: str =
         json.dump(out, f, indent=1)
     gate_data.commit()
     return out
+
+@app.function(image=fit_image, volumes={DATA: gate_data}, timeout=60 * 5)
+def _done_ids(tag: str) -> list:
+    import glob
+    import zipfile
+    import numpy as np
+    ids = []
+    for sh in sorted(glob.glob(f"{NVDA_H}_{tag}.shard*.npz")):
+        ids += [str(x) for x in np.load(sh, allow_pickle=True)["ids"]]
+    return ids
+
+
+@app.local_entrypoint()
+def run_missing(tag: str = "frozen", workers: int = 2):
+    done = set(_done_ids.remote(tag))
+    qs = [q for q in _read_q.remote(POOLS[tag][1])
+          if q["id"] not in done]
+    print(f">>> {tag}: {len(done)} done, {len(qs)} missing")
+    if not qs:
+        return
+    w = min(workers, max(1, len(qs) // 10))
+    shards = [qs[i::w] for i in range(w)]
+    total = sum(answer_shard.starmap(
+        [(tag, shards[i], 100 + i) for i in range(w)]))
+    print(f">>> {tag}: recovered {total}")
 

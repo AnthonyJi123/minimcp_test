@@ -91,6 +91,18 @@ FIGS = [
 <b>为什么这么慢</b>：AlpacaEval 的回答是长篇论述，<b>本地解码</b>而非专家往返才是延迟主因——这也解释了为什么这张图的延迟随升级率上升得这么陡。
 <b>怎么用这张图</b>：它和图13 一起构成一个完整的负面案例——在开放式生成任务上，我们的方法既贵又不比随机好。诚实地画出来比藏起来强。
 """),
+    ("nvda_layer_sweep", "图15 · NVDA VoiceChat-11B — 探针层扫（第二个全双工家族）", "win", """
+<b>看什么</b>：把我们的探针配方原样搬到 NVIDIA NemotronLabs-VoiceChat-11B（Nemotron Nano v2 9B 主干，56 层 Mamba2/attention 混合架构——和 MiniCPM 完全不同的架构家族）。
+<b>数字</b>：中段 L30-34 最强（OOF AUC .714），两端弱（L2 .693 / L54 .682）。
+<b>为什么重要</b>：这是论文 §9 预注册的"第二家族"测试。"中层语义带最可读"的结构在一个 Mamba 混合主干上复现了——探针读的不是 MiniCPM 的私有特征，是全双工语音模型的共性结构。
+<b>公平吗</b>：校准只用了我们冻结的 600 题池（vs MiniCPM v3 的 2310），判分器同一把（gpt-5.4-mini ref-anchored）；离线重放口径，非实时 loop。
+"""),
+    ("nvda_transfer", "图16 · NVDA VoiceChat-11B — 冻结方法论迁移（AUC 对比 MiniCPM）", "win", """
+<b>看什么</b>：同样三个读数（eot_last / +窗口均值 / +user-audio 均值）、同样的 C=1e-4 逻辑回归，在 NVDA 模型上从零校准，然后直接测 4 个外部公开池。
+<b>数字</b>：OOF .790；striviaqa .781 / swebq .793 / sdqa .754 / sllama .701——绿线是 MiniCPM v3（.79-.81），600 条校准就摸到了同一水平带；特征叠加的增益模式也和 MiniCPM 完全一致（.714→.761→.790）。
+<b>边界（如实报）</b>：sreason（中文）在此模型上 fail rate = 1.000——NVDA VoiceChat 是英文单语模型，听中文音频直接幻觉英文答案，跨语言迁移在它身上没有对应物，该池无 AUC 可算。另外它的知识 floor 明显低于 MiniCPM（striviaqa 本地正确率 .32 vs .62，同判分器）——底座弱不妨碍探针读失败信号，反而 base-fail 高信号更足。
+<b>公平吗</b>：判分器与标签定义完全同口径；尚未跑实时 4 臂曲线（需要把 streaming loop 移植到 NeMo，是下一步的花钱决定）。
+"""),
 ]
 
 VERDICT = {"win": ("✓ 有利", "#1e9e50"), "mixed": ("~ 有保留", "#b8860b"),

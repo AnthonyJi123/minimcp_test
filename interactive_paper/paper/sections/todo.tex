@@ -325,5 +325,9 @@
   (2) frozen-methodology gate + 4-arm curve on the same 5 external
   pools; (3) ablation vs Anthony's trained checkpoints. Hybrid Mamba
   backbone $\Rightarrow$ redo the layer sweep from scratch; use the
-  NeMo/HF path for hidden states (the vLLM container exposes none).}
+  NeMo/HF path for hidden states (the vLLM container exposes none).
+  EXECUTED 2026-08-19 (RESULTS \S 8ac): mid-band layer structure
+  replicates (L30-34 of 56, hybrid Mamba), transfer AUC .70-.79 with
+  600-query calib, sreason boundary: model is English-only. Remaining:
+  live 4-arm port, calib expansion, Anthony ablation.}
 \end{itemize}

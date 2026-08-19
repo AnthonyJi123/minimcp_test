@@ -3004,6 +3004,57 @@ on his checkpoints as the training-vs-routing ablation.
 
 ---
 
+### 8ac — NVDA NemotronLabs-VoiceChat-11B: the second-duplex-family test executed (~$40, 2026-08-18/19)
+
+User: "开始训练 nvda 的模型，结果放到 modal 界面" — interpreted (and
+stated up front) as: train OUR probe on the new model's hidden states;
+fine-tuning the model itself stays Anthony's ablation. Infra:
+`modal_nvda.py` (download / smoke / run_answers / judge / fit), NeMo
+Speech branch `nemotron-labs-voicechat`, 44 GB combined safetensors on
+a new `nvda-weights` volume; same wavs, same judge (`escalate.
+judge_many`), same recipe as eoth2/v3.
+
+**Engineering receipts.** (1) Backbone = Nemotron Nano v2 9B, 56
+NemotronHBlocks (27 Mamba2 / 4 attn / 25 MLP), reached at
+`stt_model.llm.layers`; turn-taking is the agent text channel emitting
+BOS/EOS (no separate head). (2) NeMo forces **cacheless** inference
+for Nemotron (full prefix re-run per 80 ms frame) — so the FINAL
+frame's forward contains every position, and one hook capture yields
+the whole eot window + user-audio mean for free. (3) fp32 B=1 was
+99.5 s/query; bf16 on the stt stack + length-bucketed batch-8 →
+**4.3 s/query** with answers intact (23×). Frozen-pool math audio
+(up to 3 min) OOMed fixed batches; adaptive batching (B × longest-wav
+budget) recovered all 80. (4) Default system prompt makes the model
+greet first — replaced with a QA prompt; answers carry `<$..$>/<|..|>`
+timing markers — stripped before judging. Loading is 17.7 min/container
+(fp32 key-by-key safetensors read).
+
+**Floors (never-arm fail rate, our judge, offline replay):** frozen
+.798, striviaqa .676, swebq .720, sllama .332, sdqa .690 — the 9B
+Nemotron backbone is much weaker on knowledge retrieval than MiniCPM-o
+(striviaqa local acc .32 vs .62 same judge). **Boundary finding:
+sreason (Chinese) fail = 1.000 — VoiceChat is English-only** (Chinese
+audio → fluent unrelated English hallucinations). The cross-lingual
+transfer result has no analog on this model; pool skipped (zero label
+variance).
+
+**⭐ The §9 pre-registered test passes on first execution:**
+
+- Layer sweep (eot_last, calib = frozen 600 only): mid-band peak
+  L30-34 = **.714**, endpoints .693/.682 — the mid-band-readable
+  structure replicates on a hybrid Mamba architecture.
+- Same three reads @ L34: OOF .714 → .761 → **.790** — the same
+  feature-stacking gains as MiniCPM.
+- External transfer AUC: striviaqa **.781**, swebq **.793**, sdqa
+  .754, sllama .701 — the MiniCPM v3 band (.79-.81) reached with a
+  quarter of the calibration data.
+
+Figures `nvda_layer_sweep` + `nvda_transfer` (图15/16) added to the
+gallery and paper/figures. NOT yet done (next spend decisions): live
+streaming 4-arm curve (needs the duplex loop ported to NeMo), calib
+expansion to the full 2310, Anthony's fine-tuned checkpoints as the
+training-vs-routing ablation.
+
 ---
 
 ### 2.1 public pools ✅ (2026-07-07)
