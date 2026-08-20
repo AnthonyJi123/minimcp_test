@@ -361,4 +361,23 @@
   live sweep can resolve; (2) prefer variance-reduced readouts (AUC,
   matched-rate precision, the \texttt{rate\_curves.json}
   reconstruction) over arm accuracy; (3) only then buy larger $n$.}
+\item \todonote{2026-08-20 cloud-ASR uplink (RESULTS \S 8ae) --- the
+  channel lever finally has a significant result: on the 147 escalated
+  frozen ids, sending the wav to \texttt{gpt-transcribe} and giving
+  \emph{that} text to gpt-5.5 scores .694 vs .585 for the deployed
+  self-transcript (paired McNemar $p=.007$), recovering 38\% of the
+  gap to the .871 gold ceiling. This supersedes the ``Whisper ears
+  $+4$pp only'' write-off (8d used open-weights whisper-large-v3).
+  hard-math recovers NOTHING (.294 both ways, gold 1.000) --- spoken
+  LaTeX is lossy at the source, so \S\ref{sec:scope} should state the
+  input-side limit separately from the uplink one. Still to measure
+  before this can be claimed as a system result: the ASR call's
+  latency on the critical path, and whether $+.109$ survives on the
+  external pools.}
+\item \todonote{demo app (RESULTS \S 8af):
+  \url{https://rhe9527--gate-demo-web.modal.run/62dc5cd9} --- probe
+  ON/OFF over the measured sessions plus a real H100 turn on a typed
+  question. Useful as a talk/demo artifact; consider a figure or
+  appendix screenshot of the end-of-turn read (54 ms, P(fail) .807 vs
+  the .680 balanced threshold on ``what is NVDA trading at'').}
 \end{itemize}

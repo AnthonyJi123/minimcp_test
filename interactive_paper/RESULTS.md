@@ -3149,7 +3149,90 @@ variance-reduced statistics (AUC, matched-rate precision, the
 reconstruction curve) rather than arm accuracy; (3) only then spend on
 bigger n.
 
+### 8ae — cloud-ASR uplink: the first lever in weeks that clears the noise floor (~$8, 2026-08-20)
+
+User said "go" on the channel lever. Checking first stopped a bad
+spend: **audio-direct-to-expert was already run (8r) and REJECTED by
+the user the same day** — an audio-native expert costs -.15 of brain,
+and a model-list check today confirms the premise still holds (audio
+family = gpt-audio / gpt-audio-1.5 / gpt-audio-mini; **still no
+gpt-5.5-class audio model**). So that arm was NOT re-run.
+
+What had only been LOWER-bounded is the variant that keeps the frontier
+TEXT brain: audio uplink -> hosted ASR -> gpt-5.5. 8d bounded it with
+`openai/whisper-large-v3` (open weights, run locally) at +4pp. The
+hosted frontier ASRs did not exist then. `modal_uplink2.py`, all 147
+escalated frozen-pool ids, `gpt-transcribe` (auto-picked), same expert
+protocol (`escalate.ask_expert`) and same judge (`escalate.judge_many`):
+
+| arm | what the expert reads | acc (n=147) |
+|---|---|---:|
+| A deployed | MiniCPM's own self-transcript | .585 |
+| **B cloud-ASR** | **gpt-transcribe of the same wav** | **.694** |
+| C ceiling | the gold question text | .871 |
+
+**B-A = +.109, McNemar p = .007** (24 rescued vs 8 broken) — ~5x the
+paired SE (8ad), i.e. the first change in weeks that is unambiguously
+real rather than noise, and **2.7x the whisper-large-v3 bound** the
+lever was previously written off with. It recovers **38%** of the
+gold gap; C-B = +.177 (p<.0001) remains.
+
+Per-pool (n): easy-chat 28 **.679 -> .964**, hard-knowledge 50
+.440 -> .560, trap 20 .550 -> .600, easy-fact 32 .906 -> .938,
+**hard-math 17 .294 -> .294 (+.000, gold 1.000)**. The math wall is
+exactly the 8q prediction: spoken LaTeX is lossy at the SOURCE, so no
+ASR can recover it — the fix there is input-side (don't speak formulas)
+not uplink-side. (easy-chat's B .964 > C .893 is open-ended judge
+variance at n=28, not a real ASR-beats-gold effect.)
+
+Deployment consequence: this is architecture-compatible with the
+2026-08-12 text-backend decision — one extra ASR call per ESCALATED
+turn only (~15-50% of turns depending on tier), the talker's own
+transcript stops being load-bearing, and the expert keeps its frontier
+brain. Not yet measured: the ASR call's added latency (the arm was run
+offline; the call is a single short-audio request, but it belongs on
+the critical path between EOT and the expert call, partially maskable
+by the stall). Next: re-run one live 4-arm sweep with the uplink in the
+loop to get the end-to-end curve + latency, and check whether the
++.109 survives on the external pools.
+
+### 8af — interactive demo app (2026-08-20)
+
+`demo_app.py` -> **https://rhe9527--gate-demo-web.modal.run/62dc5cd9**
+Two modes, one probe ON/OFF switch, live metric tiles and an event log.
+
+- **Replay ($0, scales to zero).** All 4773 measured sessions across 6
+  pools. Flipping the probe OFF is not a simulation: 8ad established
+  the tiers are nested with bit-identical scores, so the OFF view is
+  the never-arm's MEASURED outcome for the same query. Shows the real
+  per-chunk probe trace against the real per-domain threshold
+  (`gate_v3_{pool}.json`), both answers, the judge verdict and the
+  measured timings.
+- **Live (opt-in H100, ~5 s warm / ~1 min cold).** Type anything ->
+  tts-1/alloy (same voice as the frozen pool) -> MiniCPM streams it in
+  1 s chunks -> v3 probe reads L22 at end-of-turn (rolling last-8 +
+  running user-audio mean, byte-identical to `bench_live`) -> frozen
+  threshold decides -> talker answers, or gpt-5.5 does and the talker
+  relays it under a stall.
+
+Verified end-to-end on the user's own test question. "What is NVDA
+trading at right now?", balanced tier: 2.05 s of audio, 3 chunks,
+running P(fail) .776/.676/.693, **end-of-turn read 54 ms -> P(fail)
+.807 >= .680 -> ESCALATE**; expert 2.68 s, stall 37 ms, relay 2.33 s,
+total 5.07 s. Same question probe OFF: local answer in 1.53 s. (Both
+refuse honestly here — the talker also knows it lacks real-time data —
+which makes it a good latency-cost illustration but a poor accuracy
+one; the app ships three example questions including a long-tail fact
+the talker got wrong in the sweep and the gate rescued.)
+
+Engineering notes for whoever redeploys: a live turn far exceeds the
+web proxy's synchronous window, so the endpoint `spawn`s and the page
+polls; and `demo_app.py` imports `modal_app` at module level, so BOTH
+images must mount `modal_app.py` or the web container dies before
+serving (cost one confusing hang).
+
 ---
+
 
 
 ### 2.1 public pools ✅ (2026-07-07)
