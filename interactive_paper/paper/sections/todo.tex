@@ -330,4 +330,35 @@
   replicates (L30-34 of 56, hybrid Mamba), transfer AUC .70-.79 with
   600-query calib, sreason boundary: model is English-only. Remaining:
   live 4-arm port, calib expansion, Anthony ablation.}
+\item \todonote{2026-08-20 noise audit (RESULTS \S 8ad, all \$0) --- THREE
+  WRITING CHANGES ARE MANDATORY BEFORE SUBMISSION. (a) fig:live and
+  fig:pareto were built from probe-\emph{v1} aggregates
+  (\texttt{live\_dualview.json} mtime 2026-07-30, sourced from
+  \texttt{gated\_traces\_v2.parquet}) while the text quoted v3 ---
+  rebuilt from \texttt{frozen\_v3\_traces} by
+  \texttt{figures/live\_v3\_figures.py} (v1 archived \texttt{*\_v1});
+  every arm number in \S\ref{sec:live} must be re-read off the new
+  json (heard .383/.483/.554/.596 at 0/16/35/61\%, channel cost
+  $-.175$, P50 2.02/2.61/3.53/4.44\,s, P99 32.7\,s at balanced).
+  (b) the sllama headline must move from ``the small model BEATS the
+  expert on the easy half'' to ``MATCHES it at half the cost'':
+  .976 vs .968 is McNemar $p=1.00$; what is significant is the probe's
+  split ($z=6.46$) and the hard-half lift (.696$\to$.888,
+  $p<.0001$); the .948-vs-.928 headline itself is $p=.125$.
+  (c) report the replication-noise floor (same query kept local in two
+  arms flips 2.3--18.8\% of the time; paired SE .009--.028) and STOP
+  narrating sub-3-point live deltas --- all 18 v2$\to$v3 arm deltas are
+  n.s.; the v3 evidence is the offline AUC, not the live curve.
+  Add \texttt{noise\_audit} as a methods figure.}
+\item \todonote{deployment artifact: \texttt{data/gate\_v3\_thresholds\_
+  corrected.json} (label-free quantiles). Only the frozen pool drifts
+  (fires .613 at the 50\% budget); correcting it removes 11.3\% of the
+  expert calls at equal accuracy (+.004, n.s.). The externals already
+  hit 15/30/50.}
+\item \todonote{next spend, ranked by the audit: (1) audio-direct-to-expert
+  --- the gold/heard gap on the frozen pool is now $-.175$, an order
+  above the noise floor, and it is the only lever whose effect a single
+  live sweep can resolve; (2) prefer variance-reduced readouts (AUC,
+  matched-rate precision, the \texttt{rate\_curves.json}
+  reconstruction) over arm accuracy; (3) only then buy larger $n$.}
 \end{itemize}

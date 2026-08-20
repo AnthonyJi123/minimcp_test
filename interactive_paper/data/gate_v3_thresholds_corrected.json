@@ -1,0 +1,104 @@
+{
+ "frozen": {
+  "realized": {
+   "conservative": 0.15833333333333333,
+   "balanced": 0.35,
+   "aggressive": 0.6125
+  },
+  "threshold_old": {
+   "conservative": 0.8016,
+   "balanced": 0.628,
+   "aggressive": 0.3541
+  },
+  "threshold_corrected": {
+   "conservative": 0.80666,
+   "balanced": 0.66992,
+   "aggressive": 0.45840000000000003
+  }
+ },
+ "striviaqa": {
+  "realized": {
+   "conservative": 0.152,
+   "balanced": 0.3,
+   "aggressive": 0.5
+  },
+  "threshold_old": {
+   "conservative": 0.7153,
+   "balanced": 0.6237,
+   "aggressive": 0.4699
+  },
+  "threshold_corrected": {
+   "conservative": 0.714705,
+   "balanced": 0.62216,
+   "aggressive": 0.46775
+  }
+ },
+ "swebq": {
+  "realized": {
+   "conservative": 0.152,
+   "balanced": 0.3,
+   "aggressive": 0.5
+  },
+  "threshold_old": {
+   "conservative": 0.7896,
+   "balanced": 0.6868,
+   "aggressive": 0.4901
+  },
+  "threshold_corrected": {
+   "conservative": 0.78925,
+   "balanced": 0.6833699999999999,
+   "aggressive": 0.4859
+  }
+ },
+ "sllama": {
+  "realized": {
+   "conservative": 0.152,
+   "balanced": 0.3,
+   "aggressive": 0.5
+  },
+  "threshold_old": {
+   "conservative": 0.5145,
+   "balanced": 0.324,
+   "aggressive": 0.167
+  },
+  "threshold_corrected": {
+   "conservative": 0.513275,
+   "balanced": 0.32386,
+   "aggressive": 0.167
+  }
+ },
+ "sreason": {
+  "realized": {
+   "conservative": 0.15346534653465346,
+   "balanced": 0.30198019801980197,
+   "aggressive": 0.5
+  },
+  "threshold_old": {
+   "conservative": 0.4255,
+   "balanced": 0.3515,
+   "aggressive": 0.2499
+  },
+  "threshold_corrected": {
+   "conservative": 0.4255,
+   "balanced": 0.35129,
+   "aggressive": 0.24885000000000002
+  }
+ },
+ "sdqa": {
+  "realized": {
+   "conservative": 0.15,
+   "balanced": 0.3,
+   "aggressive": 0.5
+  },
+  "threshold_old": {
+   "conservative": 0.83,
+   "balanced": 0.7384,
+   "aggressive": 0.6215
+  },
+  "threshold_corrected": {
+   "conservative": 0.827875,
+   "balanced": 0.7366499999999999,
+   "aggressive": 0.6205
+  }
+ }
+}

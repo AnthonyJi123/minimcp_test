@@ -33,12 +33,44 @@ g_lo = [acc[a]["gold_inject"] - acc[a]["gold_inject_ci"][0] for a in ARMS]
 g_hi = [acc[a]["gold_inject_ci"][1] - acc[a]["gold_inject"] for a in ARMS]
 ceil = json.load(open(f"{FIG}/live_dualview.json"))["gold_big"]
 
+# random-escalation reference (2026-08-20): accuracy pairs with the
+# GOLD view (gold outcomes exist for every id, the heard channel's do
+# not); x = simulated P50 of a random mixture at rate r, per-id local
+# latency from the never arm and per-id escalated latency from
+# whichever arm escalated that id
+import numpy as np
+import pandas as pd
+
+_d = pd.read_parquet(f"{FIG}/../data/frozen_v3_traces.parquet")
+_d = _d[_d["tier"].isin(ARMS)]
+_d["expert_ms"] = _d["expert_latency_s"].fillna(0) * 1000
+_esc = _d["mode"] == "escalated"
+_d["total_ms"] = np.where(
+    _esc,
+    _d["eot_read_ms"] + np.maximum(_d["stall_ms"].fillna(0),
+                                   _d["expert_ms"]) + _d["relay_ms"].fillna(0),
+    _d["eot_read_ms"] + _d["answer_ms"].fillna(0))
+_loc = _d[_d["tier"] == "never"].set_index("id")["total_ms"]
+_xm = _d[_esc].groupby("id")["total_ms"].median().reindex(_loc.index)
+_rng = np.random.default_rng(42)
+_obs = _d[_esc]["total_ms"].to_numpy()
+_xm[_xm.isna()] = _rng.choice(_obs, size=int(_xm.isna().sum()))
+_L, _X = _loc.to_numpy(), _xm.to_numpy()
+_n = len(_L)
+_rr = np.linspace(0, 1, 21)
+_rand_lat = [float(np.median(np.where(_rng.random((400, _n)) < r, _X, _L),
+                             axis=1).mean() / 1000) for r in _rr]
+_rand_acc = [gold[0] + (ceil - gold[0]) * r for r in _rr]
+
 fig, ax = plt.subplots(figsize=(6.4, 4.2))
 
+ax.plot(_rand_lat, _rand_acc, ls="--", lw=1.0, color=MUT, alpha=.8,
+        zorder=2, label="random escalation (pairs with the gold view; "
+                        "simulated P50)")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.0, alpha=.55, zorder=1)
-ax.text(1.62, ceil - .012, f"always-escalate ceiling {ceil:.3f} "
+ax.text(5.70, ceil - .055, f"always-escalate ceiling {ceil:.3f} "
         "(synthesized — no live latency)", fontsize=7.5, color=MUT,
-        va="top")
+        va="top", ha="right")
 
 ax.errorbar(x, gold, yerr=[g_lo, g_hi], fmt="--s", ms=5.5, color=GREEN,
             capsize=3, lw=1.4, alpha=.9, zorder=3,
@@ -57,7 +89,7 @@ for a, xi, yi in zip(ARMS, x, heard):
 for i in range(3):
     dx, dy = x[i + 1] - x[i], heard[i + 1] - heard[i]
     mx, my = (x[i] + x[i + 1]) / 2, (heard[i] + heard[i + 1]) / 2
-    off = (-8, 14) if i == 0 else (0, -24)
+    off = ((-8, 14), (26, -20), (0, -24))[i]
     ax.annotate(f"+{dy * 100:.1f} pts / +{dx:.1f} s", (mx, my),
                 xytext=off, textcoords="offset points", fontsize=7.5,
                 color=MUT, ha="right" if i == 0 else "center")
@@ -71,9 +103,11 @@ ax.text(x[3] + .07, (heard[3] + gold[3]) / 2,
         color=MUT, va="center")
 
 ax.text(.985, .02, "median view; the tail is priced separately — P99 "
-        "17.8 s (never) → 30.4 s (balanced),\nall of it the expert "
-        "reasoning tail (see the latency table)", transform=ax.transAxes,
-        fontsize=7, color=MUT, ha="right", va="bottom", style="italic")
+        f"{lat['never']['all']['p99']:.1f} s (never) → "
+        f"{lat['balanced']['all']['p99']:.1f} s (balanced),\nall of it "
+        "the expert reasoning tail (see the latency table)",
+        transform=ax.transAxes, fontsize=7, color=MUT, ha="right",
+        va="bottom", style="italic")
 
 ax.set_xlabel("P50 total response latency, query end → answer text "
               "done (s)", fontsize=9)

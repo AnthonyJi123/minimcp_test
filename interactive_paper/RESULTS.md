@@ -2734,7 +2734,7 @@ the aggressive arm (n=250, official judge):
 
 The probe cleanly split a .976 subset from a .704 subset — genuine
 per-query discrimination, not a pool/type shortcut (single-type pool).
-And because the small model *beats* the expert on the easy half
+**[SUPERSEDED 2026-08-20 by §8ad: paired McNemar gives p=1.00 on the easy half — "matches", not "beats"; the robust claims are the .976/.696 split (z=6.46) and the .696→.888 lift on the hard half (p<.0001).]** And because the small model *beats* the expert on the easy half
 (.976 vs .960 — gpt-5.5 over-elaborates short factoids), **"escalate
 everything" is NOT an accuracy upper bound**; only a selective router
 collects the max of both. This is the cleanest external evidence for
@@ -2889,7 +2889,7 @@ variance; same trace rows.)
   result confirmed with the better probe.
 - swebq/sdqa ≈ flat (within judge noise; both were probe-flat in the
   offline table too: swebq +.006, sdqa +.017 AUC).
-- ⚠️ Honest: frozen aggressive .621→.596 at esc .61 (vs .50) — the
+- ⚠️ **[SUPERSEDED 2026-08-20 by §8ad — re-mixing the same measured outcomes at exactly 50% gives .600, i.e. +.004: the overshoot is a COST bug, not an accuracy bug, and the .621→.596 delta is 1 paired SE = noise.]** Original text: frozen aggressive .621→.596 at esc .61 (vs .50) — the
   overshoot pushes ~26 extra math/LaTeX-heavy queries through the
   transcript-tax channel (8d: ASR-distill −.31 on knowledge entities);
   balanced/conservative arms improved (+.021/+.016). Fair-subset curve
@@ -3055,7 +3055,102 @@ streaming 4-arm curve (needs the duplex loop ported to NeMo), calib
 expansion to the full 2310, Anthony's fine-tuned checkpoints as the
 training-vs-routing ablation.
 
+### 8ad — noise audit + two superseded attributions + the stale live figures ($0 local, 2026-08-20)
+
+Started as "fix the 8z-live threshold overshoot". The fix worked and
+then falsified its own premise, which cascaded into an audit.
+
+**Reconstruction method (new, $0).** Three properties of the live
+sweeps make a CONTINUOUS rate-accuracy curve recoverable from the
+existing traces: (1) the three gated arms carry bit-identical probe
+scores (max spread 0.00000) so "top-r by score" is unambiguous; (2)
+the tiers are perfectly NESTED (cons subset bal subset agg, 0
+violations in 6 pools); (3) one query per session, so a query's
+outcome does not depend on the arm's rate. Therefore for any r <=
+agg-rate every selected id has a measured escalated outcome and every
+other id has a measured local outcome (never arm). `figures/
+rate_curve.py` -> `data/rate_curves.json`. Self-check: reconstruction
+vs the measured arms deviates by .011 mean absolute (max .029),
+consistent with the replication noise measured below.
+
+**⚠️ SUPERSEDED #1 — the 8z-live overshoot attribution.** RESULTS 8z-live
+attributed frozen aggressive .621→.596 to the calib-quantile threshold
+firing at .613 instead of .50 ("pushes ~26 extra math/LaTeX queries
+through the transcript-tax channel"). Re-mixing the same measured
+outcomes at exactly 50% gives **.600 — i.e. +.004, nothing**. The rate
+error is a COST bug, not an accuracy bug: correcting it removes 11.3%
+of the expert calls at equal accuracy. `data/
+gate_v3_thresholds_corrected.json` carries label-free corrected
+quantiles for all 6 pools (only frozen drifts; the externals already
+hit budget at 15/30/50).
+
+**⚠️ SUPERSEDED #2 — "the small model BEATS the expert on the easy
+half" (8x/8y).** Paired McNemar on the sllama aggressive arm: kept-local
+half n=125, local .976 vs expert .968, discordant 2 vs 1, **p = 1.00 —
+statistically indistinguishable, not "beats"**. The robust form of the
+claim is (a) the probe's split is real and large — local acc .976
+(kept) vs .696 (escalated), **z = 6.46**; (b) the expert's advantage is
+concentrated entirely in the escalated half (.696→.888, discordant 27
+vs 3, **p < .0001**); (c) therefore always-escalate spends 2× the
+expert calls to buy nothing measurable over selective. The headline
+"selective .948 > always .928" itself is 6-vs-1 discordant, **p =
+.125** — directionally right, underpowered because both sit near
+ceiling. Paper wording must move from "beats" to "matches at half the
+cost".
+
+**The replication-noise floor (why both corrections were needed).**
+Same query, same audio, kept LOCAL in two different arms — the judge
+verdict flips **2.3-18.8%** of the time (frozen .155, sdqa .188,
+sreason .169, swebq .160, striviaqa .074, sllama .023). Repeat
+ESCALATION flips 0.7-10.6%. Implied paired SE on an arm-vs-arm
+accuracy delta: **.009-.028**. Against that floor, **all 18 live v2→v3
+deltas are non-significant** (McNemar p = .16-1.00; the largest,
+striviaqa balanced +.036, gives p = .16). This does not touch the
+offline AUC gains (a much tighter statistic on the full score
+distribution) — but the live-curve "confirmations" of them, including
+sreason's cross-lingual +.010-.030, were over-read. Figure:
+`noise_audit.{png,pdf}`.
+
+**⚠️ Bug found while fixing the figures: the paper's two main LIVE
+figures were two probe generations stale.** `live_dualview.json` /
+`latency_profile.json` are written by `modal_stream.py::live_dualview`
+off `gated_traces_v2.parquet` — that file is the streaming-loop-v2 /
+probe-**v1** sweep (json mtime 2026-07-30). The v2 (8u) and v3
+(8z-live) re-runs wrote `frozen_v{2,3}_traces.parquet` and only the
+external-bench figures were refreshed, so fig:live and fig:pareto
+still showed v1 arms. Rebuilt locally at $0 by `figures/
+live_v3_figures.py` (v1 archived as `*_v1.{json,png,pdf}`):
+
+| view | v1 (shown until today) | v3 (correct) |
+|---|---|---|
+| rates | 0/14/35/55% | 0/16/35/61% |
+| heard | .400/.446/.529/.633 | .383/.483/.554/.596 |
+| gold-inject | .400/.500/.637/.767 | .383/.525/.654/.771 |
+| P50 latency | 2.02/2.76/4.00/4.69 s | 2.02/2.61/3.53/4.44 s |
+| channel cost @agg | −.133 | **−.175** |
+
+The v3 deployed curve is FLATTER and the channel cost LARGER: at
+bal/agg the heard curve now sits below the gold-paired random line —
+i.e. on this mixed pool the speech-channel tax (.175) exceeds the
+selection margin, and only the channel-controlled (gold) view clears
+random (+.061 at 61%). That is the honest headline for the frozen
+pool and it strengthens the case for the audio-direct-to-expert lever.
+`pareto_latency.py` also got the random-escalation curve it was
+missing (8ab todo) and its hard-coded P99 text is now read from the
+json (17.8→32.7 s, was 30.4).
+
+**Consequence for "can we improve further".** Our measurement
+precision on a 200-250-query pool (±.02-.03 per arm) is now the
+binding constraint: any lever worth less than ~3 points is
+undetectable in a single live sweep. Ranked next steps: (1)
+audio-direct-to-expert — gold-inject says .175 sits in that channel on
+this pool, far above the noise floor; (2) evaluate on paired/
+variance-reduced statistics (AUC, matched-rate precision, the
+reconstruction curve) rather than arm accuracy; (3) only then spend on
+bigger n.
+
 ---
+
 
 ### 2.1 public pools ✅ (2026-07-07)
 
