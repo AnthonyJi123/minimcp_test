@@ -3225,11 +3225,40 @@ which makes it a good latency-cost illustration but a poor accuracy
 one; the app ships three example questions including a long-tail fact
 the talker got wrong in the sweep and the gate rescued.)
 
+**Microphone input (user: "这个 demo 要让我能说话的").** The talker is a
+speech model, so typing + TTS was a stand-in. The page now records from
+the browser (MediaRecorder -> webm/opus), the container transcodes with
+ffmpeg to 16 kHz mono and streams THAT into the duplex loop — no TTS
+anywhere on this path. One consequence is scientifically useful: with
+real speech there is no gold text, so the escalation uplink MUST be a
+transcript, and the demo uses the 8ae hosted-ASR uplink (the arm
+measured +.109 the same day) and shows the reader exactly what the
+expert was told.
+
+Both branches verified with real payloads built off the volume's own
+audio (SD-QA human speech and a frozen-pool wav, re-encoded to
+webm/opus so the request is byte-shaped like the browser's):
+
+| | local branch (SD-QA, real human voice) | escalation branch (q0225, 48.7 s spoken MCQ) |
+|---|---|---|
+| end-of-turn read | 40 ms, P(fail) **.105** | 21 ms, P(fail) **.867** |
+| gate | < .680 -> keep local | >= .680 -> **escalate** |
+| outcome | correct answer in 1.6 s | ASR heard the full question -> gpt-5.5 "B. +7.3 J/mol" -> talker relayed it |
+| total | 1.6 s | 13.2 s |
+
+**This also closes 8ae's open latency question with a first datapoint:
+the hosted-ASR call cost 4.81 s on the critical path** for a 48.7 s
+clip (expert total 12.8 s, of which the talker's stall covered only
+0.1 s). Short queries will pay far less, but the uplink is not free and
+the stall phrase does not hide it — a live 4-arm sweep with the uplink
+in the loop is still the number that matters.
+
 Engineering notes for whoever redeploys: a live turn far exceeds the
 web proxy's synchronous window, so the endpoint `spawn`s and the page
-polls; and `demo_app.py` imports `modal_app` at module level, so BOTH
+polls; `demo_app.py` imports `modal_app` at module level, so BOTH
 images must mount `modal_app.py` or the web container dies before
-serving (cost one confusing hang).
+serving (cost one confusing hang); and the mic needs HTTPS, which the
+Modal URL already provides.
 
 ---
 

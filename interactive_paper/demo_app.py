@@ -59,11 +59,23 @@ RELAY_TMPL = ("A verified answer came back: {ans}\n"
 @app.function(image=gpu_image, gpu="H100",
               volumes={"/workspace/models": weights, DATA: gate_data},
               secrets=[OPENAI], timeout=60 * 20, scaledown_window=300)
-def live_once(question: str, tier: str = "balanced", probe_on: bool = True):
-    """One real end-to-end turn. Returns the event log + the answer."""
+def live_once(question: str = "", tier: str = "balanced",
+              probe_on: bool = True, audio_b64: str = "",
+              audio_ext: str = "webm"):
+    """One real end-to-end turn.
+
+    audio_b64 set  -> YOUR VOICE goes into the duplex talker unchanged
+                      (no TTS anywhere) and, on escalation, the wav is
+                      transcribed by the hosted ASR and that text is
+                      what the expert reads — the 8ae uplink, which is
+                      also the only option once there is no gold text.
+    question set   -> tts-1/alloy renders it first (frozen-pool path).
+    """
+    import base64
     import glob as _glob
     import inspect
     import shutil
+    import subprocess
     import sys
     import threading
     import numpy as np
@@ -101,16 +113,24 @@ def live_once(question: str, tier: str = "balanced", probe_on: bool = True):
     log(f"probe v{art.get('version')} loaded: L{LAYER}, reads {modes}, "
         f"tier={tier}, threshold={thr:.3f}")
 
-    # same TTS as the frozen pool (alloy, tts-1)
     t0 = time.time()
     wav_path = "/tmp/q.wav"
-    r = escalate._client().audio.speech.create(
-        model="tts-1", voice="alloy", input=question,
-        response_format="wav")
-    open(wav_path, "wb").write(r.content)
-    au, _ = librosa.load(wav_path, sr=16000, mono=True)
-    log(f"TTS rendered the question ({len(au) / 16000:.1f} s of audio, "
-        f"voice=alloy)", ms=int((time.time() - t0) * 1000))
+    if audio_b64:
+        src = f"/tmp/in.{audio_ext}"
+        open(src, "wb").write(base64.b64decode(audio_b64))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src,
+                        "-ar", "16000", "-ac", "1", wav_path], check=True)
+        au, _ = librosa.load(wav_path, sr=16000, mono=True)
+        log(f"your microphone: {len(au) / 16000:.1f} s of real speech "
+            f"(no TTS in this path)", ms=int((time.time() - t0) * 1000))
+    else:
+        r = escalate._client().audio.speech.create(
+            model="tts-1", voice="alloy", input=question,
+            response_format="wav")
+        open(wav_path, "wb").write(r.content)
+        au, _ = librosa.load(wav_path, sr=16000, mono=True)
+        log(f"TTS rendered the question ({len(au) / 16000:.1f} s of "
+            f"audio, voice=alloy)", ms=int((time.time() - t0) * 1000))
 
     def call_def(fn, /, **kw):
         p = set(inspect.signature(fn).parameters)
@@ -212,7 +232,20 @@ def live_once(question: str, tier: str = "balanced", probe_on: bool = True):
 
         def expert_call():
             t0 = time.time()
-            r = escalate.ask_expert(question, effort="low")
+            uplink = question
+            if audio_b64:
+                # no gold text exists for real speech — this is the 8ae
+                # cloud-ASR uplink (.585 -> .694 vs the talker's own
+                # transcript on the frozen pool, McNemar p=.007)
+                with open(wav_path, "rb") as fh:
+                    tr = escalate._client().audio.transcriptions.create(
+                        model="gpt-transcribe", file=fh,
+                        response_format="text")
+                uplink = tr if isinstance(tr, str) else getattr(
+                    tr, "text", str(tr))
+                exp["uplink_text"] = uplink
+                exp["asr_s"] = time.time() - t0
+            r = escalate.ask_expert(uplink, effort="low")
             exp["answer"] = r.get("answer") or f"[error: {r.get('error')}]"
             exp["wall_s"] = time.time() - t0
 
@@ -226,6 +259,10 @@ def live_once(question: str, tier: str = "balanced", probe_on: bool = True):
         t_stall = time.time()
         th.join(timeout=120)
         t_expert = time.time()
+        if exp.get("uplink_text"):
+            log(f"uplink: hosted ASR heard “{exp['uplink_text'][:120]}” "
+                f"({exp.get('asr_s', 0):.1f} s) — that text is what the "
+                f"expert reads (RESULTS 8ae)")
         log(f"expert answered in {exp.get('wall_s', -1):.1f} s "
             f"(talker's stall covered "
             f"{(t_stall - t_eot):.1f} s of it)")
@@ -239,6 +276,8 @@ def live_once(question: str, tier: str = "balanced", probe_on: bool = True):
                    expert_answer=exp.get("answer", ""),
                    expert_latency_s=round(exp.get("wall_s", -1), 2),
                    stall_ms=int((t_stall - t_eot) * 1000),
+                   uplink_text=exp.get("uplink_text"),
+                   asr_s=round(exp.get("asr_s", 0), 2),
                    relay_ms=int((time.time() - t_expert) * 1000))
         log(f"talker relayed the verified answer "
             f"({out['relay_ms']} ms)")
@@ -355,17 +394,20 @@ def web():
         return JSONResponse(rows[:400])
 
     class LiveReq(BaseModel):
-        question: str
+        question: str = ""
         tier: str = "balanced"
         probe_on: bool = True
+        audio_b64: str = ""
+        audio_ext: str = "webm"
 
     # a live turn is a cold H100 + model load + streaming + expert — far
     # past the proxy's synchronous response window, so spawn and poll
     @api.post(f"/{TOKEN}/api/live")
     def live(req: LiveReq):
-        if not req.question.strip():
-            raise HTTPException(400, "empty question")
-        fc = live_once.spawn(req.question.strip(), req.tier, req.probe_on)
+        if not (req.question.strip() or req.audio_b64):
+            raise HTTPException(400, "need a question or a recording")
+        fc = live_once.spawn(req.question.strip(), req.tier, req.probe_on,
+                             req.audio_b64, req.audio_ext)
         return JSONResponse({"call_id": fc.object_id})
 
     @api.get(f"/{TOKEN}/api/live_result")
@@ -475,7 +517,18 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
       </div>
     </div>
     <div class=card id=livebox style="display:none;margin-top:1rem">
-      <h2>Ask anything</h2>
+      <h2>Talk to it</h2>
+      <button id=mic class=primary style="width:100%;font-size:.95rem">
+        Hold to speak — or click to start</button>
+      <div class=row style="margin-top:.4rem">
+        <span id=rec class=muted>mic idle</span>
+        <audio id=play controls style="height:28px;display:none;flex:1"></audio>
+      </div>
+      <div class=muted style="margin-top:.35rem">Your real voice goes
+        straight into the duplex talker — no TTS. If the gate fires, the
+        recording is transcribed by the hosted ASR and <i>that</i> is what
+        the expert reads (the +.109 uplink, RESULTS 8ae).</div>
+      <h2 style="margin-top:.9rem">…or type it</h2>
       <input id=q placeholder="e.g. what is NVDA trading at right now?">
       <div class=row style="margin-top:.4rem" id=chips></div>
       <div class=muted style="margin-top:.4rem">Rendered with tts-1/alloy,
@@ -644,17 +697,55 @@ function impliedThr(d){
   return ((THR[d.pool]||{})[d.tier]);
 }
 
+let MR=null,CH=[],BLOB=null,T0=0,TIMER=null;
+async function startRec(){
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:{
+      channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    MR=new MediaRecorder(st);CH=[];
+    MR.ondataavailable=e=>{if(e.data.size)CH.push(e.data)};
+    MR.onstop=()=>{
+      BLOB=new Blob(CH,{type:MR.mimeType||"audio/webm"});
+      $("#play").src=URL.createObjectURL(BLOB);
+      $("#play").style.display="";
+      st.getTracks().forEach(t=>t.stop());
+      clearInterval(TIMER);
+      const s=((Date.now()-T0)/1000).toFixed(1);
+      $("#rec").textContent=`recorded ${s}s — sending…`;
+      log(`recorded ${s}s of speech`);
+      runLive();
+    };
+    MR.start();T0=Date.now();
+    $("#mic").textContent="● recording — click to stop";
+    $("#mic").style.background="#b00";$("#mic").style.borderColor="#b00";
+    TIMER=setInterval(()=>{$("#rec").textContent=
+      `recording ${((Date.now()-T0)/1000).toFixed(1)}s`},100);
+  }catch(e){log("microphone blocked: "+e,"off");
+    $("#rec").textContent="mic permission denied"}
+}
+function stopRec(){
+  if(MR&&MR.state!=="inactive")MR.stop();
+  MR=null;$("#mic").textContent="Hold to speak — or click to start";
+  $("#mic").style.background="";$("#mic").style.borderColor="";
+}
+$("#mic").onclick=()=>{ if(MR&&MR.state==="recording") stopRec();
+                        else startRec(); };
+const b64=b=>new Promise(r=>{const f=new FileReader();
+  f.onloadend=()=>r(f.result.split(",")[1]);f.readAsDataURL(b)});
+
 async function runLive(){
   const q=$("#q").value.trim();
-  if(!q){log("type a question first","off");return}
+  if(!q&&!BLOB){log("record something or type a question first","off");return}
   $("#runlive").disabled=true;$("#state").textContent=
     "live turn running (cold start ~1 min)…";
   log(`— live turn, probe ${probeOn?"ON":"OFF"}, tier ${$("#tier").value} —`);
   try{
     const r=await fetch(`/${T}/api/live`,{method:"POST",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({question:q,tier:$("#tier").value,
-        probe_on:probeOn})});
+      body:JSON.stringify({question:BLOB?"":q,tier:$("#tier").value,
+        probe_on:probeOn,
+        audio_b64:BLOB?await b64(BLOB):"",
+        audio_ext:BLOB&&/ogg/.test(BLOB.type)?"ogg":"webm"})});
     if(!r.ok){log("live error: "+await r.text(),"off");return}
     const {call_id}=await r.json();
     log(`queued on an H100 (call ${call_id.slice(0,10)}…) — polling`);
@@ -673,7 +764,9 @@ async function runLive(){
     $("#turn").innerHTML=`
      <div class=row><span class="pill g">live</span>
        <span class="pill ${fired?'ok':'m'}">${fired?"ESCALATED":"LOCAL"}</span></div>
-     <div class=q><b>Q.</b> ${esc(d.question)}</div>
+     <div class=q><b>Q.</b> ${esc(d.question)||"<i>(your voice)</i>"}</div>
+     ${d.uplink_text?`<div class=muted>hosted ASR heard (this is what the
+       expert read): <i>${esc(d.uplink_text)}</i></div>`:""}
      ${spark(d.scores,d.threshold,d.eot_score)}
      <div class=muted>P(fail) as the question streams in; red = the
        ${d.tier} threshold</div>
@@ -692,7 +785,7 @@ async function runLive(){
      </table>`;
     S.n++;S.esc+=fired?1:0;S.ms+=d.total_ms||0;
     if(probeOn)S.onN++;else S.offN++;
-    tiles();
+    tiles();BLOB=null;$("#rec").textContent="mic idle";
   }catch(e){log("live error: "+e,"off")}
   finally{$("#runlive").disabled=false;$("#state").textContent=""}
 }
