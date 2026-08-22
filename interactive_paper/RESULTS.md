@@ -3260,7 +3260,51 @@ images must mount `modal_app.py` or the web container dies before
 serving (cost one confusing hang); and the mic needs HTTPS, which the
 Modal URL already provides.
 
+### 8ag — demo v2: continuous voice + GPU readiness gating (2026-08-21)
+
+User feedback on 8af, both points valid: (1) a record-button is not a
+voice conversation — they want to just TALK; (2) the mic must not be
+clickable while the GPU is cold. Rebuilt the live path:
+
+- **Resident GPU class** (`Voice`, modal.cls): the model loads once in
+  `@enter` (~12-30 s off the warm volume), the browser's WebSocket
+  lands on the same container, `scaledown_window=420`. `/ready` cannot
+  return before `@enter` finishes, so the mic button being enabled IS
+  the readiness proof — the page polls it with a visible elapsed
+  counter and keeps the button disabled until then.
+- **Continuous voice**: the page streams 16 kHz int16 PCM continuously
+  (ScriptProcessor; no start/stop per turn). Server-side energy VAD
+  (speech ≥0.2 s, then 1.25 s silence) ends the turn; then the same
+  primitives as bench_live run: per-1s-chunk probe scores (streamed to
+  the page live as you speak), the end-of-turn L22 read, the frozen
+  threshold, local answer or 8ae-uplink escalation — then it resets
+  and listens again. Multi-turn on one socket.
+- Typed questions now go through the same warm container (`/say`) —
+  no more per-turn cold model load.
+
+Verified end-to-end with browser-shaped PCM streams built from the
+volume's own audio: turn 0 (SD-QA human speech) P(fail) .126 -> local,
+correct, 3.5 s of speech; turn 1 (spoken thermodynamics MCQ) P(fail)
+.755 >= .680 -> escalated, hosted ASR transcript -> gpt-5.5 -> relay;
+both turns on one socket, session survives into a third listen state.
+
+Debug receipts (each cost a failed round): (1) the GPU image must
+carry fastapi — the container crash-looped importing the in-container
+ASGI app while /ready timed out silently for 8 min; the image now
+replicates modal_app's proven MiniCPM spec verbatim + fastapi, because
+Modal forbids stacking layers on an image that ends in add_local_dir.
+(2) During cold start Modal serves /ready as a 303 long-poll redirect
+chain — both the page and any client must POLL with short timeouts,
+not follow one long request. (3) A WS upgrade against a cold container
+times out at the proxy — always /ready first, then connect (the page
+already did; the first test didn't). (4) VAD at 0.9 s cut a long
+spoken question at a thinking pause -> 1.25 s. (5) A client that stops
+streaming after its audio can strand the VAD one frame short of EOT
+forever — a real mic never stops sending, and the test now mimics
+that (background silence frames until the turn lands).
+
 ---
+
 
 
 

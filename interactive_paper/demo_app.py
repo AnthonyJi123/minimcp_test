@@ -37,11 +37,14 @@ LAYER = 22
 POOLS = ("frozen", "striviaqa", "swebq", "sllama", "sreason", "sdqa")
 TIERS = ("conservative", "balanced", "aggressive")
 
-# reuse the PROVEN MiniCPM image (torch 2.8 / transformers 4.51.0 pin +
-# minicpmo-utils) rather than rebuilding it — 4.52+ breaks the Resampler.
-# demo_app.py imports modal_app at module level, so BOTH images must
-# carry that file or the container dies before serving anything.
-from modal_app import image as _mini_image, OPENAI  # noqa: E402
+# The GPU image replicates modal_app's PROVEN MiniCPM spec verbatim
+# (torch 2.8 / transformers 4.51.0 pin — 4.52+ breaks the Resampler)
+# plus fastapi for the in-container ASGI app. It cannot be derived from
+# modal_app.image directly: that one ends with add_local_dir, and Modal
+# forbids stacking build layers on top of local files (the first deploy
+# tried and the Voice container crash-looped on "No module named
+# fastapi" while /ready timed out for 8 minutes).
+from modal_app import OPENAI  # noqa: E402
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _APP_PY = os.path.join(_HERE, "modal_app.py")
@@ -49,241 +52,424 @@ _APP_PY = os.path.join(_HERE, "modal_app.py")
 web_image = (modal.Image.debian_slim(python_version="3.11")
              .pip_install("fastapi[standard]", "pandas", "pyarrow")
              .add_local_file(_APP_PY, "/root/modal_app.py"))
-gpu_image = _mini_image.add_local_file(_APP_PY, "/root/modal_app.py")
+gpu_image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .apt_install("git", "ffmpeg", "libgl1", "libglib2.0-0", "libsndfile1")
+    .pip_install("torch==2.8.0", "torchaudio==2.8.0")
+    .pip_install(
+        "minicpmo-utils[all]",
+        "transformers==4.51.0",
+        "accelerate==1.12.0",
+        "setuptools<81",
+        "pydantic>=2.11",
+        "PyYAML",
+        "soundfile",
+        "opencv-python-headless",
+        "huggingface_hub[hf_transfer]",
+        "scikit-learn",
+        "pandas",
+        "pyarrow",
+        "openai",
+        "sentencepiece",
+        "fastapi[standard]",          # the one addition: in-container ASGI
+    )
+    .add_local_dir(os.path.join(_HERE, "src"), "/workspace/gate")
+    .add_local_file(_APP_PY, "/root/modal_app.py"))
 STALL = "Let me check that for you."
 RELAY_TMPL = ("A verified answer came back: {ans}\n"
               "Relay it to the user in one or two spoken sentences.")
 
 
 # ----------------------------------------------------------------- live ---
-@app.function(image=gpu_image, gpu="H100",
-              volumes={"/workspace/models": weights, DATA: gate_data},
-              secrets=[OPENAI], timeout=60 * 20, scaledown_window=300)
-def live_once(question: str = "", tier: str = "balanced",
-              probe_on: bool = True, audio_b64: str = "",
-              audio_ext: str = "webm"):
-    """One real end-to-end turn.
+# A resident GPU class: the model loads ONCE at container start, the
+# browser talks to it over a WebSocket on the same container, and the
+# page's mic button stays disabled until /ready returns — which by
+# construction cannot happen before the model is loaded (@enter).
+#
+# Continuous voice, no record button: the page streams 16 kHz int16 PCM
+# frames; the server feeds 1 s chunks into the duplex loop exactly like
+# bench_live, scores the probe per chunk, and a ~0.9 s silence after
+# speech ends the turn (energy VAD — logged, since the benchmarks used
+# known audio ends instead). On escalation there is no gold text, so
+# the wav goes through the 8ae hosted-ASR uplink to gpt-5.5.
 
-    audio_b64 set  -> YOUR VOICE goes into the duplex talker unchanged
-                      (no TTS anywhere) and, on escalation, the wav is
-                      transcribed by the hosted ASR and that text is
-                      what the expert reads — the 8ae uplink, which is
-                      also the only option once there is no gold text.
-    question set   -> tts-1/alloy renders it first (frozen-pool path).
-    """
-    import base64
-    import glob as _glob
+def _call_def(fn, /, **kw):
     import inspect
-    import shutil
-    import subprocess
-    import sys
-    import threading
-    import numpy as np
-    import librosa
-    import torch
-    from transformers import AutoModel, AutoTokenizer
-    sys.path.insert(0, "/workspace/gate")
-    import escalate
-    import gate as gate_mod
+    p = set(inspect.signature(fn).parameters)
+    return fn(**{k: v for k, v in kw.items() if k in p})
 
-    ev, t00 = [], time.time()
 
-    def log(msg, **kw):
-        ev.append({"t_ms": int((time.time() - t00) * 1000),
-                   "msg": msg, **kw})
-
-    cache = os.path.expanduser("~/.cache/huggingface/modules/"
-                               "transformers_modules/"
-                               + os.path.basename(MODEL_DIR))
-    os.makedirs(cache, exist_ok=True)
-    for f in _glob.glob(f"{MODEL_DIR}/*.py"):
-        shutil.copy(f, cache)
-    log("loading MiniCPM-o 4.5 (duplex, audio in / text out)")
-    model = AutoModel.from_pretrained(
-        MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
-        torch_dtype=torch.bfloat16,
-        init_vision=False, init_audio=True, init_tts=False).eval().cuda()
-    tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
-    log("talker ready")
-
-    art = json.load(open(f"{DATA}/midlayer_gate_audio_v3.json"))
-    probe = gate_mod.Probe(art["w"], art["b"])
-    thr = art["eot_thresholds"][tier]
-    K3, modes = art.get("k_eot", 8), art["modes"]
-    log(f"probe v{art.get('version')} loaded: L{LAYER}, reads {modes}, "
-        f"tier={tier}, threshold={thr:.3f}")
-
-    t0 = time.time()
-    wav_path = "/tmp/q.wav"
-    if audio_b64:
-        src = f"/tmp/in.{audio_ext}"
-        open(src, "wb").write(base64.b64decode(audio_b64))
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src,
-                        "-ar", "16000", "-ac", "1", wav_path], check=True)
-        au, _ = librosa.load(wav_path, sr=16000, mono=True)
-        log(f"your microphone: {len(au) / 16000:.1f} s of real speech "
-            f"(no TTS in this path)", ms=int((time.time() - t0) * 1000))
+def _gen_text(model, tok, **kw):
+    import inspect
+    kw.setdefault("max_new_tokens", 512)
+    res = _call_def(model.streaming_generate, tokenizer=tok,
+                    temperature=0.1, generate_audio=False, **kw)
+    parts = []
+    if inspect.isgenerator(res) or hasattr(res, "__next__"):
+        for x in res:
+            t = getattr(x, "text", None)
+            if t is None and isinstance(x, dict):
+                t = x.get("text")
+            if t is None and isinstance(x, (tuple, list)) and x:
+                t = x[0]
+            if isinstance(t, str):
+                parts.append(t)
     else:
-        r = escalate._client().audio.speech.create(
-            model="tts-1", voice="alloy", input=question,
-            response_format="wav")
-        open(wav_path, "wb").write(r.content)
-        au, _ = librosa.load(wav_path, sr=16000, mono=True)
-        log(f"TTS rendered the question ({len(au) / 16000:.1f} s of "
-            f"audio, voice=alloy)", ms=int((time.time() - t0) * 1000))
+        parts.append(str(res))
+    return "".join(parts).strip()
 
-    def call_def(fn, /, **kw):
-        p = set(inspect.signature(fn).parameters)
-        return fn(**{k: v for k, v in kw.items() if k in p})
 
-    def gen_text(**kw):
-        kw.setdefault("max_new_tokens", 512)
-        res = call_def(model.streaming_generate, tokenizer=tok,
-                       temperature=0.1, generate_audio=False, **kw)
+@app.cls(image=gpu_image, gpu="H100",
+         volumes={"/workspace/models": weights, DATA: gate_data},
+         secrets=[OPENAI], timeout=60 * 60, scaledown_window=420)
+@modal.concurrent(max_inputs=8)
+class Voice:
+    @modal.enter()
+    def load(self):
+        import glob as _glob
+        import shutil
+        import sys
+        import threading
+        import torch
+        from transformers import AutoModel, AutoTokenizer
+        sys.path.insert(0, "/workspace/gate")
+        import gate as gate_mod
+
+        t0 = time.time()
+        cache = os.path.expanduser("~/.cache/huggingface/modules/"
+                                   "transformers_modules/"
+                                   + os.path.basename(MODEL_DIR))
+        os.makedirs(cache, exist_ok=True)
+        for f in _glob.glob(f"{MODEL_DIR}/*.py"):
+            shutil.copy(f, cache)
+        self.model = AutoModel.from_pretrained(
+            MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+            torch_dtype=torch.bfloat16,
+            init_vision=False, init_audio=True,
+            init_tts=False).eval().cuda()
+        self.tok = AutoTokenizer.from_pretrained(MODEL_DIR,
+                                                 trust_remote_code=True)
+        self.art = json.load(open(f"{DATA}/midlayer_gate_audio_v3.json"))
+        self.probe = gate_mod.Probe(self.art["w"], self.art["b"])
+        self.K3 = self.art.get("k_eot", 8)
+        self.modes = self.art["modes"]
+        self.st3 = {"accum": False, "tail": None, "sum": None, "cnt": 0}
+
+        import torch as _t
+
+        def hook(_m, _i, out):
+            hs = out[0] if isinstance(out, tuple) else out
+            h = hs[0].detach().float()
+            t = h[-self.K3:].cpu()
+            self.st3["tail"] = (t if self.st3["tail"] is None
+                                else _t.cat([self.st3["tail"], t])[-self.K3:])
+            if self.st3["accum"]:
+                sm = h.sum(0).cpu()
+                self.st3["sum"] = (sm if self.st3["sum"] is None
+                                   else self.st3["sum"] + sm)
+                self.st3["cnt"] += h.shape[0]
+        self.model.llm.model.layers[LAYER].register_forward_hook(hook)
+        self.lock = threading.Lock()
+        self.load_s = round(time.time() - t0, 1)
+        print(f">>> Voice ready in {self.load_s}s", flush=True)
+
+    # ---- turn primitives (shared by the WS loop and /say) ----------------
+    def _score_now(self):
+        import torch
         parts = []
-        if inspect.isgenerator(res) or hasattr(res, "__next__"):
-            for x in res:
-                t = getattr(x, "text", None)
-                if t is None and isinstance(x, dict):
-                    t = x.get("text")
-                if t is None and isinstance(x, (tuple, list)) and x:
-                    t = x[0]
-                if isinstance(t, str):
-                    parts.append(t)
-        else:
-            parts.append(str(res))
-        return "".join(parts).strip()
-
-    st3 = {"accum": False, "tail": None, "sum": None, "cnt": 0}
-
-    def hook(_m, _i, out):
-        hs = out[0] if isinstance(out, tuple) else out
-        h = hs[0].detach().float()
-        t = h[-K3:].cpu()
-        st3["tail"] = (t if st3["tail"] is None
-                       else torch.cat([st3["tail"], t])[-K3:])
-        if st3["accum"]:
-            s = h.sum(0).cpu()
-            st3["sum"] = s if st3["sum"] is None else st3["sum"] + s
-            st3["cnt"] += h.shape[0]
-
-    def score_now():
-        parts = []
-        for m in modes:
+        for m in self.modes:
             if m == "eot_last":
-                parts.append(st3["tail"][-1])
+                parts.append(self.st3["tail"][-1])
             elif m == "eot_mean":
-                parts.append(st3["tail"].mean(0))
+                parts.append(self.st3["tail"].mean(0))
             elif m == "user_mean":
-                parts.append(st3["sum"] / max(1, st3["cnt"]))
-        return float(probe.score(torch.cat(parts).numpy()))
+                parts.append(self.st3["sum"] / max(1, self.st3["cnt"]))
+        return float(self.probe.score(torch.cat(parts).numpy()))
 
-    chunks = [au[i:i + 16000] for i in range(0, len(au), 16000)]
-    model.reset_session()
-    sys_msg = call_def(model.get_sys_prompt, mode="omni", language="en")
-    call_def(model.streaming_prefill, session_id="s1", msgs=[sys_msg],
-             tokenizer=tok)
-    h = model.llm.model.layers[LAYER].register_forward_hook(hook)
-    st3.update(tail=None, sum=None, cnt=0, accum=True)
-    scores = []
-    try:
-        for i, ch in enumerate(chunks):
-            if len(ch) < 16000:
-                ch = np.pad(ch, (0, 16000 - len(ch)))
-            call_def(model.streaming_prefill, session_id="s1",
-                     msgs=[{"role": "user",
-                            "content": [ch.astype(np.float32)]}],
-                     tokenizer=tok, is_last_chunk=(i == len(chunks) - 1))
-            s = round(score_now(), 4)
-            scores.append(s)
-            log(f"chunk {i + 1}/{len(chunks)} streamed — running "
-                f"P(fail)={s:.3f}", score=s)
-        st3["accum"] = False
-        t_eot0 = time.time()
-        call_def(model.streaming_prefill, session_id="s1",
-                 msgs=[{"role": "assistant", "content": [" "]}],
-                 tokenizer=tok, is_last_chunk=True)
-        eot = score_now()
-        eot_ms = int((time.time() - t_eot0) * 1000)
-    finally:
-        h.remove()
-    log(f"END OF TURN — probe read L{LAYER} in {eot_ms} ms: "
-        f"P(fail)={eot:.3f}", score=round(eot, 4))
+    def _turn_reset(self):
+        self.model.reset_session()
+        self.st3.update(tail=None, sum=None, cnt=0, accum=True)
+        sys_msg = _call_def(self.model.get_sys_prompt, mode="omni",
+                            language="en")
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[sys_msg], tokenizer=self.tok)
 
-    fired = bool(probe_on and eot >= thr)
-    if not probe_on:
-        log("PROBE OFF — gate bypassed, always answer locally")
-    else:
-        log(f"gate: {eot:.3f} {'>=' if fired else '<'} {thr:.3f} → "
-            f"{'ESCALATE' if fired else 'keep local'}")
+    def _feed(self, ch, last):
+        import numpy as np
+        if len(ch) < 16000:
+            ch = np.pad(ch, (0, 16000 - len(ch)))
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[{"role": "user",
+                         "content": [ch.astype("float32")]}],
+                  tokenizer=self.tok, is_last_chunk=bool(last))
+        return round(self._score_now(), 4)
 
-    t_eot = time.time()
-    out = {"question": question, "tier": tier, "probe_on": probe_on,
-           "eot_score": round(eot, 4), "threshold": round(thr, 4),
-           "scores": scores, "eot_read_ms": eot_ms,
-           "audio_s": round(len(au) / 16000, 2), "fired": fired}
-    if not fired:
-        ans = gen_text(session_id="s1")
-        out.update(mode="local", answer=ans,
-                   answer_ms=int((time.time() - t_eot) * 1000))
-        log(f"talker answered locally in {out['answer_ms']} ms")
-    else:
+    def _eot_read(self):
+        self.st3["accum"] = False
+        t0 = time.time()
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[{"role": "assistant", "content": [" "]}],
+                  tokenizer=self.tok, is_last_chunk=True)
+        return self._score_now(), int((time.time() - t0) * 1000)
+
+    def _answer(self, fired, uplink_text=None, wav_f32=None, emit=None):
+        """Local answer or stall+expert+relay. emit(dict) streams events."""
+        import sys
+        import threading
+        sys.path.insert(0, "/workspace/gate")
+        import escalate
+
+        emit = emit or (lambda *_: None)
+        t_eot = time.time()
+        out = {}
+        if not fired:
+            emit({"type": "phase", "v": "answering"})
+            ans = _gen_text(self.model, self.tok, session_id="s1")
+            out.update(mode="local", answer=ans,
+                       answer_ms=int((time.time() - t_eot) * 1000))
+            return out
         exp = {}
 
         def expert_call():
             t0 = time.time()
-            uplink = question
-            if audio_b64:
-                # no gold text exists for real speech — this is the 8ae
-                # cloud-ASR uplink (.585 -> .694 vs the talker's own
-                # transcript on the frozen pool, McNemar p=.007)
-                with open(wav_path, "rb") as fh:
+            up = uplink_text
+            if up is None and wav_f32 is not None:
+                import soundfile as sf
+                sf.write("/tmp/turn.wav", wav_f32, 16000)
+                emit({"type": "log",
+                      "msg": "uplink: transcribing your audio with the "
+                             "hosted ASR (8ae path — no gold text exists "
+                             "for real speech)"})
+                with open("/tmp/turn.wav", "rb") as fh:
                     tr = escalate._client().audio.transcriptions.create(
                         model="gpt-transcribe", file=fh,
                         response_format="text")
-                uplink = tr if isinstance(tr, str) else getattr(
-                    tr, "text", str(tr))
-                exp["uplink_text"] = uplink
-                exp["asr_s"] = time.time() - t0
-            r = escalate.ask_expert(uplink, effort="low")
+                up = tr if isinstance(tr, str) else getattr(tr, "text",
+                                                            str(tr))
+                exp["uplink_text"] = up
+                exp["asr_s"] = round(time.time() - t0, 2)
+                emit({"type": "log",
+                      "msg": f"ASR heard: “{up[:140]}” "
+                             f"({exp['asr_s']} s)"})
+            r = escalate.ask_expert(up, effort="low")
             exp["answer"] = r.get("answer") or f"[error: {r.get('error')}]"
             exp["wall_s"] = time.time() - t0
 
+        emit({"type": "phase", "v": "escalating"})
+        emit({"type": "log", "msg": f"escalating to gpt-5.5; talker "
+                                    f"stalls: “{STALL}”"})
         th = threading.Thread(target=expert_call, daemon=True)
         th.start()
-        log(f"escalating to {escalate.EXPERT_MODEL}; talker stalls: "
-            f"“{STALL}”")
-        call_def(model.streaming_prefill, session_id="s1",
-                 msgs=[{"role": "assistant", "content": [STALL]}],
-                 tokenizer=tok, is_last_chunk=True)
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[{"role": "assistant", "content": [STALL]}],
+                  tokenizer=self.tok, is_last_chunk=True)
         t_stall = time.time()
-        th.join(timeout=120)
+        th.join(timeout=150)
         t_expert = time.time()
-        if exp.get("uplink_text"):
-            log(f"uplink: hosted ASR heard “{exp['uplink_text'][:120]}” "
-                f"({exp.get('asr_s', 0):.1f} s) — that text is what the "
-                f"expert reads (RESULTS 8ae)")
-        log(f"expert answered in {exp.get('wall_s', -1):.1f} s "
-            f"(talker's stall covered "
-            f"{(t_stall - t_eot):.1f} s of it)")
-        call_def(model.streaming_prefill, session_id="s1",
-                 msgs=[{"role": "user",
-                        "content": [RELAY_TMPL.format(
-                            ans=exp.get("answer", ""))]}],
-                 tokenizer=tok, is_last_chunk=True)
-        relay = gen_text(session_id="s1")
+        emit({"type": "log",
+              "msg": f"expert answered in {exp.get('wall_s', -1):.1f} s"})
+        emit({"type": "phase", "v": "relaying"})
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[{"role": "user",
+                         "content": [RELAY_TMPL.format(
+                             ans=exp.get("answer", ""))]}],
+                  tokenizer=self.tok, is_last_chunk=True)
+        relay = _gen_text(self.model, self.tok, session_id="s1")
         out.update(mode="escalated", answer=relay,
                    expert_answer=exp.get("answer", ""),
+                   uplink_text=exp.get("uplink_text"),
+                   asr_s=exp.get("asr_s"),
                    expert_latency_s=round(exp.get("wall_s", -1), 2),
                    stall_ms=int((t_stall - t_eot) * 1000),
-                   uplink_text=exp.get("uplink_text"),
-                   asr_s=round(exp.get("asr_s", 0), 2),
                    relay_ms=int((time.time() - t_expert) * 1000))
-        log(f"talker relayed the verified answer "
-            f"({out['relay_ms']} ms)")
-    out["total_ms"] = int((time.time() - t_eot) * 1000) + eot_ms
-    out["events"] = ev
-    return out
+        return out
+
+    # ---- web -------------------------------------------------------------
+    @modal.asgi_app(label="gate-demo-voice")
+    def ws_app(self):
+        import asyncio
+        import numpy as np
+        from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+        from fastapi.middleware.cors import CORSMiddleware
+        from fastapi.responses import JSONResponse
+        from pydantic import BaseModel
+
+        wapp = FastAPI()
+        wapp.add_middleware(CORSMiddleware, allow_origins=["*"],
+                            allow_methods=["*"], allow_headers=["*"])
+
+        @wapp.get(f"/{TOKEN}/ready")
+        def ready():
+            # this endpoint existing at all means @enter finished, i.e.
+            # the model IS loaded — that is the readiness gate
+            return JSONResponse({"ready": True, "load_s": self.load_s,
+                                 "busy": self.lock.locked()})
+
+        class SayReq(BaseModel):
+            question: str
+            tier: str = "balanced"
+            probe_on: bool = True
+
+        @wapp.post(f"/{TOKEN}/say")
+        def say(req: SayReq):
+            import sys
+            sys.path.insert(0, "/workspace/gate")
+            import escalate
+            if not self.lock.acquire(timeout=5):
+                return JSONResponse({"error": "busy — a voice session "
+                                     "holds the model"}, status_code=409)
+            try:
+                thr = self.art["eot_thresholds"][req.tier]
+                r = escalate._client().audio.speech.create(
+                    model="tts-1", voice="alloy", input=req.question,
+                    response_format="wav")
+                open("/tmp/say.wav", "wb").write(r.content)
+                import librosa
+                au, _ = librosa.load("/tmp/say.wav", sr=16000, mono=True)
+                self._turn_reset()
+                scores = []
+                n = max(1, (len(au) + 15999) // 16000)
+                for i in range(n):
+                    scores.append(self._feed(au[i * 16000:(i + 1) * 16000],
+                                             i == n - 1))
+                eot, eot_ms = self._eot_read()
+                fired = bool(req.probe_on and eot >= thr)
+                out = self._answer(fired, uplink_text=req.question)
+                out.update(question=req.question, tier=req.tier,
+                           probe_on=req.probe_on, fired=fired,
+                           eot_score=round(eot, 4), threshold=round(thr, 4),
+                           scores=scores, eot_read_ms=eot_ms,
+                           audio_s=round(len(au) / 16000, 2),
+                           total_ms=int(sum(filter(None, [
+                               out.get("answer_ms"),
+                               out.get("stall_ms"),
+                               int(1000 * (out.get("expert_latency_s") or 0)),
+                               out.get("relay_ms")])) + eot_ms))
+                return JSONResponse(out)
+            finally:
+                self.lock.release()
+
+        @wapp.websocket(f"/{TOKEN}/ws")
+        async def ws(sock: WebSocket):
+            await sock.accept()
+            tier = sock.query_params.get("tier", "balanced")
+            probe_on = sock.query_params.get("probe_on", "1") == "1"
+            thr = self.art["eot_thresholds"][tier]
+            if not self.lock.acquire(timeout=3):
+                await sock.send_json({"type": "error",
+                                      "msg": "model busy — try again"})
+                await sock.close()
+                return
+            try:
+                await sock.send_json({"type": "hello",
+                                      "thr": round(thr, 4), "tier": tier,
+                                      "probe_on": probe_on,
+                                      "vad": "speech ≥0.2 s, then "
+                                             "1.25 s silence = end of turn"})
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, self._turn_reset)
+
+                TH, SIL_EOT, SP_MIN, CAP = 0.010, 1.25, 0.2, 60.0
+                buf = np.zeros(0, dtype=np.float32)
+                wav = []
+                scores = []
+                speech, sp, sil, fed = False, 0.0, 0.0, 0
+                await sock.send_json({"type": "phase", "v": "listening"})
+
+                async def do_eot():
+                    nonlocal buf, wav, scores, speech, sp, sil, fed
+                    rest = buf
+                    if len(rest) >= 1600 or fed == 0:
+                        s = await loop.run_in_executor(
+                            None, self._feed, rest, True)
+                        scores.append(s)
+                        await sock.send_json({"type": "score",
+                                              "i": len(scores), "v": s})
+                    eot, eot_ms = await loop.run_in_executor(
+                        None, self._eot_read)
+                    fired = bool(probe_on and eot >= thr)
+                    await sock.send_json(
+                        {"type": "eot", "score": round(eot, 4),
+                         "ms": eot_ms, "thr": round(thr, 4),
+                         "fired": fired, "probe_on": probe_on})
+                    full = np.concatenate(wav) if wav else np.zeros(1600)
+                    out = await loop.run_in_executor(
+                        None, lambda: self._answer(
+                            fired, None, full,
+                            lambda m: asyncio.run_coroutine_threadsafe(
+                                sock.send_json(m), loop)))
+                    out.update(fired=fired, eot_score=round(eot, 4),
+                               threshold=round(thr, 4), scores=scores,
+                               eot_read_ms=eot_ms, probe_on=probe_on,
+                               audio_s=round(sum(len(w) for w in wav)
+                                             / 16000, 2))
+                    await sock.send_json({"type": "turn", **{
+                        k: v for k, v in out.items()
+                        if isinstance(v, (str, int, float, bool, list,
+                                          type(None)))}})
+                    buf = np.zeros(0, dtype=np.float32)
+                    wav, scores = [], []
+                    speech, sp, sil, fed = False, 0.0, 0.0, 0
+                    await loop.run_in_executor(None, self._turn_reset)
+                    await sock.send_json({"type": "phase",
+                                          "v": "listening"})
+
+                while True:
+                    try:
+                        msg = await sock.receive()
+                    except RuntimeError:
+                        break     # disconnect already consumed by a drain
+                    if msg.get("type") == "websocket.disconnect":
+                        break
+                    b = msg.get("bytes")
+                    if not b:
+                        continue
+                    f = (np.frombuffer(b, dtype=np.int16)
+                         .astype(np.float32) / 32768.0)
+                    dur = len(f) / 16000.0
+                    rms = float(np.sqrt((f * f).mean() + 1e-12))
+                    if rms > TH:
+                        sp += dur
+                        sil = 0.0
+                        if not speech and sp >= SP_MIN:
+                            speech = True
+                            await sock.send_json({"type": "speech",
+                                                  "on": True})
+                    else:
+                        sil += dur
+                        if not speech:
+                            sp = 0.0
+                    if not speech:
+                        # keep only a short pre-speech tail so silence
+                        # before you start talking never enters the model
+                        buf = np.concatenate([buf, f])[-8000:]
+                        continue
+                    wav.append(f)
+                    buf = np.concatenate([buf, f])
+                    while len(buf) >= 16000:
+                        ch, buf = buf[:16000], buf[16000:]
+                        s = await loop.run_in_executor(
+                            None, self._feed, ch, False)
+                        scores.append(s)
+                        fed += 1
+                        await sock.send_json({"type": "score",
+                                              "i": len(scores), "v": s})
+                    if sil >= SIL_EOT or sp >= CAP:
+                        await sock.send_json({"type": "speech",
+                                              "on": False})
+                        await do_eot()
+                        # drain anything the mic sent while we answered
+                        try:
+                            while True:
+                                await asyncio.wait_for(sock.receive(),
+                                                       timeout=0.05)
+                        except (asyncio.TimeoutError, RuntimeError):
+                            pass
+            except WebSocketDisconnect:
+                pass
+            finally:
+                self.lock.release()
+        return wapp
 
 
 # ---------------------------------------------------------------- replay --
@@ -393,34 +579,6 @@ def web():
                     if ql in r["id"].lower() or ql in r["query"].lower()]
         return JSONResponse(rows[:400])
 
-    class LiveReq(BaseModel):
-        question: str = ""
-        tier: str = "balanced"
-        probe_on: bool = True
-        audio_b64: str = ""
-        audio_ext: str = "webm"
-
-    # a live turn is a cold H100 + model load + streaming + expert — far
-    # past the proxy's synchronous response window, so spawn and poll
-    @api.post(f"/{TOKEN}/api/live")
-    def live(req: LiveReq):
-        if not (req.question.strip() or req.audio_b64):
-            raise HTTPException(400, "need a question or a recording")
-        fc = live_once.spawn(req.question.strip(), req.tier, req.probe_on,
-                             req.audio_b64, req.audio_ext)
-        return JSONResponse({"call_id": fc.object_id})
-
-    @api.get(f"/{TOKEN}/api/live_result")
-    def live_result(call_id: str):
-        fc = modal.FunctionCall.from_id(call_id)
-        try:
-            return JSONResponse({"status": "done", "result": fc.get(0)})
-        except TimeoutError:
-            return JSONResponse({"status": "running"})
-        except Exception as e:
-            return JSONResponse({"status": "error",
-                                 "error": f"{type(e).__name__}: {e}"})
-
     return api
 
 
@@ -517,26 +675,28 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
       </div>
     </div>
     <div class=card id=livebox style="display:none;margin-top:1rem">
-      <h2>Talk to it</h2>
-      <button id=mic class=primary style="width:100%;font-size:.95rem">
-        Hold to speak — or click to start</button>
-      <div class=row style="margin-top:.4rem">
-        <span id=rec class=muted>mic idle</span>
-        <audio id=play controls style="height:28px;display:none;flex:1"></audio>
+      <h2>Voice session</h2>
+      <div id=gstate class=warn>GPU offline — it starts when you switch
+        to live mode; the mic stays disabled until the model is loaded.</div>
+      <button id=talk class=primary disabled
+        style="width:100%;font-size:.95rem;margin-top:.5rem">
+        Waiting for GPU…</button>
+      <div class=row style="margin-top:.45rem">
+        <div style="flex:1;height:8px;background:#eee;border-radius:99px;
+          overflow:hidden"><div id=vu
+          style="height:100%;width:0%;background:#2a78d6"></div></div>
+        <span id=vstate class=muted>mic off</span>
       </div>
-      <div class=muted style="margin-top:.35rem">Your real voice goes
-        straight into the duplex talker — no TTS. If the gate fires, the
-        recording is transcribed by the hosted ASR and <i>that</i> is what
-        the expert reads (the +.109 uplink, RESULTS 8ae).</div>
-      <h2 style="margin-top:.9rem">…or type it</h2>
+      <div class=muted style="margin-top:.4rem">Just talk — no buttons to
+        hold. Pause ~1.3 s and the turn ends: the probe reads L22, the gate
+        decides, and either the talker answers or gpt-5.5 does (your audio
+        goes through the hosted-ASR uplink — no gold text exists for real
+        speech). Then it listens again.</div>
+      <h2 style="margin-top:.9rem">…or type instead</h2>
       <input id=q placeholder="e.g. what is NVDA trading at right now?">
       <div class=row style="margin-top:.4rem" id=chips></div>
-      <div class=muted style="margin-top:.4rem">Rendered with tts-1/alloy,
-        streamed into the duplex talker in 1 s chunks — the same path the
-        benchmarks used.</div>
-      <button id=runlive class=primary style="margin-top:.5rem;width:100%">
-        Run one live turn</button>
-      <div class=warn>Spins an H100 (~1 min cold). Costs a few cents per turn.</div>
+      <button id=runlive class=primary disabled
+        style="margin-top:.5rem;width:100%">Send typed question</button>
     </div>
   </div>
   <div class=card>
@@ -573,7 +733,8 @@ $("#sw").onclick=()=>{probeOn=!probeOn;
              :"probe switched OFF — every query stays local (never arm)","off");};
 $("#mode").onchange=()=>{const live=$("#mode").value==="live";
   $("#livebox").style.display=live?"":"none";
-  $("#picker").style.display=live?"none":"";};
+  $("#picker").style.display=live?"none":"";
+  if(live)warmGPU();};
 $("#tier").onchange=()=>{loadIds();refTable()};
 pool.onchange=()=>{loadIds();refTable()};
 $("#search").oninput=()=>loadIds();
@@ -697,109 +858,174 @@ function impliedThr(d){
   return ((THR[d.pool]||{})[d.tier]);
 }
 
-let MR=null,CH=[],BLOB=null,T0=0,TIMER=null;
-async function startRec(){
+const VOICE="https://rhe9527--gate-demo-voice.modal.run";
+let gpuReady=false, warming=false, ws=null, ac=null, micStream=null,
+    proc=null, talking=false, liveScores=[], liveThr=null;
+
+async function warmGPU(){
+  if(gpuReady||warming)return; warming=true;
+  const t0=Date.now();
+  const tick=setInterval(()=>{ if(!gpuReady)$("#gstate").textContent=
+    `GPU starting + loading MiniCPM… ${((Date.now()-t0)/1000|0)}s `
+    +`(cold start can take ~2 min — the mic unlocks by itself)`;},1000);
+  let j=null;
+  for(let i=0;i<90&&!j;i++){
+    try{
+      const r=await fetch(`${VOICE}/${T}/ready`,
+        {signal:AbortSignal.timeout(30000)});
+      if(r.ok)j=await r.json();
+    }catch(_){/* cold start: redirect chains / timeouts — keep polling */}
+    if(!j)await new Promise(s=>setTimeout(s,4000));
+  }
   try{
-    const st=await navigator.mediaDevices.getUserMedia({audio:{
-      channelCount:1,echoCancellation:true,noiseSuppression:true}});
-    MR=new MediaRecorder(st);CH=[];
-    MR.ondataavailable=e=>{if(e.data.size)CH.push(e.data)};
-    MR.onstop=()=>{
-      BLOB=new Blob(CH,{type:MR.mimeType||"audio/webm"});
-      $("#play").src=URL.createObjectURL(BLOB);
-      $("#play").style.display="";
-      st.getTracks().forEach(t=>t.stop());
-      clearInterval(TIMER);
-      const s=((Date.now()-T0)/1000).toFixed(1);
-      $("#rec").textContent=`recorded ${s}s — sending…`;
-      log(`recorded ${s}s of speech`);
-      runLive();
-    };
-    MR.start();T0=Date.now();
-    $("#mic").textContent="● recording — click to stop";
-    $("#mic").style.background="#b00";$("#mic").style.borderColor="#b00";
-    TIMER=setInterval(()=>{$("#rec").textContent=
-      `recording ${((Date.now()-T0)/1000).toFixed(1)}s`},100);
-  }catch(e){log("microphone blocked: "+e,"off");
-    $("#rec").textContent="mic permission denied"}
+    if(j&&j.ready){gpuReady=true;
+      $("#gstate").textContent=`GPU ready — model loaded in ${j.load_s}s. `
+        +`Click the button and just speak.`;
+      $("#gstate").className="muted";
+      $("#talk").disabled=false;$("#talk").textContent="Start voice session";
+      $("#runlive").disabled=false;
+      log("GPU ready — model resident, further turns have no load cost");}
+    else $("#gstate").textContent=
+      "GPU start timed out — switch modes to retry.";
+  }catch(e){
+    $("#gstate").textContent="GPU start failed — switch modes to retry. "
+      +"("+e+")";
+  }finally{clearInterval(tick);warming=false;}
 }
-function stopRec(){
-  if(MR&&MR.state!=="inactive")MR.stop();
-  MR=null;$("#mic").textContent="Hold to speak — or click to start";
-  $("#mic").style.background="";$("#mic").style.borderColor="";
+
+function stopTalk(){
+  talking=false;
+  try{if(proc)proc.disconnect()}catch(_){}
+  try{if(ac)ac.close()}catch(_){}
+  try{if(micStream)micStream.getTracks().forEach(t=>t.stop())}catch(_){}
+  try{if(ws&&ws.readyState<2)ws.close()}catch(_){}
+  ws=null;ac=null;proc=null;micStream=null;
+  $("#talk").textContent="Start voice session";
+  $("#talk").classList.add("primary");
+  $("#vstate").textContent="mic off";$("#vu").style.width="0%";
 }
-$("#mic").onclick=()=>{ if(MR&&MR.state==="recording") stopRec();
-                        else startRec(); };
-const b64=b=>new Promise(r=>{const f=new FileReader();
-  f.onloadend=()=>r(f.result.split(",")[1]);f.readAsDataURL(b)});
+
+async function startTalk(){
+  if(!gpuReady){log("GPU not ready yet","off");return}
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{
+      channelCount:1,echoCancellation:true,noiseSuppression:true,
+      autoGainControl:true}});
+  }catch(e){log("microphone permission denied: "+e,"off");return}
+  ac=new AudioContext();
+  const src=ac.createMediaStreamSource(micStream);
+  proc=ac.createScriptProcessor(2048,1,1);
+  const ratio=ac.sampleRate/16000;
+  ws=new WebSocket(`${VOICE.replace("https","wss")}/${T}/ws`
+    +`?tier=${$("#tier").value}&probe_on=${probeOn?1:0}`);
+  ws.onmessage=ev=>handleVoice(JSON.parse(ev.data));
+  ws.onclose=()=>{if(talking){log("voice session closed","off");stopTalk()}};
+  ws.onerror=()=>{log("websocket error","off");stopTalk()};
+  ws.onopen=()=>{
+    src.connect(proc);proc.connect(ac.destination);
+    talking=true;
+    $("#talk").textContent="■ End voice session";
+    $("#vstate").textContent="listening";
+    log(`voice session open (tier ${$("#tier").value}, probe `
+      +`${probeOn?"ON":"OFF"}) — speak whenever you like`);
+  };
+  proc.onaudioprocess=e=>{
+    const f=e.inputBuffer.getChannelData(0);
+    let ss=0;for(let i=0;i<f.length;i++)ss+=f[i]*f[i];
+    const rms=Math.sqrt(ss/f.length);
+    $("#vu").style.width=Math.min(100,rms*700)+"%";
+    if(!ws||ws.readyState!==1)return;
+    const n=Math.floor(f.length/ratio);
+    const out=new Int16Array(n);
+    for(let i=0;i<n;i++){
+      const v=f[Math.floor(i*ratio)];
+      out[i]=Math.max(-32768,Math.min(32767,v*32767));}
+    ws.send(out.buffer);
+  };
+}
+$("#talk").onclick=()=>{talking?stopTalk():startTalk()};
+
+function handleVoice(m){
+  if(m.type==="hello"){liveThr=m.thr;
+    log(`session config: threshold ${fmt(m.thr)} (${m.tier}), `
+      +`probe ${m.probe_on?"ON":"OFF"}; VAD: ${m.vad}`);}
+  else if(m.type==="speech"){
+    $("#vstate").textContent=m.on?"hearing you…":"turn ended";
+    if(m.on){liveScores=[];log("speech detected — streaming into the "
+      +"duplex talker")}}
+  else if(m.type==="score"){liveScores.push(m.v);
+    log(`chunk ${m.i} — running P(fail)=${fmt(m.v)}`);
+    $("#turn").innerHTML=`<div class=q><b>listening…</b></div>`
+      +spark(liveScores,liveThr??1.01,m.v)
+      +`<div class=muted>P(fail) while you speak; red = threshold</div>`;}
+  else if(m.type==="eot"){
+    log(`END OF TURN — probe read L22 in ${m.ms} ms: `
+      +`P(fail)=<b>${fmt(m.score)}</b>`);
+    if(!m.probe_on)log("PROBE OFF — gate bypassed, answering locally","off");
+    else log(`gate: ${fmt(m.score)} ${m.fired?"≥":"<"} ${fmt(m.thr)} → `
+      +`<span class="${m.fired?'esc':''}">`
+      +`${m.fired?"ESCALATE":"keep local"}</span>`);}
+  else if(m.type==="phase"){$("#vstate").textContent=
+    {listening:"listening",answering:"talker answering…",
+     escalating:"expert thinking…",relaying:"relaying…"}[m.v]||m.v;}
+  else if(m.type==="log"){log(esc(m.msg));}
+  else if(m.type==="error"){log("server: "+esc(m.msg),"off");}
+  else if(m.type==="turn"){renderTurn(m,true);}
+}
+
+function renderTurn(d,voice){
+  const fired=d.fired;
+  $("#turn").innerHTML=`
+   <div class=row><span class="pill g">${voice?"voice":"typed"}</span>
+     <span class="pill ${fired?'ok':'m'}">${fired?"ESCALATED":"LOCAL"}</span></div>
+   <div class=q><b>Q.</b> ${esc(d.question)||"<i>(your voice)</i>"}</div>
+   ${d.uplink_text?`<div class=muted>hosted ASR heard (what the expert
+     read): <i>${esc(d.uplink_text)}</i></div>`:""}
+   ${spark(d.scores,d.threshold,d.eot_score)}
+   <div class=muted>P(fail) as the audio streamed; red = threshold</div>
+   <div class="ans ${fired?'esc':'local'}">
+     <b>${fired?"Relay (talker voicing the expert)":"Talker, alone"}:</b>
+     ${esc(d.answer)}</div>
+   ${fired?`<div class=muted><b>expert (gpt-5.5) said:</b>
+     ${esc(d.expert_answer)}</div>`:""}
+   <table style="margin-top:.6rem">
+    <tr><th>metric</th><th>value</th></tr>
+    <tr><td>probe score (P fail)</td><td>${fmt(d.eot_score)}</td></tr>
+    <tr><td>threshold</td><td>${fmt(d.threshold)}</td></tr>
+    <tr><td>probe read latency</td><td>${d.eot_read_ms} ms</td></tr>
+    ${d.asr_s?`<tr><td>ASR uplink</td><td>${d.asr_s} s</td></tr>`:""}
+    ${d.expert_latency_s?`<tr><td>expert</td>
+      <td>${d.expert_latency_s} s</td></tr>`:""}
+    <tr><td>speech length</td><td>${fmt(d.audio_s,1)} s</td></tr>
+   </table>`;
+  S.n++;S.esc+=fired?1:0;S.ms+=d.total_ms||0;
+  if(d.probe_on===false)S.offN++;else S.onN++;
+  tiles();
+}
 
 async function runLive(){
   const q=$("#q").value.trim();
-  if(!q&&!BLOB){log("record something or type a question first","off");return}
-  $("#runlive").disabled=true;$("#state").textContent=
-    "live turn running (cold start ~1 min)…";
-  log(`— live turn, probe ${probeOn?"ON":"OFF"}, tier ${$("#tier").value} —`);
+  if(!q){log("type a question first","off");return}
+  if(!gpuReady){log("GPU not ready yet","off");return}
+  $("#runlive").disabled=true;
+  $("#state").textContent="typed turn running on the warm GPU…";
+  log(`— typed turn, probe ${probeOn?"ON":"OFF"}, tier `
+    +`${$("#tier").value} —`);
   try{
-    const r=await fetch(`/${T}/api/live`,{method:"POST",
+    const r=await fetch(`${VOICE}/${T}/say`,{method:"POST",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({question:BLOB?"":q,tier:$("#tier").value,
-        probe_on:probeOn,
-        audio_b64:BLOB?await b64(BLOB):"",
-        audio_ext:BLOB&&/ogg/.test(BLOB.type)?"ogg":"webm"})});
-    if(!r.ok){log("live error: "+await r.text(),"off");return}
-    const {call_id}=await r.json();
-    log(`queued on an H100 (call ${call_id.slice(0,10)}…) — polling`);
-    let d=null;
-    for(let i=0;i<200;i++){
-      await new Promise(s=>setTimeout(s,3000));
-      const p=await fetch(`/${T}/api/live_result?call_id=${call_id}`);
-      const j=await p.json();
-      if(j.status==="done"){d=j.result;break}
-      if(j.status==="error"){log("live error: "+j.error,"off");return}
-      $("#state").textContent=`live turn running… ${(i+1)*3}s`;
-    }
-    if(!d){log("live turn timed out after 10 min","off");return}
-    (d.events||[]).forEach(e=>log(`+${e.t_ms}ms ${esc(e.msg)}`));
-    const fired=d.fired;
-    $("#turn").innerHTML=`
-     <div class=row><span class="pill g">live</span>
-       <span class="pill ${fired?'ok':'m'}">${fired?"ESCALATED":"LOCAL"}</span></div>
-     <div class=q><b>Q.</b> ${esc(d.question)||"<i>(your voice)</i>"}</div>
-     ${d.uplink_text?`<div class=muted>hosted ASR heard (this is what the
-       expert read): <i>${esc(d.uplink_text)}</i></div>`:""}
-     ${spark(d.scores,d.threshold,d.eot_score)}
-     <div class=muted>P(fail) as the question streams in; red = the
-       ${d.tier} threshold</div>
-     <div class="ans ${fired?'esc':'local'}">
-       <b>${fired?"Relay (talker voicing the expert)":"Talker, alone"}:</b>
-       ${esc(d.answer)}</div>
-     ${fired?`<div class=muted><b>expert (gpt-5.5) said:</b>
-       ${esc(d.expert_answer)}</div>`:""}
-     <table style="margin-top:.6rem">
-      <tr><th>metric</th><th>value</th></tr>
-      <tr><td>probe score (P fail)</td><td>${fmt(d.eot_score)}</td></tr>
-      <tr><td>threshold (${d.tier})</td><td>${fmt(d.threshold)}</td></tr>
-      <tr><td>probe read latency</td><td>${d.eot_read_ms} ms</td></tr>
-      <tr><td>total response</td><td>${(d.total_ms/1000).toFixed(2)} s</td></tr>
-      <tr><td>audio length</td><td>${fmt(d.audio_s,1)} s</td></tr>
-     </table>`;
-    S.n++;S.esc+=fired?1:0;S.ms+=d.total_ms||0;
-    if(probeOn)S.onN++;else S.offN++;
-    tiles();BLOB=null;$("#rec").textContent="mic idle";
-  }catch(e){log("live error: "+e,"off")}
-  finally{$("#runlive").disabled=false;$("#state").textContent=""}
+      body:JSON.stringify({question:q,tier:$("#tier").value,
+        probe_on:probeOn})});
+    if(!r.ok){log("error: "+await r.text(),"off");return}
+    const d=await r.json();
+    (d.scores||[]).forEach((v,i)=>log(`chunk ${i+1} — P(fail)=${fmt(v)}`));
+    log(`END OF TURN — P(fail)=<b>${fmt(d.eot_score)}</b> `
+      +`${d.fired?"≥":"<"} ${fmt(d.threshold)} → `
+      +`${d.fired?"ESCALATE":"local"}`);
+    renderTurn(d,false);
+  }catch(e){log("error: "+e,"off")}
+  finally{$("#runlive").disabled=false;$("#state").textContent="";}
 }
-const EX=[
- ["What is NVDA trading at right now?","no model can know this — watch it escalate"],
- ["Who, more famous for his opera Faust, wrote the music used for the anthem of Vatican City?","a long-tail fact the talker got wrong in the sweep; the gate rescued it"],
- ["John made 4 wooden tables at 20 dollars each and 2 roof frames at 15 dollars each. How much did he earn?","easy arithmetic — the gate should stay local"],
-];
-$("#chips").innerHTML=EX.map((e,i)=>
-  `<button data-i="${i}" title="${esc(e[1])}" style="font-size:.72rem">
-    ${esc(e[0].slice(0,34))}…</button>`).join("");
-[...document.querySelectorAll("#chips button")].forEach(b=>
-  b.onclick=()=>{$("#q").value=EX[b.dataset.i][0];
-    log("loaded example: "+EX[b.dataset.i][1],"off")});
 loadIds();refTable();tiles();
 log("ready — replay mode reads the 4773 measured sessions; "
    +"flipping the probe shows the same query's other measured arm.");
