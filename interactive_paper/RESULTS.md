@@ -3303,7 +3303,52 @@ streaming after its audio can strand the VAD one frame short of EOT
 forever — a real mic never stops sending, and the test now mimics
 that (background silence frames until the turn lands).
 
+### 8ah — the "it just keeps listening" bug: two real defects, both invisible to clean-audio tests (2026-08-21)
+
+User tried the voice demo: mic streams, model never answers, probe
+on/off irrelevant. Root-caused to TWO independent defects, each of
+which alone produces exactly that symptom, and NEITHER of which the
+8ag test could catch because it streamed clean TTS/SD-QA audio and
+stopped sending after each clip:
+
+1. **Fixed VAD threshold vs real microphones.** The 8ag VAD used an
+   absolute RMS threshold (0.010) tuned on clean wavs. Real mics have
+   a noise floor and browser AGC pumps quiet passages, so silence
+   never accumulates (or quiet speech never triggers) and the turn
+   never ends. Fix: adaptive noise floor — EMA down 0.10 / up 0.02,
+   up-adaptation only outside speech so long utterances don't erode
+   their own threshold; speech = rms > max(.005, floor x 3.5). A
+   first fix used instant-min tracking down and a single digitally
+   silent frame (TTS inter-sentence zeros) collapsed the floor,
+   making steady noise read as speech forever — hence the EMA.
+2. **The post-answer drain ate the stream.** After each answer the
+   server discarded backlogged frames "until a 0.05 s receive gap".
+   A real mic never pauses, so the drain never exited and swallowed
+   every subsequent utterance. Deleted outright: backlogged frames
+   just flow through the VAD (quiet settles the floor, speech starts
+   the next turn).
+
+Also added, so this class of bug is diagnosable from the page instead
+of by proxy: a live VAD readout (level / adaptive threshold / speech
+state / silence progress, streamed every ~0.5 s) and an "I'm done
+talking" button that forces end-of-turn if the detector misjudges —
+the demo can no longer dead-end silently.
+
+Regression test rebuilt to be mic-shaped (`_ws_test.py`): steady
+rms .008 noise over EVERYTHING including the speech, continuous
+frames with no gaps, immediate next utterance after an answer, plus a
+manual-eot scenario. All three turns pass on one socket; turn 1's
+eot read came out .671 vs the .680 threshold (fired last run at
+.755) — the boundary sensitivity is the 8ad noise band doing exactly
+what it says, and the local answer it kept was on track anyway.
+
+Meta-lesson for the paper's demo section: every one of 8ag's five
+receipts came from testing with idealized inputs; both 8ah defects
+were only reachable with mic-shaped input. Test the transducer you
+ship, not the files you have.
+
 ---
+
 
 
 

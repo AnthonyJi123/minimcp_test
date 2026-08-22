@@ -65,10 +65,14 @@ async def t():
                 pass
             return msgs
 
+        rng0 = np.random.default_rng(3)
         for wi, w in enumerate(wavs):
             au, _ = librosa.load(w, sr=16000, mono=True)
             au = np.concatenate([au, np.zeros(int(1.4 * 16000))])
-            i16 = (au * 32767).astype(np.int16)
+            # a real mic adds steady noise to EVERYTHING, including the
+            # speech and the pauses inside it — test the same signal
+            au = au + rng0.normal(0, 0.008, len(au))
+            i16 = (au * 32767).clip(-32767, 32767).astype(np.int16)
             print(f">> streaming {w} ({len(au)/16000:.1f}s incl. tail "
                   f"silence)")
             FR = 2048
@@ -83,11 +87,19 @@ async def t():
             # strand the VAD one frame short of the EOT threshold)
             stop = asyncio.Event()
 
+            rng = np.random.default_rng(7)
+
+            def noise_frame():
+                # steady mic/room noise, rms ~0.008 — above the old
+                # fixed 0.010/…-ish floor territory, the case that kept
+                # real sessions "listening" forever
+                return (rng.normal(0, 0.008, FR) * 32767).astype(
+                    np.int16).tobytes()
+
             async def mic_silence():
-                z = (np.zeros(FR, dtype=np.int16)).tobytes()
                 while not stop.is_set():
                     try:
-                        await ws.send(z)
+                        await ws.send(noise_frame())
                     except Exception:
                         return
                     await asyncio.sleep(0.06)
@@ -107,4 +119,35 @@ async def t():
             print(f"   answer: {(d.get('answer') or '')[:140]}")
             if d.get("uplink_text"):
                 print(f"   uplink heard: {d['uplink_text'][:120]}")
-    print("SESSION OK — two turns, one socket")
+        # turn 3: speech buried in the same noise, VAD may or may not
+        # fire — then the manual "I'm done" message must end the turn
+        au, _ = librosa.load(wavs[0], sr=16000, mono=True)
+        n = rng.normal(0, 0.008, len(au))
+        i16 = ((au + n) * 32767).clip(-32767, 32767).astype(np.int16)
+        print(">> turn 3: speech + steady noise, then manual eot")
+        for i in range(0, len(i16), FR):
+            await ws.send(i16[i:i + FR].tobytes())
+            await asyncio.sleep(0.03)
+        await ws.send(noise_frame())
+        await ws.send(json.dumps({"type": "eot"}))
+        stop3 = asyncio.Event()
+
+        async def mic3():
+            while not stop3.is_set():
+                try:
+                    await ws.send(noise_frame())
+                except Exception:
+                    return
+                await asyncio.sleep(0.06)
+        t3 = asyncio.create_task(mic3())
+        try:
+            msgs = await drain(200)
+        finally:
+            stop3.set()
+            await t3
+        turns = [m for m in msgs if m["type"] == "turn"]
+        assert turns, "manual eot produced no turn"
+        print(f"== turn 3 (manual eot): fired={turns[0]['fired']} "
+              f"mode={turns[0]['mode']} "
+              f"answer: {(turns[0].get('answer') or '')[:100]}")
+    print("SESSION OK — three turns incl. noisy mic + manual eot")

@@ -374,6 +374,7 @@ class Voice:
                 wav = []
                 scores = []
                 speech, sp, sil, fed = False, 0.0, 0.0, 0
+                floor, nvu = 0.006, 0
                 await sock.send_json({"type": "phase", "v": "listening"})
 
                 async def do_eot():
@@ -410,6 +411,7 @@ class Voice:
                     buf = np.zeros(0, dtype=np.float32)
                     wav, scores = [], []
                     speech, sp, sil, fed = False, 0.0, 0.0, 0
+                    # floor intentionally kept: same room, same mic
                     await loop.run_in_executor(None, self._turn_reset)
                     await sock.send_json({"type": "phase",
                                           "v": "listening"})
@@ -421,40 +423,86 @@ class Voice:
                         break     # disconnect already consumed by a drain
                     if msg.get("type") == "websocket.disconnect":
                         break
+                    txt = msg.get("text")
+                    force_eot = False
+                    if txt:
+                        try:
+                            force_eot = (json.loads(txt).get("type")
+                                         == "eot")
+                        except Exception:
+                            pass
+                        if force_eot and not speech:
+                            await sock.send_json(
+                                {"type": "log",
+                                 "msg": "manual end-of-turn, but no "
+                                        "speech was detected yet — "
+                                        "check the level readout"})
+                            continue
+                        if not force_eot:
+                            continue
                     b = msg.get("bytes")
-                    if not b:
+                    if not b and not force_eot:
                         continue
-                    f = (np.frombuffer(b, dtype=np.int16)
-                         .astype(np.float32) / 32768.0)
-                    dur = len(f) / 16000.0
-                    rms = float(np.sqrt((f * f).mean() + 1e-12))
-                    if rms > TH:
-                        sp += dur
-                        sil = 0.0
-                        if not speech and sp >= SP_MIN:
-                            speech = True
-                            await sock.send_json({"type": "speech",
-                                                  "on": True})
-                    else:
-                        sil += dur
+                    rms, dur = 0.0, 0.0
+                    if b:
+                        f = (np.frombuffer(b, dtype=np.int16)
+                             .astype(np.float32) / 32768.0)
+                        dur = len(f) / 16000.0
+                        rms = float(np.sqrt((f * f).mean() + 1e-12))
+                        # ADAPTIVE floor: real mics have real noise and
+                        # browser AGC pumps quiet passages, so a fixed
+                        # absolute threshold either never sees silence
+                        # or never sees speech (user report 2026-08-21).
+                        # Floor tracks down instantly, up slowly, and
+                        # only adapts up while NOT in speech so long
+                        # utterances don't erode their own threshold.
+                        # EMA both ways: instant-min tracking collapses
+                        # on a single digitally-silent frame and then
+                        # steady mic noise reads as "speech" forever
+                        if rms < floor:
+                            floor += (rms - floor) * 0.10
+                        elif not speech:
+                            floor += (rms - floor) * 0.02
+                        thr_sp = max(0.005, floor * 3.5)
+                        nvu += 1
+                        if nvu % 4 == 0:
+                            await sock.send_json(
+                                {"type": "vu", "rms": round(rms, 4),
+                                 "thr": round(thr_sp, 4),
+                                 "speech": speech,
+                                 "sil": round(sil, 2)})
+                        if rms > thr_sp:
+                            sp += dur
+                            sil = 0.0
+                            if not speech and sp >= SP_MIN:
+                                speech = True
+                                await sock.send_json({"type": "speech",
+                                                      "on": True})
+                        else:
+                            sil += dur
+                            if not speech:
+                                sp = 0.0
                         if not speech:
-                            sp = 0.0
-                    if not speech:
-                        # keep only a short pre-speech tail so silence
-                        # before you start talking never enters the model
-                        buf = np.concatenate([buf, f])[-8000:]
-                        continue
-                    wav.append(f)
-                    buf = np.concatenate([buf, f])
-                    while len(buf) >= 16000:
-                        ch, buf = buf[:16000], buf[16000:]
-                        s = await loop.run_in_executor(
-                            None, self._feed, ch, False)
-                        scores.append(s)
-                        fed += 1
-                        await sock.send_json({"type": "score",
-                                              "i": len(scores), "v": s})
-                    if sil >= SIL_EOT or sp >= CAP:
+                            # keep a short pre-speech tail only
+                            buf = np.concatenate([buf, f])[-8000:]
+                            continue
+                        wav.append(f)
+                        buf = np.concatenate([buf, f])
+                        while len(buf) >= 16000:
+                            ch, buf = buf[:16000], buf[16000:]
+                            s = await loop.run_in_executor(
+                                None, self._feed, ch, False)
+                            scores.append(s)
+                            fed += 1
+                            await sock.send_json({"type": "score",
+                                                  "i": len(scores),
+                                                  "v": s})
+                    if (speech and sil >= SIL_EOT) or sp >= CAP \
+                            or (force_eot and speech):
+                        if force_eot:
+                            await sock.send_json(
+                                {"type": "log",
+                                 "msg": "manual end-of-turn"})
                         await sock.send_json({"type": "speech",
                                               "on": False})
                         await do_eot()
@@ -678,9 +726,14 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
       <h2>Voice session</h2>
       <div id=gstate class=warn>GPU offline — it starts when you switch
         to live mode; the mic stays disabled until the model is loaded.</div>
-      <button id=talk class=primary disabled
-        style="width:100%;font-size:.95rem;margin-top:.5rem">
-        Waiting for GPU…</button>
+      <div class=row style="margin-top:.5rem">
+        <button id=talk class=primary disabled
+          style="flex:1;font-size:.95rem">Waiting for GPU…</button>
+        <button id=done disabled title="force end-of-turn if the silence
+          detector misses your pause">I'm done talking</button>
+      </div>
+      <div id=vad class=muted style="margin-top:.3rem;font-variant-numeric:
+        tabular-nums">vad: —</div>
       <div class=row style="margin-top:.45rem">
         <div style="flex:1;height:8px;background:#eee;border-radius:99px;
           overflow:hidden"><div id=vu
@@ -902,6 +955,7 @@ function stopTalk(){
   ws=null;ac=null;proc=null;micStream=null;
   $("#talk").textContent="Start voice session";
   $("#talk").classList.add("primary");
+  $("#done").disabled=true;$("#vad").textContent="vad: —";
   $("#vstate").textContent="mic off";$("#vu").style.width="0%";
 }
 
@@ -924,6 +978,7 @@ async function startTalk(){
   ws.onopen=()=>{
     src.connect(proc);proc.connect(ac.destination);
     talking=true;
+    $("#done").disabled=false;
     $("#talk").textContent="■ End voice session";
     $("#vstate").textContent="listening";
     log(`voice session open (tier ${$("#tier").value}, probe `
@@ -944,11 +999,18 @@ async function startTalk(){
   };
 }
 $("#talk").onclick=()=>{talking?stopTalk():startTalk()};
+$("#done").onclick=()=>{if(ws&&ws.readyState===1){
+  ws.send(JSON.stringify({type:"eot"}));
+  log("manual end-of-turn sent","off");}};
 
 function handleVoice(m){
   if(m.type==="hello"){liveThr=m.thr;
     log(`session config: threshold ${fmt(m.thr)} (${m.tier}), `
       +`probe ${m.probe_on?"ON":"OFF"}; VAD: ${m.vad}`);}
+  else if(m.type==="vu"){
+    $("#vad").textContent=`vad: level ${m.rms.toFixed(3)} / threshold `
+      +`${m.thr.toFixed(3)} · ${m.speech?"speech":"quiet"}`
+      +(m.speech?` · silence ${m.sil.toFixed(1)}/1.25s`:"");}
   else if(m.type==="speech"){
     $("#vstate").textContent=m.on?"hearing you…":"turn ended";
     if(m.on){liveScores=[];log("speech detected — streaming into the "
