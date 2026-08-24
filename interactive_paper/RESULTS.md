@@ -3038,6 +3038,32 @@ configuration, not a free patch. 8d's robust-prompt (transcription)
 was negative but is a different behavior. Three readouts if run:
 Δwrong-answer length, Δacc, Δprobe AUC/score drift. Awaiting go/no-go.
 
+**Addendum 4 (2026-08-24, user: "答错但不 hedging 的情况存在吗?怎么验证
+不确定→hedging?") — the verification FAILED and found something better.**
+Design: the probe's end-of-turn read happens BEFORE generation, so it
+is a temporally-prior proxy for the internal state; if internal
+uncertainty causes hedging, the pre-answer score should predict which
+failures will hedge. It does not: within wrong answers, AUC(score →
+subsequent hedging) = **.488**, chance. And confident errors are the
+MAJORITY: 57/84 wrongs (68%) carry no hedge phrasing and decode fast
+(1.13 s). So the 8ab narrative link "uncertainty → hedging" is
+RETRACTED at the individual level. What replaces it is stronger:
+**the probe catches both error species identically** — hedged wrongs
+score .634 / AUC .786 / 81% escalated @50%; confident wrongs score
+.663 / AUC .800 / 81% — i.e. the L22 state carries the
+failure-is-coming signal even when the surface text is confident:
+verbal confidence ≠ internal state, and the gate does NOT depend on
+hedging at all. Hedging's true correlate is SLOWNESS regardless of
+correctness (hedged answers 3.3-3.4 s whether right or wrong; 12
+right-but-hedged exist). Revised causal graph: internal
+will-fail state → wrongness (probe reads this, both species); hedging
+= an independent surface style bound to verbosity/latency; the two
+correlate at the group level (32% vs 7%) without sharing the
+probe-readable state. The kink story survives (the escalated set is
+wrong-enriched, and wrongs contain the slow hedged subset) but the
+anthropomorphic "the probe reads the hesitation" must be written as
+"the probe reads the coming failure".
+
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
 only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
