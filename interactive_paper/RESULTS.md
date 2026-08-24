@@ -2951,6 +2951,34 @@ bootstrap from ONE live run per arm, not repeated runs; the fold's
 SIGN replicates deterministically (identical probe scores → identical
 escalated set), only its depth is within the noise band.
 
+**Addendum 2 (same day, user challenge: "text models don't hedge? prove
+it's not MiniCPM-specific"). The wrong-answers-are-longer signature is
+cross-model.** Effect size = P(len_wrong > len_right), .50 = null,
+never/local answers only:
+
+| model | striviaqa | swebq | sllama |
+|---|---:|---:|---:|
+| MiniCPM-o 9B (speech) | .62 | .53 | .77 |
+| NVDA VoiceChat 11B (other family) | .56 | .48 | .64 |
+| gpt-5.5 (frontier TEXT, gold input) | .56 (n=8) | .47 | .67 (n=18) |
+
+Three readouts: (1) NOT MiniCPM-specific — an architecturally
+unrelated duplex model replicates the direction, attenuated because
+its trained voice style is terse (median 52-82 chars vs MiniCPM's
+156-400; predicts a shallower latency fold if NVDA ran our live
+loop). (2) TEXT models hedge too — gpt-5.5's own wrong answers on
+sllama run ~2x longer; the claim is capability-relative (each model
+hedges at ITS boundary), and the kink only needs the asymmetry that
+TriviaQA sits inside the 9B's boundary (84 wrongs) but barely
+intersects gpt-5.5's (8 wrongs), which is why the expert path is flat
+~3 s. (3) swebq is null for ALL three models — its enumerative
+Freebase-style answers pin length to question format and its strict
+judge decouples "wrong" from "uncertain": neither evidence nor
+counterexample. The kink itself does not require hedging universality
+— only decode-time ∝ answer-length (an autoregressive identity,
+r=.97) plus the probe selecting long-answer queries; a non-hedging
+model just folds less.
+
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
 only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
