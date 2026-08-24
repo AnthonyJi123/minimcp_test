@@ -731,10 +731,13 @@ def run_transcribe(bench: str = "striviaqa", workers: int = 2,
                   secrets=[OPENAI], timeout=60 * 60 * 3)
 def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
                shard: list = None, shard_id: int = -1,
-               art_path: str = "", suffix: str = "") -> list:
+               art_path: str = "", suffix: str = "",
+               sys_suffix: str = "") -> list:
     """The gated live loop on any registered pool (POOLS). art_path
     selects the gate artifact (default = the v1 global-threshold one);
-    suffix namespaces the trace files (e.g. '_v2')."""
+    suffix namespaces the trace files (e.g. '_v2'). sys_suffix appends
+    an extra instruction to the stock omni system prompt (8ab Q4
+    anti-hedge arm) — default empty = byte-identical behavior."""
     import glob as _glob
     import inspect
     import shutil
@@ -851,6 +854,17 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
         chunks = [au[i:i + 16000] for i in range(0, len(au), 16000)]
         model.reset_session()
         sys_msg = call_def(model.get_sys_prompt, mode="omni", language="en")
+        if sys_suffix:
+            c = sys_msg.get("content")
+            if isinstance(c, str):
+                sys_msg["content"] = c + " " + sys_suffix
+            elif isinstance(c, list):
+                for i2, part in enumerate(c):
+                    if isinstance(part, str):
+                        c[i2] = part + " " + sys_suffix
+                        break
+                else:
+                    c.append(sys_suffix)
         call_def(model.streaming_prefill, session_id="s1", msgs=[sys_msg],
                  tokenizer=tok)
         h = model.llm.model.layers[LAYER].register_forward_hook(hook)
@@ -1070,3 +1084,16 @@ def report(bench: str = "striviaqa", suffix: str = "",
     print(f">>> wrote {DATA}/{bench}{suffix}_live.json + "
           f"{bench}{suffix}_traces.parquet",
           flush=True)
+
+ANTI_HEDGE = ("If you are not sure of the answer, say only 'I am not "
+              "sure.' in five words or fewer. Never explain your "
+              "uncertainty or give background; answer in one short "
+              "sentence.")
+
+
+@gen_app.local_entrypoint()
+def run_nohedge(bench: str = "striviaqa", limit: int = 0):
+    """8ab Q4: anti-hedge never arm. Traces -> {bench}_nohedge_traces."""
+    print(bench_live.remote(bench, tier="never", limit=limit,
+                            art_path="/data/midlayer_gate_audio_v3.json",
+                            suffix="_nohedge", sys_suffix=ANTI_HEDGE))

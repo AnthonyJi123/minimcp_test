@@ -3459,7 +3459,51 @@ receipts came from testing with idealized inputs; both 8ah defects
 were only reachable with mic-shaped input. Test the transducer you
 ship, not the files you have.
 
+### 8ai — anti-hedge prompt arm: suppresses the behavior, costs 9.6 points, probe unmoved (~$5, 2026-08-24)
+
+User: "先测4". `bench_live` gained a `sys_suffix` param (default empty
+= byte-identical); `run_nohedge` appends to the stock omni persona:
+"If you are not sure of the answer, say only 'I am not sure.' in five
+words or fewer. Never explain your uncertainty or give background;
+answer in one short sentence." Never arm, striviaqa 250, v3 probe
+artifact, judged both scales; all comparisons paired on the same ids.
+
+**1. The behavior is fully suppressible by prompt.** Median answer
+181 -> 42 chars; WRONG answers 258 -> 38; local decode P50 1.20 ->
+0.36 s and P90 3.31 -> **0.71 s** — the latency tail (the kink's
+fuel) is annihilated, exactly as the 8ab mechanism predicts.
+
+**2. It costs real accuracy: .664 -> .568 official judge (−.096,
+McNemar 10 vs 34, p < .001)** (ours judge −.044, p = .15 — the OAB
+judge rewards the context the short answers dropped). Decomposition of
+the 34 right->wrong flips: **13 are explicit abstentions** ("I am not
+sure") on questions the model previously got RIGHT while rambling —
+its verbal self-assessment false-abstains at 43% (13 of 30
+abstentions were on known items); **21 are information loss** (terse
+answer drops the alias/context the judge needed, or a different
+answer surfaces).
+
+**3. The probe does not care about the persona.** First read looked
+like drift (paired r = .45) — that was the 8ad scale artifact (stored
+never-arm scores are v2-era). Same-generation comparison (v3
+aggressive-arm scores vs v3 nohedge scores, same 250 ids): paired
+**r = .95**, medians .468 vs .470, AUC .796 vs .813, virtual
+escalation at the frozen corrected thresholds 15/30/50 -> 19/30/50.
+**The L22 read is style-invariant: suppressing the hedging TEXT does
+not touch the internal uncertainty STATE** — the strongest evidence
+yet that the probe reads the state, not the style (and it makes the
+probe strictly better calibrated than the model's own verbal
+abstention: AUC .81 vs a 43% false-abstain rate at n=30).
+
+**Verdict on Q4:** prompting can kill the symptom but it is a bad
+trade — −9.6 points bought back latency the router already recovers
+surgically (escalation FIXES the uncertain queries instead of
+shortening them; the gate needs no persona change, no threshold
+re-quantiling, no new deployment claim). The gate IS the correct
+anti-hedge. Spend ≈ $5.
+
 ---
+
 
 
 
