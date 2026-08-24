@@ -3074,7 +3074,18 @@ OFF: 487-char ramble ("only one Guru… However… to avoid confusion"),
 token exists; gpt-5.5 1.68 s + relay 0.62 s = 2.32 s, correct —
 0.78 s faster AND right. Pool inset: the 38 such queries (local P50
 2.38 s) leave the local queue, the remaining 212 drop to 0.94 s, arm
-median 1.52 → 1.17 s = the fig-8 left-fold.
+median 1.52 → 1.17 s = the fig-8 left-fold. **Web version (user: "更偏 demo
+的"): `/cases` on the demo app —
+https://rhe9527--gate-demo-web.modal.run/62dc5cd9/cases — six curated
+real queries side-by-side, probe-OFF (never arm) vs probe-ON (the tier
+that actually escalated/kept each), verbatim answers with hedge
+phrasings highlighted, judge verdicts, probe-score-vs-threshold line,
+latency segment bars. Covers the four fates: 2x escalate-faster-AND-
+fix (sllama0164 3.10s wrong->2.32s right; Dame Edna 5.77->3.13), 1x
+both-right-but-faster (5.07->3.87), 1x pay-latency-for-accuracy (Shema
+2.49 wrong->6.86 right), 1x correctly-kept (score .049), 1x
+confident-wrong missed at 15%/caught at 50% (Joe Gargery). Linked from
+the main demo header.**
 
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
