@@ -2965,8 +2965,16 @@ never/local answers only:
 Three readouts: (1) NOT MiniCPM-specific — an architecturally
 unrelated duplex model replicates the direction, attenuated because
 its trained voice style is terse (median 52-82 chars vs MiniCPM's
-156-400; predicts a shallower latency fold if NVDA ran our live
-loop). (2) TEXT models hedge too — gpt-5.5's own wrong answers on
+156-400). Quantified as a pre-registered prediction (user follow-up
+2026-08-24): fold depth is fueled by the answer-length TAIL the probe
+can remove — MiniCPM striviaqa p90-p10 spread 550 chars ≈ the slow
+decile costing +2.7 s over the median (at its measured 6.2 ms/char),
+NVDA only 97 chars ≈ +0.4 s — so if the live loop is ever ported to
+NVDA we predict NOT merely a shallower fold but most likely NONE:
+with every local decode under ~1 s and the expert RTT ~3 s,
+escalation is a net time-add on every query and the latency curve
+should be plainly monotonic. (Caveat: NVDA per-query decode time is
+batch-contaminated; the 0.4 s assumes same-order decode speed.) (2) TEXT models hedge too — gpt-5.5's own wrong answers on
 sllama run ~2x longer; the claim is capability-relative (each model
 hedges at ITS boundary), and the kink only needs the asymmetry that
 TriviaQA sits inside the 9B's boundary (84 wrongs) but barely
