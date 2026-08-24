@@ -2987,6 +2987,57 @@ counterexample. The kink itself does not require hedging universality
 r=.97) plus the probe selecting long-answer queries; a non-hedging
 model just folds less.
 
+**Addendum 3 (2026-08-24, user: "用实验说服我,不要 claim" — four
+questions, all answered from the traces, $0).**
+
+*Causation, alternatives killed (striviaqa n=250).* (A) "probe keys on
+verbosity/style": corr(score, len) = +.05, and in len ~ wrong + score
++ audio the score coefficient conditioned on wrongness is −.08 ≈ 0 —
+the probe selects WRONGNESS (corr .48); length rides along only
+through wrong (β +.26). (B) "longer audio → longer answers":
+corr(audio, len) = .03, β = +.04 — dead. (C) noise — 8ad. (D)
+"hedging is just 'long' renamed": explicit hedge phrasings appear in
+32% of wrong vs 7% of right answers, and WITHIN length bands hedge
+still predicts wrong (short band 1.00 vs .27) — a real textual
+behavior. Strongest piece is the NEGATIVE CONTROL: the probe selects
+wrong equally everywhere (corr(esc, wrong) = .26-.32 in every pool),
+but sdqa's wrongs are short and confident (P(wrong longer) = .48,
+corr(esc, len) = −.12) and sdqa has NO fold (+0.20 s). Same probe,
+same selection behavior, fold only where wrong happens to be slow —
+so fold = (probe catches wrong) × (pool's wrongs are slow), and
+"probe directly picks slow queries" is excluded. Self-correction: the
+fold has TWO fuel lines — hedging on retrieval pools, and LONG CoT on
+execution pools (sreason: char-length signature masked by CJK density,
+but decode time directly: escalated 4.38 s vs kept 3.04 s).
+
+*Router effectiveness on the phenomenon + why exactly one fold.*
+Escalated-set local-wrong fraction (striviaqa, base .34): cons 68% /
+bal 64% / agg 54% (lift x2.0/1.9/1.6); coverage of the pool's 84
+wrongs: 31% / 57% / 80%. The single fold is quantile arithmetic:
+local P50 falls monotonically (1.23→0.94→0.87→1.02 s) while the
+~3.3-3.8 s expert mass share grows; at 15% the median still sits in
+the (faster) local mass (1.19), by 30% it must cross expert mass
+(1.37), 50% → 1.96. One left-fold then monotonic rise is the necessary
+shape of a mixture median.
+
+*Which benchmarks show it.* Fold requires (i) probe catches wrong
+(all pools) AND (ii) wrong/hard is slow. Fuel present: sllama (.77
+hedging, −.35 s), sreason (CoT, −.41 s), striviaqa (.62, −.04 s).
+Fuel absent: swebq (enumerative format pins length, +.39 s), sdqa
+(short confident wrongs, +.20 s), valpaca (everyone long). Predicts
+NVDA (terse style) folds nowhere.
+
+*Anti-hedge prompting (user Q4).* Testable for ~$10 (250-query never
+arm, system-prompt line "If unsure, say 'I don't know' in five words
+or fewer"). Expected honestly: hedging is symptom not cause — it
+converts slow-wrong to fast-wrong (latency win, accuracy ~neutral,
+trust possibly worse); AND it shifts the hidden-state distribution
+under the frozen probe (8t/8z saw 5x score-scale shifts across
+domains), so thresholds need re-quantiling — a new deployment
+configuration, not a free patch. 8d's robust-prompt (transcription)
+was negative but is a different behavior. Three readouts if run:
+Δwrong-answer length, Δacc, Δprobe AUC/score drift. Awaiting go/no-go.
+
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
 only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
