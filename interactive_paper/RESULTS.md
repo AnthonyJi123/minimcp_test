@@ -3064,6 +3064,39 @@ wrong-enriched, and wrongs contain the slow hedged subset) but the
 anthropomorphic "the probe reads the hesitation" must be written as
 "the probe reads the coming failure".
 
+**Addendum 5 (2026-08-24, user go: "token 级熵轨迹做一下", ~$6, two
+H100 passes).** `modal_bench.py::entropy_replay`: 93 striviaqa queries
+in four behavior groups (hedged-wrong 27 / confident-wrong 27 / right
+27 / hedged-right 12), replayed through the exact bench streaming path,
+capturing per-step full-vocab entropy + P(terminator) via an lm_head
+hook. Figure `entropy_traj.{png,pdf}`. The user's hypothesized chain
+(retrieval failure → entropy up → EOS suppressed → hedging) is now
+MEASURED at token level:
+
+| group | first-5 entropy | traj median | steps | P(stop) at sentence boundaries |
+|---|---:|---:|---:|---:|
+| hedged-wrong | **.57** | .48 | 89 | **.0024** |
+| confident-wrong | .50 | .32 | 34 | .0147 |
+| right | .31 | .14 | 45 | **.083** |
+| hedged-right | .36 | **.52** | 96 | .0001 |
+
+(1) Trigger confirmed: hedged errors open at ~1.8x the entropy of
+correct answers (P=.70) and wander high all the way. (2) EOS
+suppression confirmed and large: at mid-answer sentence boundaries the
+terminator carries **35x less probability** in hedged errors than in
+correct answers — "keeps talking" is literally visible in the stop
+token. (3) The two error species split at token level: confident
+wrongs are SHORT (34 steps), low-trajectory-entropy (.32) — the output
+distribution is deceived by the false fact, which is precisely why
+entropy-based signals cap at AUC ~.70 while the L22 probe reaches .80
+on both species. (4) Bonus: hedged-RIGHT answers open LOW (.36, like
+correct) but wander highest and longest — early entropy tracks the
+retrieval state, late entropy tracks the rambling style; the two
+formerly-confounded quantities separate. Engineering footnote:
+MiniCPM's actual terminator is token id **151704 and it is absent from
+generation_config** (first run measured the wrong stop set and read
+~1e-7 everywhere; recovered from the argmax tails).
+
 **Case-study figure (user request: "从错题簿找一个典型,用 trace 说明拐弯
 怎么出现"):** `kink_case_study.{png,pdf}` (gallery 图21) walks one real
 sllama query through both worlds with measured milliseconds only —

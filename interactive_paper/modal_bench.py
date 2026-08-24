@@ -1097,3 +1097,153 @@ def run_nohedge(bench: str = "striviaqa", limit: int = 0):
     print(bench_live.remote(bench, tier="never", limit=limit,
                             art_path="/data/midlayer_gate_audio_v3.json",
                             suffix="_nohedge", sys_suffix=ANTI_HEDGE))
+
+# ---- 8ab token-level mechanism test (user go 2026-08-24) -----------------
+# Per-step full-vocab entropy + P(stop) trajectories during local decode,
+# for four groups of striviaqa queries. Predictions: hedged-wrong = high
+# early entropy + suppressed stop-prob through the ramble; right = early
+# stop spike; confident-wrong = trajectory ~ right (the token-level
+# signature of the two error species, and why entropy cannot replace the
+# probe).
+@gen_app.function(image=image_st, gpu="H100", volumes=GPU_VOL,
+                  timeout=60 * 60 * 2)
+def entropy_replay(per_group: int = 27, seed: int = 42) -> int:
+    import glob as _glob
+    import inspect
+    import re
+    import shutil
+    import numpy as np
+    import pandas as pd
+    import librosa
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+    from modal_app import MODEL_DIR
+
+    cache = os.path.expanduser("~/.cache/huggingface/modules/"
+                               "transformers_modules/"
+                               + os.path.basename(MODEL_DIR))
+    os.makedirs(cache, exist_ok=True)
+    for f in _glob.glob(f"{MODEL_DIR}/*.py"):
+        shutil.copy(f, cache)
+    model = AutoModel.from_pretrained(
+        MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
+        init_vision=False, init_audio=True, init_tts=False).eval().cuda()
+    tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
+
+    # group labels from the measured never arm
+    tr = pd.read_parquet(f"{DATA}/striviaqa_v3_traces.parquet")
+    nev = tr[tr["tier"] == "never"].set_index("id")
+    HED = re.compile(r"there is no|no widely|not a real|i'?m not sure|"
+                     r"not sure|might be|likely|however|unfortunately|"
+                     r"i don'?t know|as an ai|apolog|unclear|difficult to",
+                     re.I)
+    hedge = nev["answer"].str.contains(HED).fillna(False)
+    wrong = nev["oab_ok"] == 0
+    rng = np.random.default_rng(seed)
+
+    def pick(mask, n):
+        ids = sorted(nev.index[mask])
+        return list(rng.choice(ids, size=min(n, len(ids)),
+                               replace=False))
+    groups = {"hedged_wrong": pick(wrong & hedge, per_group),
+              "confident_wrong": pick(wrong & ~hedge, per_group),
+              "right": pick(~wrong & ~hedge, per_group),
+              "hedged_right": pick(~wrong & hedge, 12)}
+    print({k: len(v) for k, v in groups.items()}, flush=True)
+
+    # stop-token ids
+    eids = set()
+    gc = getattr(model.llm, "generation_config", None)
+    if gc is not None:
+        v = gc.eos_token_id
+        for x in (v if isinstance(v, (list, tuple)) else [v]):
+            if isinstance(x, int):
+                eids.add(x)
+    if tok.eos_token_id is not None:
+        eids.add(tok.eos_token_id)
+    for t_ in ("<|im_end|>",):
+        i_ = tok.convert_tokens_to_ids(t_)
+        if isinstance(i_, int) and i_ >= 0:
+            eids.add(i_)
+    # the ACTUAL terminator streaming_generate stops on — found from the
+    # argmax tail of the first run; absent from generation_config
+    eids.add(151704)
+    STOP = torch.tensor(sorted(eids), device="cuda")
+    print("stop ids:", sorted(eids), flush=True)
+
+    st = {"on": False, "ent": [], "stop": [], "tid": []}
+
+    def hook(_m, _i, out):
+        if not st["on"]:
+            return
+        lg = out[0, -1].float()
+        p = torch.softmax(lg, -1)
+        st["ent"].append(float(-(p * torch.log(p + 1e-12)).sum()))
+        st["stop"].append(float(p[STOP].sum()))
+        st["tid"].append(int(lg.argmax()))
+    h = model.llm.lm_head.register_forward_hook(hook)
+
+    def call_def(fn, /, **kw):
+        prm = set(inspect.signature(fn).parameters)
+        return fn(**{k: v for k, v in kw.items() if k in prm})
+
+    rows = []
+    try:
+        for gname, ids in groups.items():
+            for k, qid in enumerate(ids):
+                wav = f"{DATA}/bench_audio/{qid}.wav"
+                if not os.path.exists(wav):
+                    continue
+                au, _ = librosa.load(wav, sr=16000, mono=True)
+                chunks = [au[i:i + 16000]
+                          for i in range(0, len(au), 16000)]
+                model.reset_session()
+                st.update(on=False, ent=[], stop=[], tid=[])
+                sys_msg = call_def(model.get_sys_prompt, mode="omni",
+                                   language="en")
+                call_def(model.streaming_prefill, session_id="s1",
+                         msgs=[sys_msg], tokenizer=tok)
+                for i, ch in enumerate(chunks):
+                    if len(ch) < 16000:
+                        ch = np.pad(ch, (0, 16000 - len(ch)))
+                    call_def(model.streaming_prefill, session_id="s1",
+                             msgs=[{"role": "user",
+                                    "content": [ch.astype(np.float32)]}],
+                             tokenizer=tok,
+                             is_last_chunk=(i == len(chunks) - 1))
+                call_def(model.streaming_prefill, session_id="s1",
+                         msgs=[{"role": "assistant", "content": [" "]}],
+                         tokenizer=tok, is_last_chunk=True)
+                st["on"] = True
+                res = call_def(model.streaming_generate,
+                               session_id="s1", tokenizer=tok,
+                               temperature=0.1, generate_audio=False,
+                               max_new_tokens=512)
+                parts = []
+                if inspect.isgenerator(res) or hasattr(res, "__next__"):
+                    for x in res:
+                        t = getattr(x, "text", None)
+                        if t is None and isinstance(x, dict):
+                            t = x.get("text")
+                        if isinstance(t, str):
+                            parts.append(t)
+                else:
+                    parts.append(str(res))
+                st["on"] = False
+                rows.append({"id": qid, "group": gname,
+                             "n_steps": len(st["ent"]),
+                             "ent": list(st["ent"]),
+                             "p_stop": list(st["stop"]),
+                             "tok_ids": list(st["tid"]),
+                             "answer": "".join(parts).strip()})
+                if k % 8 == 0:
+                    print(f"  [{gname} {k}] {qid} steps="
+                          f"{len(st['ent'])}", flush=True)
+    finally:
+        h.remove()
+    pd.DataFrame(rows).to_parquet(f"{DATA}/entropy_traj.parquet")
+    gate_data.commit()
+    print(f">>> wrote entropy_traj.parquet ({len(rows)} rows)",
+          flush=True)
+    return len(rows)
