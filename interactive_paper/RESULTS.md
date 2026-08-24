@@ -2926,6 +2926,31 @@ ms) — but because the mechanism is deterministic, 3–5 seeds would
 average toward the same left-fold, not away from it. If a definitive
 check is ever wanted: rerun never+conservative only, ~$6/seed.
 
+**Addendum (2026-08-24, user asked for the interpretation, not the
+assumption): the kink's behavioral story, from the traces.** Local
+answer length and decode time are the same variable (r = .97), and the
+small model's signature failure mode on striviaqa is
+**uncertainty-as-verbosity**: when it doesn't know, it hedges at
+length. The 38 conservative-escalated queries vs the 212 kept, all
+measured in the NEVER arm (no escalation anywhere): local P50 1.69 s
+vs 1.18 s, median answer 267 vs 172 chars, local accuracy **.32 vs
+.73**. Canonical example striviaqa0192 ("Where does Dame Edna Everage
+come from"): locally the talker rambles 921 chars for 5.8 s about the
+character not being real and gets it WRONG; the escalated path returns
+"Moonee Ponds, Melbourne" in 3.1 s total — faster AND correct,
+because the expert round-trip is flat ~3 s while the local ramble is
+5-9 s. (Two more of the same shape: striviaqa0074 Aung San Suu Kyi
+5.1→3.9 s, striviaqa0221 Rastafari 4.5→3.6 s.) The probe reads this
+BEFORE the answer exists — the hidden state carries the hesitation the
+verbosity would later express. Honest counterpart: the kept-pool's 27%
+errors are FAST confident wrongs (striviaqa: "Joe Gargery → Our Mutual
+Friend", 0.6 s, no hedging signature) — the species a 15%-budget gate
+misses and the reason the curve keeps rising toward 50%. Also
+clarified for the record: figure error bars are query-resampling
+bootstrap from ONE live run per arm, not repeated runs; the fold's
+SIGN replicates deterministically (identical probe scores → identical
+escalated set), only its depth is within the noise band.
+
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
 only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
