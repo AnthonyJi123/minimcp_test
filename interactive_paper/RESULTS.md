@@ -3064,6 +3064,18 @@ wrong-enriched, and wrongs contain the slow hedged subset) but the
 anthropomorphic "the probe reads the hesitation" must be written as
 "the probe reads the coming failure".
 
+**Case-study figure (user request: "从错题簿找一个典型,用 trace 说明拐弯
+怎么出现"):** `kink_case_study.{png,pdf}` (gallery 图21) walks one real
+sllama query through both worlds with measured milliseconds only —
+sllama0164 "How many gurus are there in Sikhism?" (ref: Ten). Probe
+OFF: 487-char ramble ("only one Guru… However… to avoid confusion"),
+3.10 s, wrong. Probe ON (cons arm): running chunk scores .71/.67/.66,
+21 ms end-of-turn read .631 ≥ .513 → escalate before a single answer
+token exists; gpt-5.5 1.68 s + relay 0.62 s = 2.32 s, correct —
+0.78 s faster AND right. Pool inset: the 38 such queries (local P50
+2.38 s) leave the local queue, the remaining 212 drop to 0.94 s, arm
+median 1.52 → 1.17 s = the fig-8 left-fold.
+
 **图8 (sllama_pareto) latency zigzag decomposed → new figure
 `sllama_latency_decomp.{png,pdf}`.** Two panels: (1) the fold lives
 only in the median — the MEAN is monotonic (1.65/1.81/1.96/2.06 s vs
