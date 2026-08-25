@@ -2974,7 +2974,23 @@ NVDA we predict NOT merely a shallower fold but most likely NONE:
 with every local decode under ~1 s and the expert RTT ~3 s,
 escalation is a net time-add on every query and the latency curve
 should be plainly monotonic. (Caveat: NVDA per-query decode time is
-batch-contaminated; the 0.4 s assumes same-order decode speed.) (2) TEXT models hedge too — gpt-5.5's own wrong answers on
+batch-contaminated; the 0.4 s assumes same-order decode speed.)
+**VERIFIED 2026-08-24 (user: "那你跑呗", ~$0.2):** the batch-timing
+problem dissolves for a speech-native duplex model — its deployed
+answer latency is the FRAME CLOCK (1 text token = 1 LM frame = 80 ms),
+so per-query local latency = token count x 0.08 s, immune to batching.
+`modal_nvda.py::dump_scores` refit the winner probe (calib=frozen 600)
+for per-query NVDA scores + exact Nemotron token counts; expert path =
+per-query measured gpt-5.5 RTT + relay at frame rate. Same top-r
+re-mix arithmetic on both models (`figures/nvda_fold_test.py`):
+**NVDA strictly monotonic on both pools** (sllama 0.96→2.79 s over
+0-60%, striviaqa 1.36→3.65 s; no dip anywhere), while the SAME
+arithmetic on MiniCPM reproduces its dip (sllama 1.50→1.45) — a
+same-math positive control. Mechanism as predicted: NVDA local P90 =
+2.0 s < expert ~4 s, so escalation is a net time-add on every query.
+The prediction is now an observation (under the stated frame-clock
+convention; a full live port would add turn-take offsets, which are
+constant and cannot create a fold). (2) TEXT models hedge too — gpt-5.5's own wrong answers on
 sllama run ~2x longer; the claim is capability-relative (each model
 hedges at ITS boundary), and the kink only needs the asymmetry that
 TriviaQA sits inside the 9B's boundary (84 wrongs) but barely

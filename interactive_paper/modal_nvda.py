@@ -566,3 +566,71 @@ def run_missing(tag: str = "frozen", workers: int = 2):
         [(tag, shards[i], 100 + i) for i in range(w)]))
     print(f">>> {tag}: recovered {total}")
 
+score_image = (modal.Image.debian_slim(python_version="3.11")
+               .pip_install("scikit-learn", "pandas", "pyarrow", "numpy",
+                            "transformers", "sentencepiece"))
+
+
+@app.function(image=score_image, volumes={DATA: gate_data},
+              timeout=60 * 30)
+def dump_scores(ext_tags: str = "sllama,striviaqa,swebq,sdqa"):
+    """Per-query NVDA probe scores (winner combo, calib=frozen) + answer
+    token counts (Nemotron tokenizer; 1 text token = 1 LM frame = 80 ms
+    of real-time speech) -> nvda_scores.parquet. Fuel for the
+    pre-registered fold test at ~$0."""
+    import glob
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(
+        "nvidia/NVIDIA-Nemotron-Nano-9B-v2", trust_remote_code=True)
+
+    def load_tag(tag):
+        shards = sorted(glob.glob(f"{NVDA_H}_{tag}.shard*.npz"))
+        ids, E, M = [], [], []
+        for sh in shards:
+            z = np.load(sh, allow_pickle=True)
+            ids += [str(x) for x in z["ids"]]
+            E.append(z["H_eot"]); M.append(z["H_mean"])
+        return ids, np.concatenate(E).astype(np.float32),             np.concatenate(M).astype(np.float32)
+
+    layers = list(NVDA_LAYERS)
+    jbest = layers.index(34)          # winner layer from the 8ac sweep
+
+    def feats(E, M):
+        return np.concatenate([E[:, jbest, -1], E[:, jbest].mean(1),
+                               M[:, jbest]], axis=1)
+
+    ids_c, Ec, Mc = load_tag("frozen")
+    lab = pd.read_parquet(f"{DATA}/nvda_frozen.parquet")         .set_index("id")["escalate_label"]
+    keep = [i for i, q in enumerate(ids_c)
+            if q in lab.index and pd.notna(lab.get(q))]
+    yc = np.array([int(lab[ids_c[i]]) for i in keep])
+    clf = make_pipeline(StandardScaler(),
+                        LogisticRegression(C=1e-4, max_iter=4000))
+    clf.fit(feats(Ec[keep], Mc[keep]), yc)
+    print(f"calib n={len(yc)} fail={yc.mean():.3f}")
+
+    rows = []
+    for tag in ext_tags.split(","):
+        tag = tag.strip()
+        ids, E, M = load_tag(tag)
+        sc = clf.predict_proba(feats(E, M))[:, 1]
+        ans = pd.read_parquet(f"{DATA}/nvda_{tag}.parquet")             .set_index("id")
+        for i, qid in enumerate(ids):
+            if qid not in ans.index:
+                continue
+            a = str(ans.loc[qid, "answer"] or "")
+            rows.append({"pool": tag, "id": qid,
+                         "score": float(sc[i]),
+                         "n_tokens": len(tok.encode(
+                             a, add_special_tokens=False)),
+                         "adequate": ans.loc[qid, "adequate"]})
+        print(f"{tag}: {sum(r['pool'] == tag for r in rows)} scored")
+    pd.DataFrame(rows).to_parquet(f"{DATA}/nvda_scores.parquet")
+    gate_data.commit()
+    print(">>> wrote nvda_scores.parquet")
