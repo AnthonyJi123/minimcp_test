@@ -9,9 +9,10 @@ the out-of-distribution test the audit demands. We take the gate
 fit once on the internal calibration mix --- and run the complete live
 streaming loop of \S\ref{sec:live} on six public speech-QA benchmarks:
 Speech TriviaQA, Speech Web Questions, Llama Questions, and Reasoning QA
-from OpenAudioBench
-\todonote{cite: OpenAudioBench; Web Questions (Berant et al.\ 2013);
-Llama Questions (Nachmani et al.)} \citep{joshi2017triviaqa}, SD-QA
+from OpenAudioBench \citep{openaudiobench2025} --- spoken renderings of
+TriviaQA \citep{joshi2017triviaqa}, WebQuestions
+\citep{berant2013webquestions}, and the Llama Questions set of
+\citet{nachmani2024spoken} --- SD-QA
 (real dialectal human speech, not TTS) \citep{faisal2021sdqa}, and
 VoiceBench AlpacaEval \citep{chen2024voicebench, taori2023alpaca}. All
 pools use the benchmarks' official pre-rendered audio --- none of it
@@ -82,9 +83,9 @@ rises monotonically, and the 50\%-escalation arm lifts the live floor by
 the 9B duplex model plus the frozen gate at 50\% escalation scores
 \textbf{.860 live}, against .755 for MiniCPM-o 4.5's own official
 offline number and \textbf{.629} for Qwen3-Omni-30B-A3B
-(3.3$\times$ the parameters, offline chat mode)
-\todonote{cite: Qwen3-Omni / Kimi-Audio comparison rows (official
-OpenAudioBench table; Kimi-Audio scores .419 here)}. On Web Questions
+\citep{qwen3omni2025} at 3.3$\times$ the parameters (offline chat
+mode; Kimi-Audio, \citealp{kimiaudio2025}, scores .419 on the same
+table). On Web Questions
 the gated system clears the official number (.732 vs.\ .702) and lands
 just under Qwen3-Omni (.749).
 

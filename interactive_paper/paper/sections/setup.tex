@@ -63,16 +63,20 @@ a drafted answer.
 Adequacy labels come from \texttt{gpt-5.4-mini} with structured outputs,
 blind to the gate. The judge is validated by a \texttt{gpt-5.5} re-judge:
 agreement 0.962 (text) / 0.945 (audio); every headline number moves
-$\le$0.010 under the stronger judge's labels. Escalation target for system
-experiments: \texttt{gpt-5.5}. \todonote{cite/describe judge models
-properly; OpenAI model documentation entry in refs.bib is a placeholder}
+$\le$0.010 under the stronger judge's labels. The escalation target for system
+experiments is \texttt{gpt-5.5} at low reasoning effort (the measured
+choice, \S\ref{sec:liveloop}). Judge and expert run against pinned
+OpenAI API snapshots; the judge prompt, rubric, and structured-output
+schema are frozen in the repository and reproduced in the appendix.
 
 \paragraph{Audio arm.}
 The frozen pool is TTS-rendered (OpenAI \texttt{tts-1}, single voice), so
 query \emph{content} is unchanged and only modality varies, following
 Spoken-SQuAD / VoiceBench practice
-\citep{li2018spokensquad,chen2024voicebench}. Real-speech validation on
-SD-QA \citep{faisal2021sdqa} is open (\S\ref{sec:todo}).
+\citep{li2018spokensquad,chen2024voicebench}; the audio-side findings
+are validated on real human speech via SD-QA \citep{faisal2021sdqa}
+(\S\ref{sec:speech}) and the external benchmarks' official audio
+(\S\ref{sec:transfer}).
 
 \paragraph{Infrastructure.}
 All experiments run on Modal H100 instances; torch 2.8.0, transformers
