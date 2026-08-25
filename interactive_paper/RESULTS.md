@@ -3775,6 +3775,51 @@ redeploy forces fresh containers (two verify rounds hit stale ones).
 
 
 
+### 8al — soft barge-in: talk over the talker and it yields (~$3, 2026-08-25)
+
+User: full-duplex should accept interruption ("STOP" while the model
+speaks) — and correctly diagnosed as untested: is it MiniCPM or echo?
+Neither. Our turn-based simplex pipeline structurally could not hear an
+interruption: `_answer` ran synchronously while the WS receive loop was
+blocked, and the post-answer drain (an 8ah fix) then DISCARDED everything
+said during the answer. MiniCPM's native duplex machinery (listen/speak
+head, break_event) sits unused in the weights; echo is irrelevant while
+nobody is listening.
+
+**Implementation (soft barge-in — no duplex head, no probe change).**
+(1) `_gen_speak`/`_answer` take an abort Event: generation stops at chunk
+granularity, the expert wait polls every 100 ms, the relay is skipped if
+aborted; partial turns return `interrupted: true`. (2) The WS answer
+phase becomes a watch loop: mic frames are read WHILE the model answers;
+sustained loud speech (>= 0.4 s above 5x adaptive floor — deliberately
+stricter than the turn VAD so speaker echo through imperfect AEC cannot
+self-interrupt) or the manual button sets abort and pushes an
+`interrupt` event. (3) The interrupting audio seeds the NEXT turn
+(speech state pre-armed), so what you said while cutting it off is what
+it answers. (4) Frontend tracks scheduled AudioBufferSources and
+cancels them on `interrupt` — playback dies instantly.
+
+**Verification (`_ws_barge.py`, mic-shaped protocol).** Two scenarios,
+both PASS on the deployed app: (a) barge-in during a LOCAL spoken answer
+— "grasshoppers" answer cut mid-sentence, turn marked interrupted, the
+interjected "How many died in the Columbia?" became turn 2, escalated
+.878, expert 6.3 s, relayed and spoken; (b) barge-in during the
+ESCALATED expert wait — abort 62 ms after the stall, no relay, partial
+turn returned. Bonus finding from the first (accidental) run: a > 1.25 s
+pause INSIDE a long question makes the VAD fire early and the model
+start answering — the question's own continuation then triggers
+barge-in and the remainder becomes the next turn: graceful recovery
+from early end-pointing, which is the honest duplex-ish behavior for
+the turn-based loop.
+
+Native duplex integration (MiniCPMODuplex per-chunk listen/speak) stays
+future work: the probe is calibrated on simplex streaming states, and
+the L22 read's validity under the duplex loop is an open experiment.
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

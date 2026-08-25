@@ -99,9 +99,11 @@ def _call_def(fn, /, **kw):
     return fn(**{k: v for k, v in kw.items() if k in p})
 
 
-def _gen_speak(model, tok, emit_pcm, **kw):
+def _gen_speak(model, tok, emit_pcm, abort=None, **kw):
     """streaming_generate with the talker head ON: emit_pcm(float32 24 kHz
-    chunk) per ~1 s of speech; returns (text, first_audio_ms, n_samples)."""
+    chunk) per ~1 s of speech; returns (text, first_audio_ms, n_samples).
+    abort (threading.Event) stops consumption at chunk granularity —
+    the soft barge-in primitive."""
     kw.setdefault("max_new_tokens", 512)
     t0 = time.time()
     res = _call_def(model.streaming_generate, tokenizer=tok,
@@ -109,6 +111,8 @@ def _gen_speak(model, tok, emit_pcm, **kw):
                     use_tts_template=True, **kw)
     texts, first_ms, n_samp = [], None, 0
     for item in res:
+        if abort is not None and abort.is_set():
+            break
         wf, txt = (item if isinstance(item, tuple)
                    else (None, getattr(item, "text", None)))
         if wf is not None:
@@ -251,8 +255,12 @@ class Voice:
                   tokenizer=self.tok, is_last_chunk=True)
         return self._score_now(), int((time.time() - t0) * 1000)
 
-    def _answer(self, fired, uplink_text=None, wav_f32=None, emit=None):
-        """Local answer or stall+expert+relay. emit(dict) streams events."""
+    def _answer(self, fired, uplink_text=None, wav_f32=None, emit=None,
+                abort=None):
+        """Local answer or stall+expert+relay. emit(dict) streams events.
+        abort (threading.Event) = soft barge-in: stop generating/waiting
+        as soon as it is set; partial results are returned marked
+        interrupted."""
         import sys
         import threading
         sys.path.insert(0, "/workspace/gate")
@@ -274,11 +282,13 @@ class Voice:
         if not fired:
             emit({"type": "phase", "v": "answering"})
             ans, first_ms, n_samp = _gen_speak(self.model, self.tok,
-                                               emit_audio, session_id="s1")
+                                               emit_audio, abort=abort,
+                                               session_id="s1")
             out.update(mode="local", answer=ans,
                        answer_ms=int((time.time() - t_eot) * 1000),
                        first_audio_ms=first_ms,
-                       speech_out_s=round(n_samp / 24000, 2))
+                       speech_out_s=round(n_samp / 24000, 2),
+                       interrupted=bool(abort and abort.is_set()))
             return out
         exp = {}
 
@@ -323,7 +333,15 @@ class Voice:
         t_stall = time.time()
         if getattr(self, "stall_pcm", None) is not None:
             emit_audio(self.stall_pcm)   # canned filler, talker's own voice
-        th.join(timeout=150)
+        for _ in range(1500):
+            th.join(timeout=0.1)
+            if not th.is_alive() or (abort is not None and abort.is_set()):
+                break
+        if abort is not None and abort.is_set():
+            out.update(mode="escalated", answer="", interrupted=True,
+                       expert_answer=exp.get("answer", ""),
+                       stall_ms=int((t_stall - t_eot) * 1000))
+            return out
         t_expert = time.time()
         emit({"type": "log",
               "msg": f"expert answered in {exp.get('wall_s', -1):.1f} s"})
@@ -334,8 +352,10 @@ class Voice:
                              ans=exp.get("answer", ""))]}],
                   tokenizer=self.tok, is_last_chunk=True)
         relay, first_ms, n_samp = _gen_speak(self.model, self.tok,
-                                             emit_audio, session_id="s1")
+                                             emit_audio, abort=abort,
+                                             session_id="s1")
         out.update(mode="escalated", answer=relay,
+                   interrupted=bool(abort and abort.is_set()),
                    first_audio_ms=first_ms,
                    speech_out_s=round(n_samp / 24000, 2),
                    expert_answer=exp.get("answer", ""),
@@ -430,6 +450,7 @@ class Voice:
 
         @wapp.websocket(f"/{TOKEN}/ws")
         async def ws(sock: WebSocket):
+            import threading as _th
             await sock.accept()
             tier = sock.query_params.get("tier", "balanced")
             probe_on = sock.query_params.get("probe_on", "1") == "1"
@@ -473,11 +494,65 @@ class Voice:
                          "ms": eot_ms, "thr": round(thr, 4),
                          "fired": fired, "probe_on": probe_on})
                     full = np.concatenate(wav) if wav else np.zeros(1600)
-                    out = await loop.run_in_executor(
+                    abort = _th.Event()
+                    fut = loop.run_in_executor(
                         None, lambda: self._answer(
                             fired, None, full,
                             lambda m: asyncio.run_coroutine_threadsafe(
-                                sock.send_json(m), loop)))
+                                sock.send_json(m), loop), abort))
+                    # soft barge-in: keep reading the mic WHILE the model
+                    # answers. Trigger = sustained loud speech (>=0.4 s
+                    # above 5x floor) or the manual stop button —
+                    # deliberately stricter than the turn VAD so speaker
+                    # echo through imperfect AEC cannot self-interrupt.
+                    # The interrupting speech seeds the next turn.
+                    int_sp, int_buf, gone = 0.0, [], False
+                    while not fut.done():
+                        try:
+                            m2 = await asyncio.wait_for(sock.receive(),
+                                                        timeout=0.1)
+                        except asyncio.TimeoutError:
+                            continue
+                        except RuntimeError:
+                            gone = True
+                            abort.set()
+                            break
+                        if m2.get("type") == "websocket.disconnect":
+                            gone = True
+                            abort.set()
+                            break
+                        t2 = m2.get("text")
+                        if t2:
+                            try:
+                                manual = (json.loads(t2).get("type")
+                                          == "eot")
+                            except Exception:
+                                manual = False
+                            if manual and not abort.is_set():
+                                abort.set()
+                                await sock.send_json({"type": "interrupt",
+                                                      "why": "manual"})
+                            continue
+                        b2 = m2.get("bytes")
+                        if not b2:
+                            continue
+                        f2 = (np.frombuffer(b2, dtype=np.int16)
+                              .astype(np.float32) / 32768.0)
+                        rms2 = float(np.sqrt((f2 * f2).mean() + 1e-12))
+                        if abort.is_set():
+                            int_buf.append(f2)    # keep the utterance
+                        elif rms2 > max(0.008, floor * 5.0):
+                            int_sp += len(f2) / 16000.0
+                            int_buf.append(f2)
+                            if int_sp >= 0.4:
+                                abort.set()
+                                await sock.send_json({"type": "interrupt",
+                                                      "why": "speech"})
+                        else:
+                            int_sp, int_buf = 0.0, []
+                    out = await fut
+                    if gone:
+                        return
                     out.update(fired=fired, eot_score=round(eot, 4),
                                threshold=round(thr, 4), scores=scores,
                                eot_read_ms=eot_ms, probe_on=probe_on,
@@ -492,6 +567,13 @@ class Voice:
                     speech, sp, sil, fed = False, 0.0, 0.0, 0
                     # floor intentionally kept: same room, same mic
                     await loop.run_in_executor(None, self._turn_reset)
+                    if abort.is_set() and int_buf:
+                        # barge-in speech becomes the start of this turn
+                        seed = np.concatenate(int_buf)[-16000 * 8:]
+                        buf = seed
+                        wav = [seed.copy()]
+                        speech, sp = True, int_sp
+                        await sock.send_json({"type": "speech", "on": True})
                     await sock.send_json({"type": "phase",
                                           "v": "listening"})
 
@@ -585,13 +667,9 @@ class Voice:
                         await sock.send_json({"type": "speech",
                                               "on": False})
                         await do_eot()
-                        # drain anything the mic sent while we answered
-                        try:
-                            while True:
-                                await asyncio.wait_for(sock.receive(),
-                                                       timeout=0.05)
-                        except (asyncio.TimeoutError, RuntimeError):
-                            pass
+                        # no post-answer drain: the barge-in watch loop
+                        # inside do_eot already consumed (and either used
+                        # or discarded) everything sent while answering
             except WebSocketDisconnect:
                 pass
             finally:
@@ -913,7 +991,8 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
         decides, and either the talker answers or gpt-5.5 does (your audio
         goes through the hosted-ASR uplink — no gold text exists for real
         speech). The talker SPEAKS its answer — native TTS head, 24 kHz.
-        Then it listens again.</div>
+        Barge-in: talk over it (or hit the button) and it stops and
+        listens to you instead. Then it listens again.</div>
       <h2 style="margin-top:.9rem">…or type instead</h2>
       <input id=q placeholder="e.g. what is NVDA trading at right now?">
       <div class=row style="margin-top:.4rem" id=chips></div>
@@ -944,7 +1023,9 @@ const T="__TOKEN__", AGG=__AGG__, THR=__THR__;
 const $=s=>document.querySelector(s);
 let probeOn=true, sel=null, S={n:0,ok:0,esc:0,ms:0,onN:0,onOk:0,offN:0,offOk:0};
 
-let playCtx=null,playT=0;
+let playCtx=null,playT=0,playSrcs=[];
+function stopPlayback(){
+  playSrcs.forEach(s=>{try{s.stop()}catch(_){}});playSrcs=[];playT=0;}
 function playPCM(b64,sr){
   if(!playCtx)playCtx=new (window.AudioContext||window.webkitAudioContext)();
   if(playCtx.state==="suspended")playCtx.resume();
@@ -955,6 +1036,9 @@ function playPCM(b64,sr){
   buf.getChannelData(0).set(f);
   const src=playCtx.createBufferSource();src.buffer=buf;
   src.connect(playCtx.destination);
+  playSrcs.push(src);
+  src.onended=()=>{const i=playSrcs.indexOf(src);
+    if(i>=0)playSrcs.splice(i,1)};
   playT=Math.max(playT,playCtx.currentTime);
   src.start(playT);playT+=buf.duration;
 }
@@ -1214,6 +1298,10 @@ function handleVoice(m){
     {listening:"listening",answering:"talker answering…",
      escalating:"expert thinking…",relaying:"relaying…"}[m.v]||m.v;}
   else if(m.type==="audio"){playPCM(m.pcm,m.sr||24000);}
+  else if(m.type==="interrupt"){stopPlayback();
+    log(`barge-in (${m.why==="manual"?"stop button":"you spoke"}) — `
+      +`generation and playback stopped`,"off");
+    $("#vstate").textContent="interrupted";}
   else if(m.type==="log"){log(esc(m.msg));}
   else if(m.type==="error"){log("server: "+esc(m.msg),"off");}
   else if(m.type==="turn"){renderTurn(m,true);}
@@ -1223,7 +1311,8 @@ function renderTurn(d,voice){
   const fired=d.fired;
   $("#turn").innerHTML=`
    <div class=row><span class="pill g">${voice?"voice":"typed"}</span>
-     <span class="pill ${fired?'ok':'m'}">${fired?"ESCALATED":"LOCAL"}</span></div>
+     <span class="pill ${fired?'ok':'m'}">${fired?"ESCALATED":"LOCAL"}</span>
+     ${d.interrupted?'<span class="pill m">INTERRUPTED</span>':''}</div>
    <div class=q><b>Q.</b> ${esc(d.question)||"<i>(your voice)</i>"}</div>
    ${d.uplink_text?`<div class=muted>hosted ASR heard (what the expert
      read): <i>${esc(d.uplink_text)}</i></div>`:""}
