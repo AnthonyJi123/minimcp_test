@@ -3014,7 +3014,25 @@ have the fattest removable local mass (whole chains spoken aloud)
 against a governed flat expert path; also explains 8x's old
 observation that sreason's P90 IMPROVES with escalation (13 s chains
 swapped for 3.7 s round-trips). Comparison rows: sllama expert 64 tok
-/ 2.39 s, striviaqa 69 tok / 2.71 s. (2) TEXT models hedge too — gpt-5.5's own wrong answers on
+/ 2.39 s, striviaqa 69 tok / 2.71 s.
+
+**Addendum 7 (2026-08-24, user: "NVDA 11B 所以拐弯该更深?", $0).**
+Two category errors corrected with one measured dissociation. (1) The
+11B includes the ears (FastConformer) and mouth (TTS); NVDA's LLM
+backbone is Nemotron Nano 9B — same brain size as MiniCPM's. (2)
+Chain length is a TRAINING-STYLE property, not a size property — and
+the style is not free. Frozen pool, same queries, same judge, by
+failure species: **hard-math MiniCPM .517 (median answer 1145 chars —
+the full spoken chain) vs NVDA .217 (284 chars) = −30 points;
+hard-knowledge .200 vs .183 ≈ tie.** Perfect dissociation: a terse
+duplex model loses exactly the compute that emitting the chain buys
+(serial steps via tokens), while on pure-knowledge failures the chain
+never mattered. NVDA has no fold (verified, nvda_fold_test) not
+because it is stronger but because it traded away spoken reasoning —
+fold-free and math-broken are the same design choice. (Also corrects
+a user misconception worth guarding in the paper: the chain must be
+emitted because tokens ARE the serial compute feedback path, not
+because of GPU memory.) (2) TEXT models hedge too — gpt-5.5's own wrong answers on
 sllama run ~2x longer; the claim is capability-relative (each model
 hedges at ITS boundary), and the kink only needs the asymmetry that
 TriviaQA sits inside the 9B's boundary (84 wrongs) but barely

@@ -99,24 +99,27 @@ def _call_def(fn, /, **kw):
     return fn(**{k: v for k, v in kw.items() if k in p})
 
 
-def _gen_text(model, tok, **kw):
-    import inspect
+def _gen_speak(model, tok, emit_pcm, **kw):
+    """streaming_generate with the talker head ON: emit_pcm(float32 24 kHz
+    chunk) per ~1 s of speech; returns (text, first_audio_ms, n_samples)."""
     kw.setdefault("max_new_tokens", 512)
+    t0 = time.time()
     res = _call_def(model.streaming_generate, tokenizer=tok,
-                    temperature=0.1, generate_audio=False, **kw)
-    parts = []
-    if inspect.isgenerator(res) or hasattr(res, "__next__"):
-        for x in res:
-            t = getattr(x, "text", None)
-            if t is None and isinstance(x, dict):
-                t = x.get("text")
-            if t is None and isinstance(x, (tuple, list)) and x:
-                t = x[0]
-            if isinstance(t, str):
-                parts.append(t)
-    else:
-        parts.append(str(res))
-    return "".join(parts).strip()
+                    temperature=0.1, generate_audio=True,
+                    use_tts_template=True, **kw)
+    texts, first_ms, n_samp = [], None, 0
+    for item in res:
+        wf, txt = (item if isinstance(item, tuple)
+                   else (None, getattr(item, "text", None)))
+        if wf is not None:
+            if first_ms is None:
+                first_ms = int((time.time() - t0) * 1000)
+            pcm = wf.float().cpu().numpy().reshape(-1)
+            n_samp += len(pcm)
+            emit_pcm(pcm)
+        if txt:
+            texts.append(txt)
+    return "".join(texts).strip(), first_ms, n_samp
 
 
 @app.cls(image=gpu_image, gpu="H100",
@@ -146,9 +149,18 @@ class Voice:
             MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
             torch_dtype=torch.bfloat16,
             init_vision=False, init_audio=True,
-            init_tts=False).eval().cuda()
+            init_tts=True).eval().cuda()
         self.tok = AutoTokenizer.from_pretrained(MODEL_DIR,
                                                  trust_remote_code=True)
+        # talker audio out (TTS smoke 2026-08-24: works under the 4.51 pin;
+        # +10.5 s load, VRAM peak 26.9 GB). The vocoder voice prompt is
+        # vocoder-side only — the LLM context (and thus every probe read
+        # against the frozen thresholds) is byte-identical to before.
+        import librosa as _lb
+        self.model.init_tts(model_dir=f"{MODEL_DIR}/assets/token2wav")
+        ref, _ = _lb.load(f"{MODEL_DIR}/assets/system_ref_audio.wav",
+                          sr=16000, mono=True)
+        self.model.init_token2wav_cache(ref)
         self.art = json.load(open(f"{DATA}/midlayer_gate_audio_v3.json"))
         self.probe = gate_mod.Probe(self.art["w"], self.art["b"])
         self.K3 = self.art.get("k_eot", 8)
@@ -170,6 +182,29 @@ class Voice:
                 self.st3["cnt"] += h.shape[0]
         self.model.llm.model.layers[LAYER].register_forward_hook(hook)
         self.lock = threading.Lock()
+        # canned stall filler in the talker's OWN voice (deployment plays
+        # tts_filler, RESULTS "stall via assistant-role prefill"); teacher
+        # forcing guarantees the audio matches the STALL text exactly
+        self.stall_pcm = None
+        try:
+            import numpy as _np
+            self._turn_reset()
+            _call_def(self.model.streaming_prefill, session_id="s1",
+                      msgs=[{"role": "user",
+                             "content": [_np.zeros(16000,
+                                                   dtype="float32")]}],
+                      tokenizer=self.tok, is_last_chunk=True)
+            parts = []
+            _gen_speak(self.model, self.tok, parts.append,
+                       session_id="s1", teacher_forcing=True,
+                       teacher_forcing_text=STALL, max_new_tokens=64)
+            if parts:
+                self.stall_pcm = _np.concatenate(parts)
+                print(f">>> stall filler synthesized: "
+                      f"{len(self.stall_pcm) / 24000:.2f}s", flush=True)
+        except Exception as e:
+            print(f">>> stall filler synth failed (text-only stall): {e}",
+                  flush=True)
         self.load_s = round(time.time() - t0, 1)
         print(f">>> Voice ready in {self.load_s}s", flush=True)
 
@@ -187,7 +222,7 @@ class Voice:
         return float(self.probe.score(torch.cat(parts).numpy()))
 
     def _turn_reset(self):
-        self.model.reset_session()
+        self.model.reset_session(reset_token2wav_cache=False)
         self.st3.update(tail=None, sum=None, cnt=0, accum=True)
         sys_msg = _call_def(self.model.get_sys_prompt, mode="omni",
                             language="en")
@@ -219,14 +254,27 @@ class Voice:
         sys.path.insert(0, "/workspace/gate")
         import escalate
 
+        import base64
+
+        import numpy as np
+
         emit = emit or (lambda *_: None)
+
+        def emit_audio(pcm):
+            i16 = (np.clip(pcm, -1, 1) * 32767).astype("<i2")
+            emit({"type": "audio", "sr": 24000,
+                  "pcm": base64.b64encode(i16.tobytes()).decode()})
+
         t_eot = time.time()
         out = {}
         if not fired:
             emit({"type": "phase", "v": "answering"})
-            ans = _gen_text(self.model, self.tok, session_id="s1")
+            ans, first_ms, n_samp = _gen_speak(self.model, self.tok,
+                                               emit_audio, session_id="s1")
             out.update(mode="local", answer=ans,
-                       answer_ms=int((time.time() - t_eot) * 1000))
+                       answer_ms=int((time.time() - t_eot) * 1000),
+                       first_audio_ms=first_ms,
+                       speech_out_s=round(n_samp / 24000, 2))
             return out
         exp = {}
 
@@ -264,6 +312,8 @@ class Voice:
                   msgs=[{"role": "assistant", "content": [STALL]}],
                   tokenizer=self.tok, is_last_chunk=True)
         t_stall = time.time()
+        if getattr(self, "stall_pcm", None) is not None:
+            emit_audio(self.stall_pcm)   # canned filler, talker's own voice
         th.join(timeout=150)
         t_expert = time.time()
         emit({"type": "log",
@@ -274,8 +324,11 @@ class Voice:
                          "content": [RELAY_TMPL.format(
                              ans=exp.get("answer", ""))]}],
                   tokenizer=self.tok, is_last_chunk=True)
-        relay = _gen_text(self.model, self.tok, session_id="s1")
+        relay, first_ms, n_samp = _gen_speak(self.model, self.tok,
+                                             emit_audio, session_id="s1")
         out.update(mode="escalated", answer=relay,
+                   first_audio_ms=first_ms,
+                   speech_out_s=round(n_samp / 24000, 2),
                    expert_answer=exp.get("answer", ""),
                    uplink_text=exp.get("uplink_text"),
                    asr_s=exp.get("asr_s"),
@@ -334,7 +387,24 @@ class Voice:
                                              i == n - 1))
                 eot, eot_ms = self._eot_read()
                 fired = bool(req.probe_on and eot >= thr)
-                out = self._answer(fired, uplink_text=req.question)
+                pcm_b64 = []
+                out = self._answer(fired, uplink_text=req.question,
+                                   emit=lambda m: (
+                                       pcm_b64.append(m["pcm"])
+                                       if m.get("type") == "audio" else None))
+                if pcm_b64:
+                    import base64
+                    import io
+
+                    import numpy as np
+                    import soundfile as sf
+                    raw = b"".join(base64.b64decode(p) for p in pcm_b64)
+                    pcm = (np.frombuffer(raw, dtype="<i2")
+                           .astype("float32") / 32767)
+                    bio = io.BytesIO()
+                    sf.write(bio, pcm, 24000, format="WAV")
+                    out["answer_wav"] = base64.b64encode(
+                        bio.getvalue()).decode()
                 out.update(question=req.question, tier=req.tier,
                            probe_on=req.probe_on, fired=fired,
                            eot_score=round(eot, 4), threshold=round(thr, 4),
@@ -833,7 +903,8 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
         hold. Pause ~1.3 s and the turn ends: the probe reads L22, the gate
         decides, and either the talker answers or gpt-5.5 does (your audio
         goes through the hosted-ASR uplink — no gold text exists for real
-        speech). Then it listens again.</div>
+        speech). The talker SPEAKS its answer — native TTS head, 24 kHz.
+        Then it listens again.</div>
       <h2 style="margin-top:.9rem">…or type instead</h2>
       <input id=q placeholder="e.g. what is NVDA trading at right now?">
       <div class=row style="margin-top:.4rem" id=chips></div>
@@ -864,6 +935,20 @@ const T="__TOKEN__", AGG=__AGG__, THR=__THR__;
 const $=s=>document.querySelector(s);
 let probeOn=true, sel=null, S={n:0,ok:0,esc:0,ms:0,onN:0,onOk:0,offN:0,offOk:0};
 
+let playCtx=null,playT=0;
+function playPCM(b64,sr){
+  if(!playCtx)playCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(playCtx.state==="suspended")playCtx.resume();
+  const raw=atob(b64),n=raw.length>>1,f=new Float32Array(n);
+  for(let i=0;i<n;i++){let v=raw.charCodeAt(2*i)|(raw.charCodeAt(2*i+1)<<8);
+    if(v>=32768)v-=65536;f[i]=v/32768;}
+  const buf=playCtx.createBuffer(1,n,sr);
+  buf.getChannelData(0).set(f);
+  const src=playCtx.createBufferSource();src.buffer=buf;
+  src.connect(playCtx.destination);
+  playT=Math.max(playT,playCtx.currentTime);
+  src.start(playT);playT+=buf.duration;
+}
 const pool=$("#pool");
 Object.keys(AGG).forEach(p=>{const o=document.createElement("option");
   o.value=p;o.textContent=p;pool.appendChild(o)});
@@ -1119,6 +1204,7 @@ function handleVoice(m){
   else if(m.type==="phase"){$("#vstate").textContent=
     {listening:"listening",answering:"talker answering…",
      escalating:"expert thinking…",relaying:"relaying…"}[m.v]||m.v;}
+  else if(m.type==="audio"){playPCM(m.pcm,m.sr||24000);}
   else if(m.type==="log"){log(esc(m.msg));}
   else if(m.type==="error"){log("server: "+esc(m.msg),"off");}
   else if(m.type==="turn"){renderTurn(m,true);}
@@ -1137,6 +1223,8 @@ function renderTurn(d,voice){
    <div class="ans ${fired?'esc':'local'}">
      <b>${fired?"Relay (talker voicing the expert)":"Talker, alone"}:</b>
      ${esc(d.answer)}</div>
+   ${d.answer_wav?`<audio controls autoplay style="width:100%;margin-top:.4rem"
+     src="data:audio/wav;base64,${d.answer_wav}"></audio>`:""}
    ${fired?`<div class=muted><b>expert (gpt-5.5) said:</b>
      ${esc(d.expert_answer)}</div>`:""}
    <table style="margin-top:.6rem">
@@ -1148,6 +1236,10 @@ function renderTurn(d,voice){
     ${d.expert_latency_s?`<tr><td>expert</td>
       <td>${d.expert_latency_s} s</td></tr>`:""}
     <tr><td>speech length</td><td>${fmt(d.audio_s,1)} s</td></tr>
+    ${d.first_audio_ms?`<tr><td>first answer audio</td>
+      <td>${d.first_audio_ms} ms</td></tr>`:""}
+    ${d.speech_out_s?`<tr><td>spoken answer</td>
+      <td>${d.speech_out_s} s</td></tr>`:""}
    </table>`;
   S.n++;S.esc+=fired?1:0;S.ms+=d.total_ms||0;
   if(d.probe_on===false)S.offN++;else S.onN++;
