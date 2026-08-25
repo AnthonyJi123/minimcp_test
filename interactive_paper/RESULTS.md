@@ -3862,6 +3862,31 @@ ls-head would not blink); lexicon+ASR is a semantic approximation —
 
 
 
+### 8an — stats hardening D2: the +0.012 gate-vs-oracle residual is n.s. ($0, 2026-08-25)
+
+Deadline triage (RTCA @ NeurIPS 2026, due 8-29 AoE) found system.tex:21
+claiming the in-distribution "+0.012 area (~2 points at balanced)" over
+the pool oracle with no test — the exact claim the 7-29 entry flagged
+("is +0.012 even significant at n=240?"). Now tested:
+`scripts/07_bootstrap_oracle.py`, local CPU, inputs pulled from gate-data
+(calib_features / gate_config / eval_expert / eval_paraphrase). The script
+reproduces eval_assemble's trapezoid-area machinery exactly — point
+estimates gate **+0.0541** / oracle **+0.0422** / delta **+0.0119** match
+the 7-29 numbers to the fourth digit. Paired bootstrap (resample the 240
+test queries, B=10^4, seed 42; oracle pool-rates stay fixed from calib —
+they are the router's definition, not test data): delta 95% CI
+**[−0.003, +0.027]**, P(delta≤0)=.066, **two-sided p=.131 — NOT
+significant**. system.tex:21 softened to "statistically on par with the
+pool oracle in distribution"; the section's argument (the gate's case is
+transfer/LOPO, not the in-distribution margin) already rested on the right
+leg and is now strictly consistent. This was the only untested-delta claim
+of its class in the paper (D2 of the 8-25 todo triage; grep confirmed no
+other +0.012 reference).
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

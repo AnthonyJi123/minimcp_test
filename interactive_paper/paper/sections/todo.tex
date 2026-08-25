@@ -1,383 +1,157 @@
 % =========================================================================
-% Working TODO / roadmap — DELETE THIS SECTION BEFORE SUBMISSION.
-% Experiment-level items mirror RESULTS.md / TECHNICAL_REPORT.md §9.
+% Working TODO — TRIAGED 2026-08-25 against RESULTS.md (items 1-32 of the
+% pre-triage version; see git history for the original entries).
+% Target: RTCA @ NeurIPS 2026, deadline 2026-08-29 AoE. DELETE BEFORE
+% SUBMISSION.
+%
+% Categories:
+%   [W] must-WRITE: result exists in RESULTS.md, text missing from paper
+%   [D] DECISION needed from user
+%   [M] mechanical (template / figures / bib / appendix)
+%   [F] future work: fold one paragraph into discussion, then delete
+%
+% Deleted as DONE + WRITTEN (verified in section refs): router baseline
+% (\S 8f/8j -> system), injection protocol (\S 8b -> inject), live curve
+% design + full sweep (\S 8c/8e -> live), dead-air / fixed-low (\S 8d ->
+% liveloop), oracle removal + speculative escalation (\S 8c/8d ->
+% livecurve), three-species discussion frame (\S 8g -> discussion),
+% probe v3 refit + live re-run (\S 8z -> figures; text sync is W2),
+% SD-QA arm B real-speech validation (Phase 7b), mid-layer
+% threshold-transfer calibration (v3/v4 artifacts + corrected quantiles),
+% TTS-uplink repair (\S 8p/8r, resolved without re-render).
 % =========================================================================
 \section*{TODO / Roadmap (working section --- delete before submission)}
 \label{sec:todo}
 
-\subsection*{Experiments}
+\subsection*{[W] Must-write before submission}
 \begin{itemize}
-\item \todonote{SD-QA arm B: validate the audio findings on real (dialectal)
-  speech instead of single-voice TTS \citep{faisal2021sdqa}}
-\item \todonote{mid-layer probe threshold-transfer calibration
-  (Phase-3-style C-compression) --- needed for deployment claims, not for
-  AUC/area claims}
-\item \todonote{pre-registered prediction test: when a new open-weight
-  full-duplex family lands (e.g.\ Qwen3.5-Omni-class), it should show the
-  late-layer text-input cliff}
-\item \todonote{$\ptrue$ prompt-sensitivity sweep (currently one phrasing
-  each for pre/post)}
-\item \todonote{head-to-head query-feature router vs.\ internal-signal gate
-  under distribution shift on the LLMRouterBench protocol; NEAR-TERM
-  (decided 2026-07-30): add an offline query-feature router baseline
-  (text-only classifier over the query surface, $\sim$\$10) as a line in
-  the tradeoff figure --- closes the ``type recognition is all you need''
-  objection with data (expected: matches the pool-oracle component
-  in-mix, collapses under LOPO); no live arm --- external routing needs
-  the full query + ASR and structurally cannot fire mid-utterance
-  (one-sentence annotation on the live figure instead). OFFLINE BASELINE
-  DONE (2026-07-30, RESULTS.md \S 8f, \$0): TF-IDF+LR router in-mix OOF
-  AUC .669 $<$ pool-oracle .715, area $+.040$ (worst of all signals);
-  LOPO collapse .38--.57, trap mean score .230. WRITTEN into
-  \S\ref{sec:system}. RECEIPT + BENCH GROUNDING DONE (2026-08-05,
-  RESULTS.md \S 8j, $\sim$\$1): training receipt (OOF acc .678 =
-  majority; ranking signal only) + same recipe on RouterBench
-  \citep{hu2024routerbench} in-domain OOF AUC .710 at $100\times$ data
-  (not data-starved), LOBO at chance on format-disjoint benchmarks,
-  our-router zero-shot transfer .440. WRITTEN into \S\ref{sec:system};
-  LLMRouterBench protocol comparison (preference-trained routers, AIQ
-  cost-quality) stays future work}
-\item \todonote{step 2: injection protocol + authority framing (talker
-  pushes back on conflicting expert results); fast-expert tier or streamed
-  partial results for the P90 tail. DONE (2026-07-30, RESULTS.md \S 8b,
-  172 sessions, $\sim$\$6): (1) deployed channel clean --- model-wrong
-  $\times$ correct-inject comply $=1.00$ ($n{=}24$), the live curve is
-  uncontaminated; (2) L0 hypothesis CONFIRMED --- comply rises
-  $.42 \to .75$ across gate-score quartiles, resistance $.25$ vs $.08$:
-  the same signal that triggers escalation predicts relay compliance;
-  (3) worst-case framing ladder: neutral $.00$ / deployed authority
-  $.53$ / strong-override $.79$ / assistant-seeding BACKFIRES ($.25$
-  comply, $.62$ lip-service --- the model walks back its own forced
-  speech); (4) silent-override on math: the model re-derives instead of
-  relaying or disputing (bare numbers carry no authority against its own
-  computation chain); (5) swallow rate $.64$ when unconfident --- expert
-  quality is the accuracy ceiling. Decision: keep the deployed F1
-  authority framing for the full sweep; strong-override stays shelved
-  (would plausibly raise the swallow rate). WRITTEN into
-  \S\ref{sec:inject} (2026-07-30)}
-\item \todonote{Part-2 acceptance decided (2026-07-30 grilling): paper-grade
-  \emph{live} tradeoff curve (heard-accuracy, 240 test queries $\times$ 3
-  tiers + never/always-escalate endpoints, bootstrap CIs, offline audio
-  curve as reference). Gate redesign for the streaming trap miss (a
-  full-duplex-specific read-position failure: short audio, entity in the
-  zero-padded tail chunk; live 1/5 vs offline $\approx$ full catch):
-  end-of-turn read becomes the \emph{deciding} gate (pre-TTFT, 45\,ms $<$
-  68\,ms TTFT; escalation rate calibrated on this single score), mid-stream
-  chunk gate demoted to speculative expert prefetch with end-of-turn veto
-  (abort/ignore the expert on veto). VALIDATED (2026-07-30, RESULTS.md
-  \S 8c): the streaming end-of-turn read (single-space assistant prefill,
-  L22 at assistant-start) reaches AUC .887 --- above the offline .843
-  reference --- and trap fire@balanced recovers .20 $\to$ .90; thresholds
-  in \texttt{midlayer\_gate\_audio.json}. Prefetch subsequently RETIRED
-  (see the speculative-escalation entry): the end-of-turn read is the only
-  gate; the expert starts at end of turn. FULL SWEEP DONE (2026-07-30,
-  RESULTS.md \S 8e + \texttt{live\_dualview}): four live arms never
-  .400 / cons 14\% .446 / bal 35\% .529 / aggr 55\% .633; paired
-  bootstrap on frozen \texttt{gated\_traces\_v2.parquet} --- bal/aggr
-  deltas significant, conservative $+.046$ n.s.; dual-view figure
-  (honest heard-acc + gold-inject counterfactual, channel cost
-  $+.05/+.11/+.13$ all significant) replaces the offline-audio-reference
-  plan; always-live arm cancelled (synthesized from frozen gold, \$0).
-  WRITTEN into \S\ref{sec:live}}
-\item \todonote{dead-air fix decided (2026-07-30 grilling): deadline-aware
-  expert effort selection, not blanket effort=low. Measure the two
-  governing dimensions: (1) expert latency as a function of effort
-  $\times$ query type (escalated subset $\times$ \{low, high\}, $\sim$200
-  calls, probation-throttled); (2) difficulty operationalized as
-  effort-sensitivity $\Delta$acc(high$-$low) per pool — predicted
-  $\approx 0$ for trap (retrieval-bound) vs.\ large for math
-  (execution-bound), mirroring the 6c talker-side think-gain structure
-  (potential cross-scale finding: extra compute rescues execution
-  failures, not retrieval failures). Policy conditions only on the
-  observable time budget (remaining audio + filler tolerance), never on
-  query type. Offline replay simulation of dead-air CDF under
-  fixed-high / fixed-low / deadline-aware precedes any live change;
-  streamed partials rejected (latency is pre-token hidden reasoning),
-  speculative laddering deferred (probation call volume). MEASURED AND
-  RESOLVED (2026-07-30, RESULTS.md \S 8d): effort tax $\approx 0$
-  everywhere \emph{including gold math} (low 1.00 = med 1.00) --- the
-  effort-sensitivity prediction is REFUTED; latency doubles at medium
-  (P50 5.8$\to$9.1\,s, P95 23.9$\to$78.8\,s) $\to$ \textbf{fixed-low
-  ships}; deadline-aware collapses to the simplest policy. Escalated
-  failures are knowledge-bound at both scales (cross-scale finding with
-  6c). WRITTEN into \S\ref{sec:liveloop}}
-\item \todonote{expert-pipeline oracle removal (2026-07-30 grilling):
-  (1) query form decided --- talker self-transcription at fire time
-  (fork the streaming session), replacing the dataset gold text; shares
-  the same $\sim$200-call batch as the effort characterization (transcript
-  queries $\times$ \{low, high\} vs.\ frozen gold-text high-effort
-  answers = ASR-distill tax + effort tax in one batch; methodology
-  lineage: SD-QA / HeySQuAD paired gold-vs-ASR arms). WER risk
-  concentrated on hard-knowledge (.224). (2) prefetch realism decided ---
-  milestone 1 sent the \emph{full} question text at 27--40\% of the
-  audio (a deployment-impossible oracle inflating the 5/6 overlap
-  result). Fix framed as \emph{speculative escalation} (speculative
-  decoding's draft--verify--rollback skeleton applied to the escalation
-  decision itself, at sentence granularity; lossy, unlike token-level;
-  earlier working name: query-level speculative execution): measure the wait-k-style
-  completeness curve first (calib texts truncated at 25/50/75\% of
-  audio progress, mini-judge scores ``answerable core already
-  spoken?'', $<$\$1) = the acceptance rate. MEASURED (2026-07-30,
-  RESULTS.md \S 8c): acceptance .07/.19/.51 at 25/50/75\% --- LOW ---
-  so prefetch is dropped per the pre-agreed rule; the curve goes in the
-  paper as the negative-result explanation, and trap's floor
-  (.00/.10/.27) unifies with the probe's trap signal-placement failure
-  (same back-loaded-core property, measured twice).
-  ASR-DISTILL TAX MEASURED (2026-07-30, RESULTS.md \S 8d): expert on
-  self-transcripts .57 vs gold .85 on the escalated population; math
-  $-$.70 mostly a TTS-of-LaTeX artifact (scope note: audio arm evaluates
-  speakable content); deployment-real residue = knowledge entities
-  $-$.31; rescues negative (robust prompt no-op, $k$-best GER trades
-  trap $+.06$ for knowledge $-$.12), Whisper recovers only .62 of the
-  .82 ceiling $\to$ channel-inherent. USER SCOPE DECISION: ASR is a
-  channel property, not a contribution --- handled via the dual-view
-  curve; ASR robustness cited as orthogonal work. WRITTEN into
-  \S\ref{sec:livecurve}.
-  Rejected with rationale: micro-turn streaming of the question (saves
-  only transmission+prefill $\approx$0.15\,s of a 30-token query;
-  reasoning cannot start before semantic completeness), literal
-  speculative decoding (provider-internal, no API handle; talker decode
-  not a bottleneck), draft-then-verify expert (verifying a fact
-  $\approx$ retrieving it for retrieval-bound escalations). Future
-  work: tool-using expert could do speculative retrieval off partial
-  input; Moshi inner-monologue as architectural reference for
-  transcript-so-far}
-\item \todonote{fresh test split for final camera-ready numbers (current
-  test split reused across signal comparisons)}
-\item \todonote{statistics hardening (2026-07-26 Notion review): DeLong
-  paired tests for same-test-set signal comparisons; McNemar / paired
-  bootstrap for the paired text-vs-audio fail-rate deltas; paired bootstrap
-  for the gate-vs-pool-oracle tradeoff residual (+0.012 area, added
-  2026-07-29 — likely within noise at $n=240$, must be tested before any
-  claim rests on it). PARTIAL (2026-07-30): live-arm paired bootstrap
-  DONE (\texttt{live\_dualview}, Table~\ref{tab:live}); the rest still
-  open; expand pools to
-  500--1000 each from the same public benchmarks (GSM8K test, MMLU-Pro,
-  TriviaQA, SimpleQA have headroom) + extra benchmark families for
-  diversity (GPQA/ARC for knowledge, NQ for fact) + remaining 10 SD-QA
-  dialect splits}
-\item \todonote{injection payload budget (2026-07-30 discussion): current
-  note is tiny (template + low-effort answer P99 $\approx$150 tokens vs a
-  32k-class window; deployed low-effort answers are P50 3 words), so no
-  near wall --- but two scaling paths identified. (1) Session audio
-  itself hits the window first ($\sim$18 tok/s $\Rightarrow$ $\sim$30 min
-  fills 32k) --- a generic long-lived-duplex limitation, not an
-  injection-mechanism issue. (2) Long-form expert outputs (documents,
-  derivations, tool results): principle = KV holds only what will be
-  \emph{spoken} (voice bounds the useful payload at 2--4 sentences);
-  full output stays in the external answer cache; follow-up questions
-  page further notes in across turns (paging, not intra-turn dribbling).
-  Open \$5-scale experiment: does ``answer + one-sentence justification''
-  restore math relay compliance (the silent-override finding says bare
-  numbers lack authority --- authority wants more tokens, capacity wants
-  fewer; find the knee)}
-\item \todonote{closed-source behavioral arm (2026-07-26 Notion review):
-  trap $p_\mathrm{yes}$ text vs.\ audio + modality tax on audio-capable
-  commercial APIs (GPT audio / Gemini Live) with the existing 600 wavs;
-  probes impossible (no hidden states); if the API exposes no logprobs,
-  estimate $p_\mathrm{yes}$ by sampling Yes/No $k$ times}
-\item \todonote{TTS-uplink repair arm: RESOLVED WITHOUT RE-RENDER
-  (2026-08-12, RESULTS \S 8p/8r). Wav audit: 1/601 broken (q0208, pure
-  silence); listening pack at \texttt{data/listen\_pack}. The 8r
-  audio-direct experiment then exonerated the TTS for speakable
-  content (gpt-audio hears the same wavs verbatim, channel loss zero
-  on trap/easy-fact) $\Rightarrow$ re-rendering with a better TTS is
-  predicted negative; the leak is the talker's own ASR. Remaining
-  sub-item: human listening pass is now optional color, not a
-  decision gate. Deployment note (user decision 2026-08-12): the
-  backend thinker stays TEXT-based — audio-native experts carry a
-  permanent reasoning discount (measured $-$.15); 8r is a diagnostic
-  control, not an architecture proposal, and the cloud-ASR cascade
-  variant is already lower-bounded by the Whisper arm (+4 pp, not
-  pursued)}
-\item \todonote{speakable-subset headline swap (2026-08-12, user to
-  ratify): input-side fairness audit (RESULTS \S 8q,
-  \texttt{figures/fair\_subset.py}) removes 22/240 ids (21 LaTeX +
-  1 broken wav; criteria decidable from query text + wav bytes alone,
-  entities NOT excluded) $\Rightarrow$ aggressive heard-acc
-  .633$\to$.688, channel gap .133$\to$.083 (still significant); gold
-  ceiling unmoved (.917$\to$.922). If ratified: dual-view +
-  Pareto figures redrawn on the speakable subset, full-pool versions to
-  appendix, criteria stated as pre-registered filters; also update the
-  8m 64\%-corrupted attribution sentence in live.tex}
-\item \todonote{public speech-QA benchmark arm (2026-08-12 meeting):
-  transferability figure on \textbf{Speech TriviaQA} and \textbf{Speech
-  Web Questions} (OpenAudioBench renders — public audio, not our TTS;
-  1000 q each), the two non-visual audio benchmarks MiniCPM-o 4.5
-  officially reports (75.5 / 70.2). Anchors per figure: official
-  MiniCPM-o number (floor), GPT-5.5-on-transcript (ceiling), random
-  escalation at matched rate (control), our threshold sweep as the
-  curve (threshold $\leftrightarrow$ acc set, plus the
-  probe-latency-free router baseline). Two figures = the meeting
-  deliverable; our 600-query pool then only carries the
-  train-effectiveness story. When writing this section, include the
-  latency-shape note (RESULTS \S 8x, 2026-08-14): per-arm P50 is
-  non-monotonic on easy pools (Llama Questions 1.52$\to$1.19$\to$1.73s)
-  because the gate escalates exactly the longest-local-decode queries
-  (esc.\ rate 2$\to$56\% across answer-length quintiles) — a
-  median-of-a-mixture effect, mean latency stays monotonic; and on
-  Reasoning QA escalation \emph{truncates the tail} (P90
-  13.3$\to$10.9\,s) by replacing $>$13\,s local CoT decodes with
-  3--4\,s expert round-trips — routing is not always
-  latency-for-accuracy}
-\item \todonote{probe v3 direction (user decision 2026-08-16): RL and SFT
-  \textbf{rejected} for improving the gate. (1) The gate is a single-step
-  decision whose \emph{both} counterfactuals are observable offline
-  (never/always arms), i.e.\ cost-sensitive supervised classification;
-  policy-gradient RL would re-derive the same Bayes classifier with
-  orders-of-magnitude worse sample efficiency at $n\!\approx\!1160$.
-  (2) SFT/LoRA on the backbone breaks the zero-training frozen-checkpoint
-  claim (the paper's identity vs.\ trained routers), shifts the talker's
-  answer distribution (invalidating every measured never/ceiling/live
-  curve), and small-$n$ training is already falsified in-house (8f/8s:
-  surface router OOF .669 $<$ pool-oracle .715). (3) The binding
-  constraint is domain shift + judge label noise (OOF .878 vs.\ external
-  .76--.78), which neither method addresses. Chosen path instead:
-  (a) \textbf{calib expansion2} --- $\sim$1150 more public-benchmark
-  queries from 7 new families (PopQA, TruthfulQA, CommonsenseQA,
-  OpenBookQA, HotpotQA, SVAMP, MMLU); data was the proven lever in 8t
-  ($+.031$, new families carried the transferable signal);
-  (b) \textbf{multi-layer / multi-position features} --- capture
-  $L\{14,18,22,26,30\}\times$(eot last-8 tokens $+$ user-turn mean) in
-  one streaming replay per query (5d: transfer peaks mid-network, L22
-  .931 vs.\ readout .366; mean-pooling survives the duplex readout
-  cliff), then CPU-only refit sweep. Selection on train-OOF only;
-  pre-registered guard: frozen-test in-mix must not regress vs.\ v2
-  (.860); external pools stay strictly out of training. DONE
-  (2026-08-16, RESULTS.md \S 8z, $\sim$\$45, \texttt{modal\_train2.py}):
-  train $n{=}2310$; winner
-  \texttt{eot\_last+eot\_mean8+user\_mean @ L22} (L22 still the best
-  single layer, multi-layer concat hurts, position diversity helps),
-  OOF .864; external transfer mean .750$\to$.771 (striviaqa
-  .761$\to$.789, sdqa .775$\to$.792, \textbf{sreason .621$\to$.683 ---
-  English calib data improves Chinese reasoning transfer,
-  language-general difficulty signal}; sllama $-$.009 only regression);
-  data lever $+$.019 vs.\ feature lever $+$.005; guard PASSED
-  .860$\to$.879. Artifacts \texttt{midlayer\_gate\_audio\_v3.json} +
-  per-domain \texttt{gate\_v3\_\{pool\}.json}; all three feature reads
-  online-computable at zero eot latency. LIVE RE-RUN DONE (2026-08-16,
-  RESULTS.md \S 8z-live, $\sim$\$55): 21 sweeps, 7 pools $\times$ 3
-  tiers; offline gains survive deployment — striviaqa balanced
-  .764$\to$.800 (official judge), sreason $+$.010--.030 every arm
-  (cross-lingual holds live), sllama selective@50\% $=$ .948 $>$
-  always-escalate .928; swebq/sdqa flat; frozen aggressive
-  .621$\to$.596 at esc .61 overshoot (calib$\to$test quantile drift +
-  transcript tax) — balanced/conservative improved; valpaca stays
-  negative (4.35 $<$ random $\approx$4.45). All 14 figures regenerated
-  on v3 traces (v2 archived), gallery redeployed}
+\item \todonote{W1 --- BIGGEST GAP: the external-benchmark transferability
+  section does not exist in the paper. live.tex has ZERO mention of
+  striviaqa / swebq / sdqa / sllama / sreason / valpaca; none of the
+  12 dualview/pareto family figures are included. This was the 2026-08-12
+  meeting deliverable. Sources: RESULTS \S 8x (bench infra + latency
+  shapes), \S 8z + 8z-live (v3 gains: striviaqa balanced .764$\to$.800,
+  sreason cross-lingual, sllama selective@50\% .948), \S 8ab (framing
+  rules). Anchors per figure: official MiniCPM-o 4.5 number (floor,
+  75.5 striviaqa / 70.2 swebq), GPT-5.5-on-transcript (ceiling), random
+  escalation at matched rate (control). Framing rules from the Jisen
+  pass (8ab): (a) cite that the gate dominates the simulated-P50 random
+  curve in BOTH axes on striviaqa/sllama; (b) the P50 left-fold is a
+  verified median-of-a-mixture mechanism --- use
+  \texttt{sllama\_latency\_decomp}, report mean alongside median;
+  (c) frame router quality via AUC + matched-rate precision (v3 hits
+  95\% of the base-fail/rate cap on sllama), never raw precision;
+  latency-shape note: non-monotonic per-arm P50 on easy pools, tail
+  truncation on Reasoning QA (P90 13.3$\to$10.9\,s)}
+\item \todonote{W2 --- 8ad noise audit: THREE MANDATORY REWRITES of
+  \S\ref{sec:live}, still absent from live.tex (verified 2026-08-25:
+  Table~\ref{tab:live} still carries the v1 numbers
+  .400/.446/.529/.633). (a) re-read every arm number off
+  \texttt{live\_v3\_figures.py} output: heard .383/.483/.554/.596 at
+  0/16/35/61\%, channel cost $-$.175, P50 2.02/2.61/3.53/4.44\,s, P99
+  32.7\,s at balanced. (b) sllama headline: ``MATCHES the expert at
+  half the cost'' (.976 vs .968 McNemar $p{=}1.00$); what is
+  significant is the probe's split ($z{=}6.46$) and the hard-half lift
+  .696$\to$.888 ($p{<}.0001$); .948-vs-.928 is $p{=}.125$. (c) report
+  the replication-noise floor (same-query flip 2.3--18.8\%, paired SE
+  .009--.028), stop narrating sub-3-point live deltas (all 18
+  v2$\to$v3 arm deltas n.s.; v3 evidence is the offline AUC). Add
+  \texttt{noise\_audit} as a methods figure}
+\item \todonote{W3 --- second duplex family (8ac, EXECUTED 2026-08-19,
+  not in any section): NemotronLabs-VoiceChat-11B (hybrid Mamba), the
+  pre-registered prediction test --- mid-band layer structure
+  replicates (L30--34 of 56), frozen-methodology transfer AUC .70--.79
+  with 600-query calib; sreason boundary (model is English-only).
+  One paragraph in duplex.tex or discussion: this is the generality
+  evidence for ``mid-network read'' beyond MiniCPM}
+\item \todonote{W4 --- cloud-ASR uplink (8ae, not in any section): on 147
+  escalated frozen ids, gpt-transcribe $\to$ gpt-5.5 scores .694 vs
+  .585 deployed self-transcript (McNemar $p{=}.007$), recovering 38\%
+  of the gap to the .871 gold ceiling; SUPERSEDES the ``Whisper ears
+  $+4$pp only'' write-off (8d used whisper-large-v3). Write as
+  diagnostic finding with both caveats (ASR latency on critical path
+  unmeasured; external-pool survival unmeasured). hard-math recovers
+  nothing --- spoken LaTeX is an input-side limit, state it separately
+  in \S\ref{sec:scope}}
+\item \todonote{W5 --- small syncs: (a) deployment-artifact sentence:
+  label-free quantile correction
+  (\texttt{gate\_v3\_thresholds\_corrected.json}) removes 11.3\% of
+  expert calls at equal accuracy on the frozen pool; externals already
+  on-budget. (b) decide whether the demo system (8aj--8am: TTS head,
+  v4 real-time gate, web-search expert, backchannel-aware barge-in)
+  gets a short system/demo paragraph or an appendix; it is currently
+  only in RESULTS. (c) FreshQA/v4 paragraph already in live.tex ---
+  verify numbers match RESULTS 8ak final (.877 frozen-test, fire
+  .80/.93/1.0)}
 \end{itemize}
 
-\subsection*{Writing / assets}
+\subsection*{[D] Decisions --- ALL RATIFIED 2026-08-25 (user: ``都批了'')}
+% D1 approved -> execute with W2 in one pass. D2 EXECUTED same day
+% (RESULTS \S 8an): delta +0.0119, 95% CI [-0.003,+0.027], p=.13 n.s.;
+% system.tex:21 softened. D3 approved -> "demo available upon publication".
 \begin{itemize}
-\item \todonote{discussion-section frame (2026-07-30, user's schoolkid
-  analogy): three failure species $\times$ perceivability —
-  retrieval-type (``don't know XYZ'': the empty lookup is an observable
-  event $\to$ pre-answer signals work; trap fire .90), execution-type
-  (``stuck mid-solution'' $\to$ decode-time entropy works; math
-  entropy@16 .860), metacognitive-type (``doesn't know the question has
-  a trap'', Goldbach-to-a-schoolkid: no failure event occurs in the
-  model's experience $\to$ all signals blind; FalseQA fire .18, no score
-  separation). Parallels human feeling-of-knowing literature (accurate
-  for memory retrieval, overconfident for insight problems). Explains
-  the two-stage gate architecture and why query-surface routers also
-  miss species 3. RESULTS \S 8g. WRITTEN into the discussion
-  (three-species subsection) + \S\ref{sec:falseqa} (2026-07-30)}
+\item \todonote{D1 --- speakable-subset headline swap (8q, user to
+  ratify): fairness audit removes 22/240 ids (21 LaTeX + 1 broken wav;
+  criteria decidable from query text + wav bytes alone) $\Rightarrow$
+  aggressive heard-acc .633$\to$.688, channel gap .133$\to$.083 (still
+  significant), gold ceiling unmoved. If ratified: dual-view + Pareto
+  redrawn on the fair subset (\texttt{fair\_*} figures already built),
+  full-pool to appendix, criteria stated as pre-registered filters,
+  update the 8m 64\%-corrupted sentence in live.tex. NOTE: interacts
+  with W2 --- do the v1$\to$v3 number swap and this in one pass}
+\item \todonote{D2 --- DONE (2026-08-25, RESULTS \S 8an,
+  \texttt{scripts/07\_bootstrap\_oracle.py}): point estimates reproduced
+  (+.0541/+.0422/+.0119); paired bootstrap $B{=}10^4$ gives 95\% CI
+  $[-.003,+.027]$, $p{=}.13$ --- NOT significant, as the 7-29 entry
+  suspected. system.tex:21 softened to ``statistically on par with the
+  pool oracle in distribution''. No other untested-delta claim of this
+  class remains}
+\item \todonote{D3 --- double-blind exposure: the demo URL
+  (\texttt{rhe9527--gate-demo-web.modal.run}) contains the author
+  username; author block on the title page must go for submission
+  (camera-ready restores it). Decide: anonymized demo link (new modal
+  workspace / redacted) vs.\ ``demo available upon publication''}
 \end{itemize}
+
+\subsection*{[M] Mechanical}
 \begin{itemize}
-\item \todonote{affiliations, emails, author order + contribution notes on
-  the title page}
-\item \todonote{regenerate \texttt{concept\_probe\_vs\_ppl} figure with
-  English labels (Fig.~\ref{fig:concept})}
-\item \todonote{regenerate ROC figure to include $\ptrue$ curves
-  (Fig.~\ref{fig:roc})}
-\item \todonote{verify the \citet{llmrouterbench2026} bib entry (authors /
-  exact title, arXiv:2601.07206) and the MiniCPM-o 4.5 model-card entry}
-\item \todonote{decide target venue + switch template (currently generic
-  preprint article); candidates: ICASSP/Interspeech (speech systems) vs.\
-  ACL/NeurIPS (LM analysis)}
-\item \todonote{bootstrap CIs are computed for headline numbers in
-  RESULTS.md --- surface them in tables beyond Table~\ref{tab:rq1}}
-\item \todonote{appendix: full per-pool tables, judge prompts, $\ptrue$
-  prompts, reproducibility statement (seeds, pins, spend)}
-\item \todonote{2026-08-18 Jisen review pass (RESULTS \S 8ab, all $0
-  local): (a) every pareto figure now carries a simulated-P50
-  random-escalation curve --- on striviaqa/sllama the gate dominates
-  random in BOTH axes; cite this when writing the transferability
-  section. (b) the P50 left-fold (striviaqa conservative, sllama) is a
-  verified median-of-a-mixture mechanism, NOT noise --- the probe
-  escalates the slowest local decodes (never-arm P50 of escalated ids
-  1.71 s vs 1.20 s kept; dip CI [$-285$, $+254$] ms); use
-  \texttt{sllama\_latency\_decomp} (new figure) for the latency-shape
-  note, and report mean alongside median rather than re-measuring.
-  (c) escalation precision at a fixed rate is capped at
-  base-fail/rate; v3 hits 95\% of that cap on sllama --- frame router
-  quality via AUC + matched-rate precision, not raw precision.
-  (d) \texttt{pareto\_latency} (frozen-pool figure) still lacks the
-  random curve --- its script reads pre-aggregated JSONs; rebuild from
-  \texttt{frozen\_v3\_traces.parquet}. (e) figure subtitles said
-  ``probe v2'' while plotting v3 traces --- fixed, now derived from
-  VER; check any figure copied into the paper predates 2026-08-18.}
-\item \todonote{NVIDIA NemotronLabs-VoiceChat-11B (HF card verified
-  2026-08-18): open full-duplex 11B (Fast Conformer + Nemotron Nano v2
-  9B hybrid Mamba/Transformer + TTS, OpenMDW 1.1) --- the \S 9
-  pre-registered second-duplex-family prediction test is now
-  actionable. Order: (1) late-layer text-input cliff replication;
-  (2) frozen-methodology gate + 4-arm curve on the same 5 external
-  pools; (3) ablation vs Anthony's trained checkpoints. Hybrid Mamba
-  backbone $\Rightarrow$ redo the layer sweep from scratch; use the
-  NeMo/HF path for hidden states (the vLLM container exposes none).
-  EXECUTED 2026-08-19 (RESULTS \S 8ac): mid-band layer structure
-  replicates (L30-34 of 56, hybrid Mamba), transfer AUC .70-.79 with
-  600-query calib, sreason boundary: model is English-only. Remaining:
-  live 4-arm port, calib expansion, Anthony ablation.}
-\item \todonote{2026-08-20 noise audit (RESULTS \S 8ad, all \$0) --- THREE
-  WRITING CHANGES ARE MANDATORY BEFORE SUBMISSION. (a) fig:live and
-  fig:pareto were built from probe-\emph{v1} aggregates
-  (\texttt{live\_dualview.json} mtime 2026-07-30, sourced from
-  \texttt{gated\_traces\_v2.parquet}) while the text quoted v3 ---
-  rebuilt from \texttt{frozen\_v3\_traces} by
-  \texttt{figures/live\_v3\_figures.py} (v1 archived \texttt{*\_v1});
-  every arm number in \S\ref{sec:live} must be re-read off the new
-  json (heard .383/.483/.554/.596 at 0/16/35/61\%, channel cost
-  $-.175$, P50 2.02/2.61/3.53/4.44\,s, P99 32.7\,s at balanced).
-  (b) the sllama headline must move from ``the small model BEATS the
-  expert on the easy half'' to ``MATCHES it at half the cost'':
-  .976 vs .968 is McNemar $p=1.00$; what is significant is the probe's
-  split ($z=6.46$) and the hard-half lift (.696$\to$.888,
-  $p<.0001$); the .948-vs-.928 headline itself is $p=.125$.
-  (c) report the replication-noise floor (same query kept local in two
-  arms flips 2.3--18.8\% of the time; paired SE .009--.028) and STOP
-  narrating sub-3-point live deltas --- all 18 v2$\to$v3 arm deltas are
-  n.s.; the v3 evidence is the offline AUC, not the live curve.
-  Add \texttt{noise\_audit} as a methods figure.}
-\item \todonote{deployment artifact: \texttt{data/gate\_v3\_thresholds\_
-  corrected.json} (label-free quantiles). Only the frozen pool drifts
-  (fires .613 at the 50\% budget); correcting it removes 11.3\% of the
-  expert calls at equal accuracy (+.004, n.s.). The externals already
-  hit 15/30/50.}
-\item \todonote{next spend, ranked by the audit: (1) audio-direct-to-expert
-  --- the gold/heard gap on the frozen pool is now $-.175$, an order
-  above the noise floor, and it is the only lever whose effect a single
-  live sweep can resolve; (2) prefer variance-reduced readouts (AUC,
-  matched-rate precision, the \texttt{rate\_curves.json}
-  reconstruction) over arm accuracy; (3) only then buy larger $n$.}
-\item \todonote{2026-08-20 cloud-ASR uplink (RESULTS \S 8ae) --- the
-  channel lever finally has a significant result: on the 147 escalated
-  frozen ids, sending the wav to \texttt{gpt-transcribe} and giving
-  \emph{that} text to gpt-5.5 scores .694 vs .585 for the deployed
-  self-transcript (paired McNemar $p=.007$), recovering 38\% of the
-  gap to the .871 gold ceiling. This supersedes the ``Whisper ears
-  $+4$pp only'' write-off (8d used open-weights whisper-large-v3).
-  hard-math recovers NOTHING (.294 both ways, gold 1.000) --- spoken
-  LaTeX is lossy at the source, so \S\ref{sec:scope} should state the
-  input-side limit separately from the uplink one. Still to measure
-  before this can be claimed as a system result: the ASR call's
-  latency on the critical path, and whether $+.109$ survives on the
-  external pools.}
-\item \todonote{demo app (RESULTS \S 8af):
-  \url{https://rhe9527--gate-demo-web.modal.run/62dc5cd9} --- probe
-  ON/OFF over the measured sessions plus a real H100 turn on a typed
-  question. Useful as a talk/demo artifact; consider a figure or
-  appendix screenshot of the end-of-turn read (54 ms, P(fail) .807 vs
-  the .680 balanced threshold on ``what is NVDA trading at'').}
+\item \todonote{M1 --- switch to the NeurIPS 2026 style file (RTCA
+  requirement), anonymize, 8-page main-text budget (refs + appendix
+  free)}
+\item \todonote{M2 --- figure hygiene: (a) regenerate
+  \texttt{concept\_probe\_vs\_ppl} with English labels; (b) ROC figure
+  to include $\ptrue$ curves; (c) verify \texttt{pareto\_latency}
+  rebuild (2026-08-20) actually contains the random curve (8ab-d);
+  (d) vintage audit --- any figure included in the paper with an
+  artifact predating 2026-08-18 must be checked against v3 traces
+  (currently included: concept\_probe\_vs\_ppl, fork\_pareto,
+  layer\_sweep, live\_dualview, overlap, pareto\_latency,
+  receipt\_compare, roc, timeline\_live, tradeoff, tradeoff\_midlayer,
+  tradeoff\_ptrue --- the July-vintage ones are suspect)}
+\item \todonote{M3 --- bib: verify \citet{llmrouterbench2026}
+  (arXiv:2601.07206) and the MiniCPM-o 4.5 model-card entry}
+\item \todonote{M4 --- surface existing bootstrap CIs in tables beyond
+  Table~\ref{tab:rq1}}
+\item \todonote{M5 --- appendix assembly: full per-pool tables, judge
+  prompts, $\ptrue$ prompts, reproducibility statement (seeds, pins,
+  spend)}
+\end{itemize}
+
+\subsection*{[F] Future work --- fold into discussion, then delete}
+\begin{itemize}
+\item \todonote{one paragraph covering: (a) 10 remaining SD-QA dialect
+  splits (mechanical robustness table, $\sim$\$100); (b) true duplex
+  integration --- ls-head + L22 probe validity under the duplex loop
+  (the probe is calibrated on simplex streaming states); (c) Nemotron
+  remaining sub-items (live 4-arm port, calib expansion, trained-checkpoint
+  ablation); (d) audio-direct-to-expert live sweep (the one lever a
+  single sweep can resolve; gold/heard gap $-$.175 is an order above
+  the noise floor); (e) trained-gate upper-bound baseline (the only
+  legitimate ``real training'': a contrast, not a method change);
+  (f) LLMRouterBench protocol comparison; (g) $\ptrue$
+  prompt-sensitivity sweep; (h) injection payload knee (answer + one
+  sentence justification vs.\ math relay compliance, \$5);
+  (i) closed-source behavioral arm (GPT audio / Gemini Live on the 600
+  wavs); (j) camera-ready: fresh test split + pool expansion to
+  500--1000/pool}
 \end{itemize}

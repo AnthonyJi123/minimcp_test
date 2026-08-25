@@ -18,9 +18,12 @@ instance-level information, no test leakage). It captures $+0.042$ of the
 gate's $+0.054$ area over random --- the system-level counterpart of the
 AUC decomposition (0.715 of 0.821), and slightly harsher: in-distribution,
 the instance-level residual the internal signal adds on top of type
-routing is \textbf{$+0.012$ area} ($\sim$2 points at the balanced budget).
-The gate's case over type routing therefore rests not on this
-in-distribution margin but on transfer: the type shortcut is exactly what
+routing is $+0.012$ area ($\sim$2 points at the balanced budget) --- not
+significant at $n{=}240$ (paired bootstrap over test queries, $B{=}10^4$:
+95\% CI $[-0.003, +0.027]$, two-sided $p{=}.13$); in distribution, the
+gate is statistically on par with the pool oracle. The gate's case over
+type routing therefore rests not on an in-distribution margin but on
+transfer: the type shortcut is exactly what
 collapses under LOPO (\S\ref{sec:audit}), while the mid-layer signal
 survives it.
 
