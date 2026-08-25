@@ -3718,6 +3718,63 @@ stays the paper's conservative metric.
 
 
 
+### 8ak — probe v4: real-time-data awareness via FreshQA (+ web-search expert for the demo) (~$12, 2026-08-24/25)
+
+User (from the demo): the NVDA stock-price question should route to the
+expert — "我要求你训练一下这个能力". The class was genuinely untrained:
+every v3 train family is static knowledge, and "what is NVDA trading at"
+sat ON the balanced threshold, flipping with TTS render (voice .624 <
+.680; typed render .693 ≥ .680). Boundary behavior, not a decision.
+
+**Data (`modal_fresh.py`; no-selfmade-datasets respected).** FreshQA
+(freshllms/freshqa sheet of 2026-04-21, public benchmark with fact_type
+labels): `fresh_fast` = fast-changing & !false_premise (153) labeled
+escalate=1 A PRIORI — the one deliberate deviation from measured labels,
+because the current value is unknowable at any cutoff (a judge against a
+stale gold would only add noise to a label certain by construction);
+`fresh_never` = never-changing & !false_premise (150) through the
+standard answer+judge path (fail-rate .47) as in-family controls so the
+probe cannot just learn "FreshQA phrasing = fire". 30+30 held out.
+
+**Refit (v3 recipe, feature config frozen to L22
+eot_last+eot_mean+user_mean).** n=2553 (2310 v3 + 243 fresh train),
+C=1e-4, OOF AUC .876. Both pre-registered guards pass:
+- frozen-test AUC **.877 vs v3 .879** (no regression);
+- fast-heldout fire-rate **.80/.93/1.0** (cons/bal/agg) vs v3
+  .57/.80/1.0 — conservative +.23, balanced +.13 — while never-heldout
+  stays at v3 levels (.07/.17/.60 vs .07/.17/.53).
+
+**Calibration lesson (one iteration).** First refit quantiled the tier
+budgets over the AUGMENTED train mix — 123 extra all-positive rows
+pushed balanced .680 → .737, and the typed NVDA render (.706) STILL
+stayed local: the new capability was being eaten by its own threshold
+shift. Fix: budgets are deployment-mix quantiles, so they are taken over
+the v3-mix OOF rows only (fresh rows train the direction, not the
+budget). Thresholds land at .860/.680/.402 ≈ v3's — same budget
+semantics, new direction. Demo switched to v4 (v3 artifact untouched).
+
+**Expert side (user bug report, same session).** Escalating a real-time
+query bought nothing: the no-tools gpt-5.5 relayed a polite refusal
+(live-confirmed twice). `escalate.ask_expert_web` added — Responses API
+with `web_search`, DEMO-ONLY (the measured eval arms keep the tool-free
+ask_expert and its caches untouched), falling back to the no-tools
+expert on error. User's live voice turn under v4: ASR heard "What is the
+stock price of Nvidia today?", probe .906 ≥ threshold, ESCALATED.
+
+**Live verification (fresh container, recalibrated v4).** "What is the
+stock price of Nvidia today?" (typed /say, balanced): probe **.829 ≥
+.680** → escalated; web-search expert **3.13 s** → "**$208.48 USD,
+down 2.93%**" — a real price for the first time; talker relays and
+SPEAKS it (first audio 1.00 s, total 10.2 s). Static control "capital
+of France": probe **.015** → local, correct, instant. Ops gotcha:
+after `modal deploy`, warm old-version containers keep serving the old
+artifact/code for minutes — `modal app stop gate-demo --yes` +
+redeploy forces fresh containers (two verify rounds hit stale ones).
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

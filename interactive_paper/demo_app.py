@@ -161,7 +161,11 @@ class Voice:
         ref, _ = _lb.load(f"{MODEL_DIR}/assets/system_ref_audio.wav",
                           sr=16000, mono=True)
         self.model.init_token2wav_cache(ref)
-        self.art = json.load(open(f"{DATA}/midlayer_gate_audio_v3.json"))
+        # v4 = v3 + FreshQA real-time awareness (modal_fresh.py); tier
+        # budgets stay quantiled on the v3 deployment mix. Guards:
+        # frozen-test AUC .877 vs .879; fast-heldout fire .93/.80 vs
+        # .80/.57 (balanced/conservative); never-heldout .17 = v3
+        self.art = json.load(open(f"{DATA}/midlayer_gate_audio_v4.json"))
         self.probe = gate_mod.Probe(self.art["w"], self.art["b"])
         self.K3 = self.art.get("k_eot", 8)
         self.modes = self.art["modes"]
@@ -299,12 +303,17 @@ class Voice:
                 emit({"type": "log",
                       "msg": f"ASR heard: “{up[:140]}” "
                              f"({exp['asr_s']} s)"})
-            r = escalate.ask_expert(up, effort="low")
+            r = escalate.ask_expert_web(up, effort="low")
+            if r.get("error"):
+                emit({"type": "log",
+                      "msg": f"web expert failed ({str(r['error'])[:80]}); "
+                             "falling back to the no-tools expert"})
+                r = escalate.ask_expert(up, effort="low")
             exp["answer"] = r.get("answer") or f"[error: {r.get('error')}]"
             exp["wall_s"] = time.time() - t0
 
         emit({"type": "phase", "v": "escalating"})
-        emit({"type": "log", "msg": f"escalating to gpt-5.5; talker "
+        emit({"type": "log", "msg": f"escalating to gpt-5.5 (web search ON); talker "
                                     f"stalls: “{STALL}”"})
         th = threading.Thread(target=expert_call, daemon=True)
         th.start()
@@ -858,7 +867,7 @@ padding:.5rem .6rem;font-size:.76rem;color:#6b5a1e;margin-top:.5rem}
 </style></head><body>
 <header>
   <h1>Escalation gate</h1>
-  <span class=sub>MiniCPM-o 4.5 duplex talker · L22 probe v3 · gpt-5.5 expert</span>
+  <span class=sub>MiniCPM-o 4.5 duplex talker · L22 probe v4 · gpt-5.5 expert</span>
   <div class=toggle><div id=sw class="sw on"></div>
     <b id=swlab>PROBE ON</b></div>
   <select id=tier style="width:auto">

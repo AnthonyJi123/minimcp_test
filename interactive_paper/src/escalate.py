@@ -237,6 +237,33 @@ def ask_expert(query: str, effort: str = EXPERT_EFFORT,
     return out
 
 
+def ask_expert_web(query: str, effort: str = EXPERT_EFFORT) -> dict:
+    """DEMO-ONLY expert with OpenAI web_search enabled (user request
+    2026-08-24: escalated real-time queries were relaying a refusal —
+    the no-tools expert cannot know live values). The measured eval arms
+    keep the tool-free ask_expert + its caches; nothing cached here.
+    Never raises: failure returns answer=None + error, caller falls back
+    to ask_expert."""
+    import time
+    t0 = time.time()
+    try:
+        resp = _client().responses.create(
+            model=EXPERT_MODEL,
+            reasoning={"effort": effort},
+            tools=[{"type": "web_search"}],
+            instructions=EXPERT_SYSTEM,
+            input=query,
+            max_output_tokens=EXPERT_MAX_TOKENS,
+        )
+        ans = (resp.output_text or "").strip()
+        out = {"answer": ans or None, "latency_s": time.time() - t0,
+               "error": None if ans else "empty output_text", "web": True}
+    except Exception as e:
+        out = {"answer": None, "latency_s": time.time() - t0,
+               "error": str(e), "web": False}
+    return out
+
+
 async def ask_expert_many(queries: list[str], concurrency: int = 3,
                           effort: str = EXPERT_EFFORT,
                           cache_dir: str | None = None) -> list[dict]:

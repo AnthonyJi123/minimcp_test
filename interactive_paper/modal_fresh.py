@@ -326,6 +326,7 @@ def refit4(c_sweep: str = "0.0001,0.0003,0.001,0.003"):
     layers, modes = v3["layer_set"], v3["modes"]
 
     IDS, E, M, ELEN, y = _train_xy(with_y=True)
+    n0 = len(y)          # v3 calib mix — tier budgets stay defined on it
     fl = pd.read_parquet(FLABELS)
     fl = fl[fl["escalate_label"].notna()]
     lab_f = dict(zip(fl["id"], fl["escalate_label"].astype(int)))
@@ -356,7 +357,10 @@ def refit4(c_sweep: str = "0.0001,0.0003,0.001,0.003"):
             best = (C, a, oof)
     C, auc, oof = best
     clf = LogisticRegression(C=C, max_iter=5000).fit(X, y)
-    thr = {t: float(np.quantile(oof, 1 - b))
+    # budgets are quantiles of the DEPLOYMENT-mix scores: the fresh rows
+    # oversample real-time queries relative to live traffic, so they
+    # train the direction but must not inflate the budget quantiles
+    thr = {t: float(np.quantile(oof[:n0], 1 - b))
            for t, b in (("conservative", 0.15), ("balanced", 0.30),
                         ("aggressive", 0.50))}
 

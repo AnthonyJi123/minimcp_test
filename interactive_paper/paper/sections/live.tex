@@ -305,3 +305,26 @@ is the third documented blind spot, after easy-chat failures and
 decode-time math: the pre-answer signal is specifically a
 \emph{retrieval-failure} detector. FalseQA therefore enters the
 signal-boundary analysis, not the tradeoff pools.
+
+\paragraph{A boundary case that data can move: real-time queries.}
+A fourth query class surfaced in live demo use: questions whose answer
+is unknowable at any training cutoff (``what is NVDA trading at right
+now''). Unlike false premises, the gate is not blind here --- v3 scores
+sit \emph{on} the balanced threshold, flipping with the TTS render
+(.624 vs.\ .693 for the same question) --- the class was simply absent
+from every (static-knowledge) training family. Extending the calibration
+pool with FreshQA \citep{vu2023freshllms} closes it: fast-changing
+questions (153, labeled escalate a priori --- the current value is
+unknowable by construction, so a judge against a stale gold would only
+add noise) plus never-changing in-family controls (150, standard
+judge labels, fail rate .47). Refit with the frozen v3 feature config,
+the v4 probe fires on held-out fast-changing questions at
+.80/.93/1.0 across tiers (v3: .57/.80/1.0) while never-changing
+held-out rates and frozen-test AUC are unchanged (.877 vs.\ .879).
+One calibration subtlety: tier budgets must remain quantiles of the
+\emph{deployment-mix} scores; quantiling over the augmented train mix
+(123 extra all-positive rows) silently raised the balanced threshold
+from .680 to .737, spending the new capability on its own threshold
+shift. Escalation only pays for this class if the expert can reach live
+data --- the demo's expert therefore gains a web-search tool, while all
+measured arms keep the tool-free expert.
