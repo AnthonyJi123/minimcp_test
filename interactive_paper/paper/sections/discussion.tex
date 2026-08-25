@@ -97,12 +97,15 @@ plays the moment the gate fires. The released demo now speaks with the
 model's native TTS head (talker + Token2wav vocoder, 24\,kHz; first
 answer audio $\sim$0.9--1.4\,s after generation start; the TTS template
 token enters after the end-of-turn read, so the probe context and all
-frozen thresholds are unchanged). The demo also supports soft barge-in
---- speech sustained over the talker aborts generation at chunk
-granularity and seeds the next turn --- but the native duplex
-listen/speak head remains unused: the probe is calibrated on simplex
-streaming states, and its validity under the true duplex loop is an
-open experiment.
+frozen thresholds are unchanged). The demo also supports barge-in with
+backchannel awareness --- speech over the talker first ducks playback,
+a fast ASR pass then either returns the floor (``ok'', ``em'') or
+commits the interrupt (``stop'', new content), which aborts generation
+at chunk granularity and seeds the next turn. This is a lexicon-level
+approximation of what a native duplex listen/speak head decides from
+hidden state; that head remains unused, since the probe is calibrated
+on simplex streaming states, and its validity under the true duplex
+loop is an open experiment.
 
 \section{Conclusion}
 \label{sec:conclusion}

@@ -76,6 +76,44 @@ gpu_image = (
     .add_local_dir(os.path.join(_HERE, "src"), "/workspace/gate")
     .add_local_file(_APP_PY, "/root/modal_app.py"))
 STALL = "Let me check that for you."
+# Backchannels must NOT stop the talker (user 2026-08-25): the native
+# duplex head would decide this semantically; our simplex approximation
+# is duck -> fast ASR on the burst -> resume (backchannel) or commit
+# (stop-word / real content). Lexicons en+zh, matched token-wise.
+BACKCHANNEL = {"em", "mm", "hmm", "mhm", "hm", "uh", "huh", "uh-huh",
+               "ah", "oh", "ok", "okay", "yeah", "yep", "yes", "right",
+               "sure", "cool", "nice", "wow", "i", "see", "go", "on",
+               "continue", "interesting", "really",
+               "\u55ef", "\u54e6", "\u55d4", "\u597d", "\u597d\u7684",
+               "\u5bf9", "\u5bf9\u7684", "\u662f", "\u662f\u7684",
+               "\u7ee7\u7eed", "\u884c", "\u54c8"}
+
+
+def _classify_burst(pcm16k):
+    """'backchannel' | 'interrupt'. ASR the short burst (8ae engine);
+    if every token is a backchannel word -> keep the floor. Any error
+    -> 'interrupt' (they DID speak over the talker; worst case we stop
+    once too often, which is the recoverable direction)."""
+    import re
+    import sys
+    import soundfile as sf
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+    try:
+        sf.write("/tmp/burst.wav", pcm16k, 16000)
+        with open("/tmp/burst.wav", "rb") as fh:
+            tr = escalate._client().audio.transcriptions.create(
+                model="gpt-transcribe", file=fh, response_format="text")
+        text = tr if isinstance(tr, str) else getattr(tr, "text", "")
+        toks = [t for t in
+                re.split(r"[\s,.!?;:~\u3002\uff0c\uff01\uff1f\u3001-]+",
+                        str(text).lower()) if t]
+        if toks and len(toks) <= 4 and all(t in BACKCHANNEL for t in toks):
+            return "backchannel", str(text).strip()
+        return "interrupt", str(text).strip()
+    except Exception as e:
+        return "interrupt", "[asr error: %s]" % e
+
 RELAY_TMPL = ("A verified answer came back: {ans}\n"
               "Relay it to the user in one or two spoken sentences.")
 
@@ -507,6 +545,7 @@ class Voice:
                     # echo through imperfect AEC cannot self-interrupt.
                     # The interrupting speech seeds the next turn.
                     int_sp, int_buf, gone = 0.0, [], False
+                    ducked, b_sil = False, 0.0
                     while not fut.done():
                         try:
                             m2 = await asyncio.wait_for(sock.receive(),
@@ -538,18 +577,58 @@ class Voice:
                             continue
                         f2 = (np.frombuffer(b2, dtype=np.int16)
                               .astype(np.float32) / 32768.0)
+                        dur2 = len(f2) / 16000.0
                         rms2 = float(np.sqrt((f2 * f2).mean() + 1e-12))
                         if abort.is_set():
                             int_buf.append(f2)    # keep the utterance
-                        elif rms2 > max(0.008, floor * 5.0):
-                            int_sp += len(f2) / 16000.0
+                            continue
+                        loud = rms2 > max(0.008, floor * 4.0)
+                        if loud:
+                            int_sp += dur2
                             int_buf.append(f2)
-                            if int_sp >= 0.4:
+                            b_sil = 0.0
+                            if not ducked and int_sp >= 0.25:
+                                ducked = True     # tentative: volume down
+                                await sock.send_json({"type": "duck"})
+                            if int_sp >= 1.2:
+                                # sustained speech = real turn-taking,
+                                # no ASR needed
                                 abort.set()
                                 await sock.send_json({"type": "interrupt",
                                                       "why": "speech"})
+                        elif ducked:
+                            int_buf.append(f2)
+                            b_sil += dur2
+                            if b_sil >= 0.45:
+                                # short burst ended: semantic check.
+                                # Generation CONTINUES during the ~1 s
+                                # ASR — a backchannel loses nothing,
+                                # which is the whole point.
+                                burst = np.concatenate(int_buf)
+                                verdict, heard = (
+                                    await loop.run_in_executor(
+                                        None, _classify_burst, burst))
+                                if verdict == "backchannel":
+                                    ducked, int_sp = False, 0.0
+                                    b_sil, int_buf = 0.0, []
+                                    await sock.send_json(
+                                        {"type": "resume",
+                                         "heard": heard[:60]})
+                                else:
+                                    abort.set()
+                                    await sock.send_json(
+                                        {"type": "interrupt",
+                                         "why": "speech",
+                                         "heard": heard[:60]})
                         else:
-                            int_sp, int_buf = 0.0, []
+                            # leaky, NOT zeroed: plosive closures inside
+                            # a short word ("s-T-o-P") must not reset
+                            # the accumulator
+                            int_sp = max(0.0, int_sp - 1.5 * dur2)
+                            if int_sp == 0.0:
+                                int_buf = []
+                            else:
+                                int_buf.append(f2)
                     out = await fut
                     if gone:
                         return
@@ -1023,9 +1102,14 @@ const T="__TOKEN__", AGG=__AGG__, THR=__THR__;
 const $=s=>document.querySelector(s);
 let probeOn=true, sel=null, S={n:0,ok:0,esc:0,ms:0,onN:0,onOk:0,offN:0,offOk:0};
 
-let playCtx=null,playT=0,playSrcs=[];
+let playCtx=null,playT=0,playSrcs=[],phase="listening",
+    cfloor=0.006,bargeN=0,playGain=null,localBurst=0;
+function gain(){if(!playGain){playGain=playCtx.createGain();
+  playGain.connect(playCtx.destination);}return playGain;}
+function duck(v){if(playGain)playGain.gain.value=v;}
 function stopPlayback(){
-  playSrcs.forEach(s=>{try{s.stop()}catch(_){}});playSrcs=[];playT=0;}
+  playSrcs.forEach(s=>{try{s.stop()}catch(_){}});playSrcs=[];playT=0;
+  duck(1);localBurst=0;}
 function playPCM(b64,sr){
   if(!playCtx)playCtx=new (window.AudioContext||window.webkitAudioContext)();
   if(playCtx.state==="suspended")playCtx.resume();
@@ -1035,7 +1119,7 @@ function playPCM(b64,sr){
   const buf=playCtx.createBuffer(1,n,sr);
   buf.getChannelData(0).set(f);
   const src=playCtx.createBufferSource();src.buffer=buf;
-  src.connect(playCtx.destination);
+  src.connect(gain());
   playSrcs.push(src);
   src.onended=()=>{const i=playSrcs.indexOf(src);
     if(i>=0)playSrcs.splice(i,1)};
@@ -1256,6 +1340,31 @@ async function startTalk(){
     let ss=0;for(let i=0;i<f.length;i++)ss+=f[i]*f[i];
     const rms=Math.sqrt(ss/f.length);
     $("#vu").style.width=Math.min(100,rms*700)+"%";
+    // local barge-in kill switch: the browser KNOWS when it is playing
+    // (server may already be back to listening while queued audio still
+    // plays) and sees the mic pre-suppression better than the server
+    // does post-AEC. Speech while playing => cut playback instantly;
+    // if the server is still generating, also send the manual abort.
+    if(playSrcs.length===0&&phase==="listening"&&rms<cfloor)
+      cfloor+=(rms-cfloor)*0.1;
+    else if(playSrcs.length===0&&phase==="listening")
+      cfloor+=(rms-cfloor)*0.02;
+    if(playSrcs.length>0){
+      if(rms>Math.max(0.02,cfloor*6)){
+        localBurst+=f.length/ac.sampleRate;
+        if(++bargeN>=3)duck(0.12);   // tentative: server adjudicates
+        if(localBurst>1.2){          // sustained = real turn-taking
+          stopPlayback();
+          log("you spoke over the talker — playback cut","off");
+        }
+      }else{bargeN=0;
+        if(localBurst>0&&phase==="listening"){
+          // server not watching (playback outlived generation):
+          // restore after a short quiet gap — backchannel semantics
+          localBurst=Math.max(0,localBurst-2*f.length/ac.sampleRate);
+          if(localBurst===0)duck(1);
+        }}
+    }
     if(!ws||ws.readyState!==1)return;
     const n=Math.floor(f.length/ratio);
     const out=new Int16Array(n);
@@ -1294,10 +1403,16 @@ function handleVoice(m){
     else log(`gate: ${fmt(m.score)} ${m.fired?"≥":"<"} ${fmt(m.thr)} → `
       +`<span class="${m.fired?'esc':''}">`
       +`${m.fired?"ESCALATE":"keep local"}</span>`);}
-  else if(m.type==="phase"){$("#vstate").textContent=
+  else if(m.type==="phase"){phase=m.v;$("#vstate").textContent=
     {listening:"listening",answering:"talker answering…",
      escalating:"expert thinking…",relaying:"relaying…"}[m.v]||m.v;}
   else if(m.type==="audio"){playPCM(m.pcm,m.sr||24000);}
+  else if(m.type==="duck"){duck(0.12);
+    log("hearing you — volume ducked while I check if you want the "
+      +"floor","off");}
+  else if(m.type==="resume"){duck(1);localBurst=0;bargeN=0;
+    log(`backchannel (“${esc(m.heard||"")}”) — keeping the `
+      +`floor`,"off");}
   else if(m.type==="interrupt"){stopPlayback();
     log(`barge-in (${m.why==="manual"?"stop button":"you spoke"}) — `
       +`generation and playback stopped`,"off");

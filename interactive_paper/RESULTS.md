@@ -3820,6 +3820,48 @@ the L22 read's validity under the duplex loop is an open experiment.
 
 
 
+### 8am — backchannel-aware barge-in: "ok" keeps the floor, "stop" takes it (~$2, 2026-08-25)
+
+Two user reports against 8al, both correct. (1) "STOP" still ignored:
+the 0.4 s continuous-loudness criterion zeroed on the plosive closures
+inside the word itself (s-T-o-P), the browser AEC's double-talk
+suppression shrank the barge-in signal server-side, and — the biggest
+window — generation finishes BEFORE playback does, so for the last
+seconds of every answer the server was back in "listening" with no
+barge-in logic at all while the browser kept playing. (2) The energy-only
+trigger had no semantics: backchannels ("em", "ok", "嗯") would cut the
+talker off — the exact thing MiniCPM's (unused) native duplex
+listen/speak head is trained NOT to do.
+
+**Fix: two-stage duck → classify → resume/commit (demo-grade
+approximation of the ls-head).** Speech ≥0.25 s over the talker →
+playback volume ducks to 12% (client GainNode; server event) but
+generation CONTINUES. Short burst ends (≤1.2 s + 0.45 s quiet) → the
+burst goes through the 8ae ASR (~1 s) and a token-wise en+zh lexicon:
+all-backchannel → volume restored, floor kept, zero loss (generation
+never paused); anything else → commit: playback killed, generation
+aborted, the burst seeds the next turn. Sustained speech >1.2 s →
+commit immediately, no ASR. ASR failure defaults to commit (one wrong
+stop is recoverable; an ignored "STOP" is the original bug). Server
+criterion is now leaky (4x floor, 0.3 s, plosive-proof); the client
+covers the playback-outlives-generation window locally with the same
+duck-then-decide shape.
+
+**Verification (`_ws_barge.py` rewritten, TTS-rendered probes).**
+Scenario A: "Okay." (0.47 s) over the talker → duck → resume (ASR heard
+"Okay.") → answer completes uninterrupted. Scenario B: "Stop!" (0.44 s)
+→ duck → interrupt (heard "Stop.") → turn marked interrupted. Both PASS
+on the deployed app, first attempt.
+
+Honest limits: ~1.5 s duck-dip before a backchannel verdict (the native
+ls-head would not blink); lexicon+ASR is a semantic approximation —
+"wait, what?" commits (correct) but so would an enthusiastic "no way!"
+(arguable). True duplex integration remains the future-work line.
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
