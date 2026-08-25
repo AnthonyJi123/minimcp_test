@@ -2,109 +2,63 @@
 \label{sec:related}
 
 \paragraph{Full-duplex real-time dialogue.}
-End-to-end spoken dialogue models now span native duplex designs ---
-dGSLM \citep{nguyen2023generative}, Moshi with its Inner Monologue
-\citep{defossez2024moshi}, GLM-4-Voice \citep{zeng2024glm4voice},
-and single-LLM native full-duplex \citep{bayling2026duplex} ---
-streaming omni models such as Qwen2.5-Omni \citep{xu2025qwen25omni} and
-our target MiniCPM-o~4.5 \citep{yao2024minicpmv,openbmb2026minicpmo}, a
-9B omni/duplex fine-tune of Qwen3-8B \citep{yang2025qwen3}, alongside
-frozen-backbone adapters (Freeze-Omni, \citealp{wang2024freezeomni})
-and audio-understanding fine-tunes \citep{chu2024qwen2audio}. A
-parallel line adds explicit \emph{turn-taking control}: FlexDuo
-\citep{liao2025flexduo} drives a Speak/Listen/Idle FSM at 120\,ms
-ticks, MinMo \citep{chen2025minmo} and Freeze-Omni attach lightweight
-state heads over the LLM's own hidden states, and recent work analyzes
-synchronization and turn-taking behavior in duplex models directly
-\citep{sync2026turntaking}; \citet{chrono2026thinking} interleave
-hidden reasoning with speech inside the duplex loop. All of these
-decide \emph{when the local model should speak}; our gate decides
-\emph{whether the local model should be the one answering at all}. The
-two decisions are orthogonal and mechanically compatible --- the
-head-based controllers read the same hidden states our gate does, and
-their arbitration cadences (120--250\,ms) show a live duplex loop
-already tolerates far more decision latency than our $\sim$30\,ms
-end-of-turn read. Their shared choice of a \emph{last-layer} readout
-is one point on our per-layer curve --- the point our results show
-duplex fine-tuning specifically damages (\S\ref{sec:duplex}). We use
-this model landscape as a controlled independent variable: matched
-pairs across raw backbones, audio-only, streaming-omni, duplex, and
-adapter designs attribute the readout damage to duplex-ness
-specifically.
+End-to-end spoken dialogue spans native duplex designs --- dGSLM
+\citep{nguyen2023generative}, Moshi \citep{defossez2024moshi},
+GLM-4-Voice \citep{zeng2024glm4voice}, single-LLM native full-duplex
+\citep{bayling2026duplex} --- streaming omni models
+\citep{xu2025qwen25omni,openbmb2026minicpmo}, frozen-backbone adapters
+\citep{wang2024freezeomni}, and audio fine-tunes
+\citep{chu2024qwen2audio}. A parallel line adds explicit turn-taking
+control: FlexDuo \citep{liao2025flexduo}, MinMo \citep{chen2025minmo},
+and Freeze-Omni's state heads decide \emph{when the local model should
+speak}, at 120--250\,ms cadences that show a live loop tolerates far
+more decision latency than our $\sim$30\,ms read
+\citep[cf.][]{sync2026turntaking,chrono2026thinking}.
+Our gate decides the orthogonal question --- \emph{whether the local
+model should be the one answering} --- and the head-based controllers'
+shared choice of a last-layer readout is exactly the point our results
+show duplex fine-tuning damages.
 
 \paragraph{Does the model know what it knows?}
-\citet{kadavath2022language} introduced $\ptrue$ self-evaluation;
-\citet{lin2022teaching} trained verbalized uncertainty. A parallel line
-reads correctness from internal states with linear probes
-\citep{alain2017understanding,azaria2023internal,marks2024geometry,
-burns2023discovering}, and intermediate layers carry more truthfulness
-information than the output distribution reveals \citep{orgad2024llms}
---- consonant with our mid-layer findings. Semantic entropy
+$\ptrue$ self-evaluation \citep{kadavath2022language}, verbalized
+uncertainty \citep{lin2022teaching}, and truthfulness probes on hidden
+states \citep{azaria2023internal,burns2023discovering,marks2024geometry}
+established that correctness is readable internally; intermediate
+layers carry more of it than the output distribution
+\citep{orgad2024llms}. Semantic entropy
 \citep{kuhn2023semantic,farquhar2024detecting} needs multiple sampled
-generations, which a real-time loop cannot afford; Semantic Entropy
-Probes \citep{kossen2024semantic} amortize it into a cheap hidden-state
-probe --- the closest signal to ours, but read on text-only,
-half-duplex models after the fact, not at end-of-turn inside a
-streaming session. Multimodal uncertainty estimation
-\citep{umui2026} asks whether confidence can be fused across
-modalities; we ask the prior question of \emph{where} in a duplex
-model a modality-robust confidence read survives at all. Our
-contribution to this literature is not a new signal but a controlled
-account of when the standard readouts break: probe and $\ptrue$
-readouts fail in complementary, modality- and architecture-specific
-ways under duplex fine-tuning, while the underlying information
-survives mid-network.
+generations; Semantic Entropy Probes \citep{kossen2024semantic}
+amortize it into a hidden-state probe --- the closest signal to ours,
+but read post-hoc on text-only half-duplex models. Multimodal
+uncertainty fusion \citep{umui2026} asks a downstream question; we ask
+\emph{where} in a duplex model a modality-robust read survives at all.
+Our contribution is a controlled account of when the standard readouts
+break under duplex fine-tuning --- and where the surviving signal sits.
 
 \paragraph{Selective escalation and routing.}
-Cost-quality routing across LLMs is well studied: FrugalGPT
-\citep{chen2023frugalgpt} cascades with a learned scorer, HybridLLM
-\citep{ding2024hybrid} and RouteLLM \citep{ong2024routellm} train query
-routers, RouterBench \citep{hu2024routerbench} standardizes evaluation,
-and \citet{llmrouterbench2026} report that many routers fail to beat
-simple baselines under a unified protocol. AutoMix
+FrugalGPT \citep{chen2023frugalgpt}, HybridLLM \citep{ding2024hybrid},
+RouteLLM \citep{ong2024routellm}, and confidence-based cascade serving
+\citep{hybridserve2025} route from query-side features or preference
+data; RouterBench \citep{hu2024routerbench} and LLMRouterBench
+\citep{llmrouterbench2026} standardize evaluation and report that many
+routers barely beat simple baselines. AutoMix
 \citep{aggarwal2024automix} is the closest system design --- a small
-model decides its own answer's reliability and escalates --- but the
-decision is \emph{post-answer} self-verification on text; our gate
-fires \emph{pre-answer}, before the first output token, which is what
-a voice deadline requires. Confidence-based cascades also appear at
-the serving layer \citep{hybridserve2025}. These routers decide from
-query-side features, and the large model then answers the user
-directly; both assumptions fail in full-duplex voice, where the user
-talks to one voice whose session state lives in the small model. Our
-audit (\S\ref{sec:rq1}) quantifies the query-side ceiling: it is the
-``type shortcut'' whose transfer collapses under distribution shift,
-while the internal mid-layer signal transfers. Learning-to-defer
-\citep{madras2018predict} and early exit \citep{schuster2022confident}
-make the same decision inside one model; speculative decoding
-\citep{leviathan2023fast} inverts our roles, and our prefetch analysis
-(\S\ref{sec:liveloop}) is its query-level mirror. Escalating to the
-model's own thinking mode connects to test-time compute
-\citep{guo2025deepseekr1}; we find it dominated by external escalation
-because the flagged failures are knowledge-bound, not compute-bound.
+model assesses its own answer and escalates --- but the decision is
+\emph{post-answer} self-verification; a voice deadline requires
+\emph{pre-answer}. Both routing assumptions (query-side features; the
+large model answers the user directly) fail in full-duplex voice,
+where the session lives in the small model. Learning-to-defer
+\citep{madras2018predict}, early exit \citep{schuster2022confident},
+speculative decoding \citep{leviathan2023fast}, and test-time compute
+\citep{guo2025deepseekr1} make related decisions inside one model; our
+audit quantifies the query-side ceiling directly
+(\S\ref{sec:audit}).
 
 \paragraph{The gap.}
-Duplex work decides \emph{when to speak}; routing work decides
-\emph{which model} from the query surface or after a first answer;
-uncertainty work asks \emph{whether the model is confident}, almost
-always in text and offline. To our knowledge, no prior work asks
-whether a full-duplex speech model exposes a \emph{pre-answer,
-modality-robust, internal} competence signal early enough to drive a
-live small-to-large handoff while preserving the ongoing conversational
-session --- the regime this paper measures end-to-end, from signal
-(\S\ref{sec:rq1}--\ref{sec:duplex}) to live system (\S\ref{sec:live})
-to frozen transfer (\S\ref{sec:transfer}).
-
-\paragraph{Evaluation practice.}
-Query pools come from public benchmarks only: SimpleQA
-\citep{wei2024simpleqa} for confidently-wrong long-tail traps (cf.\
-PopQA, \citealp{mallen2023popqa}), MMLU-Pro \citep{wang2024mmlupro},
-TriviaQA \citep{joshi2017triviaqa}, GSM8K \citep{cobbe2021gsm8k},
-MATH-500 \citep{hendrycks2021math,lightman2024lets}, and Dolly/Alpaca
-instruction data \citep{conover2023dolly,taori2023alpaca}; adequacy
-labels come from an LLM judge \citep{zheng2023judging} validated by a
-stronger re-judge (agreement 0.962 text / 0.945 audio). The audio arm
-TTS-renders the frozen pool, following Spoken-SQuAD
-\citep{li2018spokensquad} and VoiceBench \citep{chen2024voicebench},
-and the audio-side findings are validated on \emph{real} human speech
-via SD-QA \citep{faisal2021sdqa} (\S\ref{sec:speech}) and the live
-external benchmarks of \S\ref{sec:transfer}.
+Duplex work decides when to speak; routing work decides which model,
+from the query surface or after a first answer; uncertainty work asks
+whether the model is confident, almost always in text and offline. No
+prior work we know of asks whether a full-duplex speech model exposes a
+\emph{pre-answer, modality-robust, internal} competence signal early
+enough to drive a live small-to-large handoff while preserving the
+session --- the regime this paper measures end-to-end.

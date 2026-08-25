@@ -1,165 +1,39 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{Design consequences: the two-stage gate}
-\label{sec:twostage}
+\paragraph{What the signal detects.}
+The pre-answer probe is specifically a \emph{retrieval-failure}
+detector: it is strongest on missing-knowledge and long-tail-trap
+failures, where the empty lookup is an observable event in the model's
+state. Execution failures (getting stuck mid-derivation) surface in
+\emph{decode-time} signals instead, and metacognitive failures ---
+questions with false premises, where no failure event occurs in the
+model's experience --- are invisible to every signal we tested,
+query-surface routers included (fire rate .18 vs.\ trap's .90;
+Appendix~\ref{app:livedetail}). This is the honest scope statement for
+pre-answer gating, and it motivates adding a decode-time check behind
+the pre-answer gate.
 
-The evidence converges on a two-stage design:
-\begin{itemize}
-\item \textbf{Stage 1 (prefill, effectively free):} a mid-layer
-  ($\sim$60\% depth) last-token probe --- 20/45\,ms, before the first
-  token, and the only signal that survives duplex fine-tuning \emph{and}
-  both input modalities (\S\ref{sec:quadrants}). Open engineering item:
-  score-scale calibration for threshold (rate) transfer.
-\item \textbf{Stage 2 (optional, post-draft):} $\ptrue$-post on the drafted
-  answer --- the strongest single signal (0.899); the draft doubles as the
-  distilled escalation query and as the fallback answer. On audio input,
-  never ask over raw audio context: run $\ptrue$ on the model's own
-  transcript (``repeat-then-judge,'' \S\ref{sec:audioptrue}).
-\end{itemize}
-
-\subsection{Positioning vs.\ query-side routing}
-
-Query-side routers \citep{ong2024routellm,ding2024hybrid,chen2023frugalgpt}
-decide before generation from query features, and the big model then
-answers the user directly. Neither transfers to full-duplex voice: the user
-talks to one voice whose session state lives in the small model, and
-query-side features are precisely the ``type shortcut'' our audit
-quantifies (pool oracle 0.715 vs.\ probe 0.822 in-distribution) and LOPO
-breaks. The signal must come from the answering model itself --- consistent
-with \citet{llmrouterbench2026}'s attribution of router failures to
-model-recall gaps. A head-to-head comparison of query-feature routers vs.\
-internal-signal gates under distribution shift, on their standardized
-protocol, is natural future work.
-
-\subsection{Result injection: resolved by the same signal}
-
-Step 2 --- returning the thinker's result into the live duplex session ---
-initially looked like a research problem of its own: the streaming smoke
-test showed the talker pushing back on conflicting injected results. The
-quantified answer (\S\ref{sec:inject}) is that for \emph{gated}
-escalations the problem largely dissolves, and for a principled reason:
-the same low-confidence state that fires the gate predicts relay
-compliance (comply .42 $\to$ .75 across gate-score quartiles; 1.00 on the
-deployed wrong-model $\times$ correct-expert workload). The gate and the
-relay are two uses of one signal. Where the state is confident, framing
---- not ventriloquism --- is the mechanism (authority framing .53--.79
-vs.\ seeding's backfire), and the residual ceiling is the swallow rate:
-an unconfident talker relays a \emph{wrong} expert at .64 with zero
-pushback, so cascade accuracy is bounded by expert quality.
-
-\subsection{Three failure species, one perceivability axis}
-
-The accumulated blind-spot results organize into a taxonomy of
-\emph{why} a model fails, ordered by whether the failure is an observable
-event in the model's own processing. \textbf{Retrieval-type} failures
-(``I don't know this entity'') produce an observable empty lookup at
-prefill --- pre-answer signals work (trap fire .90).
-\textbf{Execution-type} failures (``stuck mid-solution'') only come into
-existence during decoding --- decode-time signals see them (math
-entropy@16 .860) and pre-answer signals cannot.
-\textbf{Metacognitive-type} failures (``doesn't know the question itself
-is broken'') never occur as an event anywhere in the model's experience
---- like a schoolkid confidently ``verifying'' Goldbach's conjecture, the
-model answering a false-premise question executes smoothly along the
-wrong frame, and every internal signal is blind (FalseQA fire .18, no
-score separation; \S\ref{sec:falseqa}). This mirrors the human
-feeling-of-knowing literature, which finds metacognition accurate for
-memory retrieval and unreliable for insight problems. The taxonomy
-explains the two-stage gate architecture (\S\ref{sec:twostage}
-rationale: prefill probe for species 1, decode monitor for species 2),
-scopes the claim --- the pre-answer signal is a retrieval-failure
-detector, not a general oracle --- and notes that query-surface routers
-miss species 3 as well.
-
-\subsection{Demonstration system}
-\label{sec:demo}
-
-The measured pipeline runs as an interactive web demo: live microphone
-audio streams to the duplex model on a single H100, the end-of-turn
-probe read costs $\sim$54\,ms against the balanced threshold, and
-escalated turns stall, consult the expert, and \emph{speak} the relayed
-answer through the model's own TTS head. Two demo-only extensions go
-beyond the measured arms: the expert gains a web-search tool ---
-real-time queries such as stock prices, which the v4 FreshQA refit
-(\S\ref{sec:falseqa}) fires on at .80--1.0 across tiers, then return
-live values no cutoff-bound model can produce --- and the loop accepts
-\emph{backchannel-aware barge-in}: sustained speech over the talker
-ducks playback, a $\sim$1\,s ASR pass classifies the burst, and
-backchannels (``ok'', ``mm-hm''; an English+Chinese lexicon) return
-the floor with zero loss while anything else aborts generation and
-seeds the next turn. All measured arms in this paper keep
-the tool-free expert and the turn-based loop; the demo will be made
-available upon publication.
-
-\subsection{Limitations}
-\label{sec:limitations}
-
-(i) $\ptrue$ prompt sensitivity: one phrasing each (pre/post).
-(ii) The audio arm is validated on real dialectal speech (SD-QA), but
-scripted read speech and one dialect split; spontaneous conversational
-speech (disfluencies, self-repair) remains uncovered.
-(iii) Input-side scope: formula-symbolic content (spoken LaTeX) is
-destroyed by \emph{any} TTS render before the system hears it, so the
-audio arm is scoped to speakable content via pre-registered input-side
-filters (\S\ref{sec:livecurve}); this limit is distinct from the
-transcription-uplink loss, of which a stronger cloud ASR diagnostically
-recovers 38\%. (iv) The introspection-collapse finding is MiniCPM-scoped
-(two generations of one family); the pre-registered second-family test
-now passes on a hybrid-Mamba architecture for mid-band readability and
-frozen-recipe transfer (\S\ref{sec:nvda}), but the full matched-pair
-attribution against its raw backbone and the live-loop port were not
-repeated there. (v) The frozen test split is reused across signal
-comparisons (signals were pre-specified; a fresh test set would be
-cleaner). (vi) Labels come from a single judge family, bounded by a
-stronger re-judge (deltas $\le$0.010) but without human labels.
-(vii) The live sweep (\S\ref{sec:live}) is one session per query per
-tier, with a documented replication-noise floor of $\pm$.02--.03 per
-arm; no claim rests on sub-3-point live deltas. The measured sweep ran
-with text-mode talker output (\texttt{generate\_audio=False}): the
-relay is validated at the utterance level and latencies are
-text-complete --- a conservative accounting, since in the spoken system
-the stall filler plays the moment the gate fires; the demo system
-(\S\ref{sec:demo}) speaks through the native TTS head without touching
-the probe context or the frozen thresholds. The native duplex
-listen/speak head remains unused throughout: the probe is calibrated on
-simplex streaming states, and its validity under the true duplex loop
-is an open experiment.
-
-\paragraph{Future work.} In rough order of leverage: (a) an
-audio-direct-to-expert live arm --- the gold-inject view prices the
-transcription channel at $-$.175 on the internal pool, an order above
-the noise floor, and it is the one lever a single live sweep can
-resolve; (b) true duplex integration --- driving the native
-listen/speak head and re-validating the L22 read under the duplex
-loop; (c) the Nemotron live port and its trained-checkpoint ablation,
-completing the second-family replication; (d) a \emph{trained} gate
-head as an upper-bound contrast for the zero-training claim; (e) the
-remaining ten SD-QA dialect splits as a cross-dialect robustness
-table; (f) protocol-level comparison against preference-trained
-routers on LLMRouterBench \citep{llmrouterbench2026}; (g) a
-$\ptrue$ prompt-sensitivity sweep; and (h) an injection-payload study
-(does ``answer + one-sentence justification'' restore math relay
-compliance where bare numbers fail).
+\paragraph{Limitations.}
+(i) One phrasing per $\ptrue$ variant. (ii) Real-speech validation
+covers scripted read speech in one dialect. (iii) Formula-symbolic
+content is out of scope for the audio arm (destroyed by any TTS render
+--- an input-side limit distinct from the transcription-uplink loss).
+(iv) The second-family replication covers mid-band readability and
+frozen-recipe transfer, not the full matched-pair attribution or the
+live loop. (v) Labels come from one judge family, bounded by a stronger re-judge
+(deltas $\le$.010), without human labels. (vi) The live sweep is one
+session per query per tier ($\pm$.02--.03 replication floor); the
+native duplex listen/speak head remains unused --- probe validity
+under the true duplex loop is an open experiment.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-Zero-training self-knowledge in a small full-duplex model exists, is
-strong, and is modality- and layer-fragile in systematic,
-duplex-fine-tune-induced ways. The standard readouts --- final-layer probes
-and verbalized self-evaluation --- each have one blind modality, and both
-blind spots are created by the duplex fine-tune; the mid-layer
-representation underneath survives everything we tested. Read there, the
-resulting gate decides before the first output token, transfers from cheap
-text calibration to speech on end-to-end models, and as a system dominates
-the model's own thinking mode on both accuracy and latency. And when the
-thinker's answer comes back, the same signal that fired the escalation
-predicts that the talker will actually say it: run live end-to-end, the
-gated duplex system climbs monotonically from its honest streaming floor
-(.422 $\to$ .633 at 57\% escalation on the speakable subset), with the
-remaining gap to the offline curve itemized into named, measured taxes
-rather than left as mystery --- and the frozen gate transfers unchanged
-to six public speech benchmarks, where at 50\% escalation it lifts the
-9B system past models 3$\times$ its size. Gate and relay are one mechanism; what remains is engineering
-the channel around it.
+Duplex speech models carry a competence signal their standard readouts
+miss: a mid-network linear read that survives the readout damage,
+transfers from text calibration to speech, and lands tens of
+milliseconds before the first output token. Deployed live, it turns a
+9B talker into a system that knows when to hand off; frozen, it lifts
+public speech benchmarks past models three times its size. Reading the
+right layer makes real-time escalation possible.

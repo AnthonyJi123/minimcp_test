@@ -1,0 +1,112 @@
+\section{Reading Competence from Duplex Models}
+\label{sec:signal}
+
+\subsection{In distribution every readout looks fine; transfer reveals
+the shortcut}
+\label{sec:audit}
+
+Table~\ref{tab:signals} compares the candidate signals on
+MiniCPM-o~4.5. In distribution the final-layer probe reaches .822 ---
+but that number is mostly a \emph{query-type} shortcut: the same hidden
+state classifies a query's source pool at 95.8\%, a pool-identity
+oracle alone reaches AUC .715, and appending true pool labels to the
+probe adds nothing (.822$\to$.821). The decisive test is
+leave-one-pool-out (LOPO) transfer, which we treat as the primary
+metric throughout: held-out math \emph{inverts} to .372, and the mean
+escalation score on a 100\%-fail trap pool is .232. An external
+query-surface router makes the same point from the other side: under
+identical labels a TF-IDF router reaches only OOF AUC .669 (below the
+pool oracle), collapses to .38--.57 under LOPO, and $100\times$ the
+data on a public routing benchmark buys back only .04 of AUC
+(Appendix~\ref{app:router}). Instance-level competence information
+lives in the model's internal state, not on the query surface.
+
+Verbalized self-assessment transfers differently: \emph{pre-answer}
+$\ptrue$ catches the trap pool the probe misses (escalation score .945
+vs.\ the probe's .232) --- but timing is essential: asked \emph{after}
+drafting, the model endorses its own confident-wrong answer (.360).
+Post-draft $\ptrue$ is the strongest single signal (.899) but requires
+paying for a full draft, which a voice deadline cannot afford.
+
+\begin{table}[t]
+\centering\small
+\caption{Signals on MiniCPM-o 4.5, judged failure labels. In-dist =
+calibration-split AUC (probes 5-fold out-of-fold); LOPO math =
+leave-one-pool-out AUC on held-out math; audio = the same readout under
+speech input (final/mid-layer probe: audio-input LOPO math / text-only
+calibration read on audio states). Full per-signal detail:
+Appendix~\ref{app:signal}.}
+\label{tab:signals}
+\begin{tabular}{lccc}
+\toprule
+signal & in-dist & LOPO math & audio input \\
+\midrule
+max entropy@4 & .696 & $\approx$chance on raw backbones & --- \\
+$\ptrue$-pre & .807 & trap .945 (probe: .232) & \textbf{collapses} \\
+$\ptrue$-post (full draft) & \textbf{.899} & --- & degrades \\
+final-layer probe & .822 & \textbf{.372} (inverts) & .936 (intact) \\
+mid-layer (L22) probe & .866 & \textbf{.931} & \textbf{.855} (text-calibrated) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The damage is duplex-specific; the signal survives
+mid-network}
+\label{sec:duplex}
+
+Matched pairs attribute the probe failure to the \emph{kind} of
+fine-tune, not the backbone: the raw Qwen backbone, label-matched to the
+duplex model's fail rates, holds LOPO math at .825 where the duplex
+model sits at .372; streaming-omni and audio-only fine-tunes are
+undamaged; a second duplex generation (MiniCPM-o~2.6) reproduces the
+collapse (Appendix~\ref{app:signal}). A layer $\times$ position sweep
+localizes it (Figure~\ref{fig:layersweep}): the collapse is specific to
+(late layer $\times$ last token) on text input --- mean-pooled reads at
+the same depth are fine, and mid-network the last-token read recovers
+to \textbf{.931 at L22}, near the raw backbone. This is the position a
+streaming head must re-purpose to encode turn-control state, and the
+pattern is consistent with late-layer specialization for duplex turn
+control overwriting the readout while the underlying information
+survives. The mid-network optimum is not a MiniCPM quirk: on
+NemotronLabs-VoiceChat-11B --- a hybrid-Mamba duplex model,
+architecturally disjoint --- the same recipe peaks mid-band at L30--34
+of 56 and transfers to the external pools at AUC .70--.79 with a
+quarter of the calibration data (Appendix~\ref{app:nvda}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.8\linewidth]{layer_sweep}
+  \caption{The core representational result: LOPO math AUC by layer and
+  position. On the duplex model the standard (final-layer, last-token)
+  read inverts on text input while mid-network layers hold $\ge$.9; raw
+  backbones show no cliff. The deployed gate reads L22.}
+  \label{fig:layersweep}
+\end{figure}
+
+\subsection{Text-calibrated, speech-deployed --- in end-to-end models
+only}
+\label{sec:xmodal}
+
+Probes trained on text hidden states and scored on speech-input hidden
+states locate where the representation becomes modality-shared: early
+layers are modality-specific (.54--.60), and from $\sim$50\% depth
+text$\to$audio transfer plateaus at .82--.87 (.855 at the deployed
+L22). This replicates on MiniCPM-o~2.6 and cross-family on
+Qwen2.5-Omni. The decisive control is \textbf{Freeze-Omni}: identical
+frozen LLM weights with audio attached by an adapter --- and
+cross-modal transfer is dead (.52--.60). The modality-shared mid-layer
+core is \emph{created by training the backbone on the modality}; the
+cheap recipe ``calibrate on text, deploy on speech'' is valid for
+end-to-end models and invalid for adapter-attached ones. Verbalized
+introspection shows the mirror-image failure: on audio input,
+pre-answer $\ptrue$ collapses on both MiniCPM duplex generations while
+both non-duplex controls stay intact; controlled arms show the verbal
+self-check runs over text-token pathways that audio embeddings do not
+feed --- duplicating the question as text restores it --- while a
+linear probe reads the same information off the same forward pass at
+.93 (Appendix~\ref{app:signal}). All audio-side findings replicate on
+200 real human recordings (SD-QA), ruling out TTS artifacts.
+\textbf{The mid-layer probe is the one readout that survives every
+training regime that can converse}; the live system deploys the same
+L22 read plus two zero-latency pooled positions (the \emph{deployed}
+probe; Appendix~\ref{app:signal}).

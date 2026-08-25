@@ -1,15 +1,13 @@
 % =========================================================================
 % When Does a Small Model Know to Hand Off?
-% Zero-Training Escalation Gates for Full-Duplex Speech Models
+% Reading Competence from Full-Duplex Speech Models for Real-Time
+% Escalation
 %
 % Target: RTCA @ NeurIPS 2026 (deadline 2026-08-29 AoE), double-blind,
 % NeurIPS 2026 style, 8-page main text (refs + appendix free).
 % Source of truth for numbers: interactive_paper/RESULTS.md.
 % Build: tectonic main.tex (local) or Overleaf (pdflatex + bibtex).
-% Submission mode = \usepackage{neurips_2026} (line numbers, anonymized).
 % Camera-ready: switch to [final] and restore the author block below.
-% \todonote{...} marks open items; sections/todo.tex must be deleted
-% before submission.
 % =========================================================================
 \documentclass{article}
 
@@ -33,7 +31,8 @@
 \newcommand{\auc}[1]{#1}
 
 \title{When Does a Small Model Know to Hand Off?\\
-Zero-Training Escalation Gates for Full-Duplex Speech Models}
+Reading Competence from Full-Duplex Speech Models for Real-Time
+Escalation}
 
 % Camera-ready author block (hidden in submission mode by neurips_2026):
 % Ruoyu He, Jisen Li, Changyi Yang, Zetian Li, Zhongzhu Zhou
@@ -50,10 +49,8 @@ Zero-Training Escalation Gates for Full-Duplex Speech Models}
 \input{sections/intro}
 \input{sections/related}
 \input{sections/setup}
-\input{sections/rq1_text}
-\input{sections/duplex}
-\input{sections/speech}
-\input{sections/system}
+\input{sections/signal}
+\input{sections/gate}
 \input{sections/live}
 \input{sections/transfer}
 \input{sections/discussion}

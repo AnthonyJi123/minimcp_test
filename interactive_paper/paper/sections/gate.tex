@@ -1,0 +1,53 @@
+\section{From Signal to Gate}
+\label{sec:system}
+
+\paragraph{The decision exists before decoding starts.}
+The gate is one 4096-d dot product on a hidden state the forward pass
+already computes. Measured on H100, the L22 decision lands in
+\textbf{20\,ms (text) / 45\,ms (audio)} against time-to-first-token of
+36/68\,ms: $T_{\text{gate}} < T_{\text{first token}}$, far inside the
+200--300\,ms turn-taking budget \citep{stivers2009universals}, and the
+cloud call can launch while the remaining $\sim$40\% of prefill and the
+whole decode still run ($\ptrue$-pre costs an extra prefill,
+$\ptrue$-post a full draft: 1.9/3.5\,s; per-layer cost curves in
+Appendix~\ref{app:gatedetail}).
+
+\paragraph{Accuracy--cost tradeoff.}
+On the frozen test split ($n{=}240$): small-only .588, big-only
+(\texttt{gpt-5.5}) .917. Gated escalation beats random escalation at
+every operating point (Figure~\ref{fig:tradeoff}, appendix); the
+balanced tier at a 33\% budget reaches \textbf{.779--.787}, recovering
+$\sim$58\% of the small$\to$big gap at one third of the big-only cost.
+In distribution the gate is statistically on par with a pool-oracle
+(type-only) router --- as the type-shortcut audit predicts --- so its
+case over type routing rests on transfer, where the type shortcut
+collapses (\S\ref{sec:audit}) and the mid-layer signal does not.
+
+\paragraph{Against the model's own thinking mode.}
+\label{sec:thinking}
+MiniCPM-o~4.5 ships a built-in reasoning mode --- self-escalation in
+place. Gated-cloud escalation dominates all-THINK on both accuracy and
+latency at every escalation rate (gated-cloud@.33: .787 at mean 6.5\,s
+vs.\ all-THINK .637 at 22.4\,s; Table~\ref{tab:policy}). The reason is
+mechanistic: the gate predominantly flags knowledge and trap failures,
+which extra compute cannot fix --- thinking helps math and hurts chat
+--- so external escalation is necessary, not merely better.
+
+\begin{table}[t]
+\centering\small
+\caption{Deployment policies, frozen test split ($n{=}240$); latencies
+measured.}
+\label{tab:policy}
+\begin{tabular}{lcccc}
+\toprule
+policy & acc & lat.\ mean (s) & P50 & P95 \\
+\midrule
+fast-only & .588 & 3.0 & 3.5 & 4.2 \\
+all-THINK (built-in) & .637 & 22.4 & 17.2 & 60.1 \\
+gated-think @.33 & .613 & 12.1 & 3.6 & 47.6 \\
+gated-cloud @.15 & .688 & 5.3 & 3.6 & 10.1 \\
+\textbf{gated-cloud @.33} & \textbf{.787} & \textbf{6.5} & 3.6 & 20.8 \\
+gated-cloud @.50 & .858 & 7.0 & 3.6 & 24.4 \\
+\bottomrule
+\end{tabular}
+\end{table}

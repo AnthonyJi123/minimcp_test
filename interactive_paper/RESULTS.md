@@ -3915,6 +3915,44 @@ now process-only (compress to 8pp / feedback / submission mechanics).
 
 
 
+### 8ap — the 8-page cut: full restructure per external review ($0, 2026-08-25)
+
+GPT-based review verdict accepted in full: "~2.5 papers in one", main
+text ~25pp → must be 8. Executed same day:
+
+- **One thesis**: mid-layer competence signal → pre-token escalation →
+  live duplex system → OOD speech transfer. 7 contribution bullets → 3
+  (representation / modality / system). ~15 claims → 4.
+- **Title**: "Zero-Training" dropped (the probe IS trained — LR on
+  hidden states); now "Reading Competence from Full-Duplex Speech
+  Models for Real-Time Escalation".
+- **Structure**: intro (hero system figure `hero_system.py`, replaces
+  the synthetic concept fig) / related 0.7pp / setup 0.7pp / NEW
+  signal.tex (merged rq1+duplex+speech cores, one combined signal
+  table, layer_sweep as the core figure) / NEW gate.tex (fork timing +
+  offline tradeoff + thinking table) / live.tex 6pp→1.2pp (loop +
+  fair_dualview + channel-tax sentence) / transfer 1.2pp (tab:transfer
+  + anchors + negatives) / discussion 0.6pp (taxonomy para + 6-line
+  limitations + 5-line conclusion). rq1_text/duplex/speech/system .tex
+  deleted (git history).
+- **Appendix A–L absorbs**: roster, extended signal analyses (lopo/
+  sweep/audioptrue/controls/quadrants/SD-QA/deployed-probe), Nemotron,
+  router audit, fork/overlap, live details (tables, prefetch,
+  injection framings, uplink diagnostics, FalseQA/FreshQA, demo),
+  latency fold, full-pool + family figures, prompts, repro.
+- **Language**: no v1/v2/v3/v4 or artifact filenames in main text
+  (mechanistic probe vs deployed probe); causal claims softened
+  ("consistent with late-layer specialization for turn control", "the
+  competence signal also predicts relay compliance", "generalizes to a
+  second architecturally distinct duplex family" — not "as a class").
+- **Result**: 24pp total, main text ends within page 8, 0 unresolved
+  refs, compiles clean. fig:tradeoff moved to appendix to close the
+  last 2-line overflow.
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +
