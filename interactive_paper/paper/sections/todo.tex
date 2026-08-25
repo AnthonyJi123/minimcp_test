@@ -23,7 +23,18 @@
 \section*{TODO / Roadmap (working section --- delete before submission)}
 \label{sec:todo}
 
-\subsection*{[W] Must-write before submission}
+\subsection*{[W] Must-write --- ALL EXECUTED 2026-08-25 (peer-draft session)}
+% W1 -> sections/transfer.tex (new, wired into main after live);
+% W2+D1 -> live.tex rewritten on v3 + speakable-subset headline, noise-floor
+%   paragraph added, delta/channel CIs recomputed from frozen_v3_traces
+%   (all tiers now significant vs floor; fair conservative channel CI
+%   lower bound at zero, marked with a dagger);
+% W3 -> duplex.tex \S{sec:nvda} + nvda figures; W4 -> live.tex channel
+%   bullet (gpt-transcribe .694 vs .585, diagnostic caveats);
+% W5a -> livecurve corrected-quantiles sentence; W5b -> discussion
+%   \S{sec:demo} ("available upon publication"); W5c verified (.877/.879).
+% Residual flags now live as \todonote{}s inside the sections themselves
+% (appendix figures, trace-decomposition re-run on v3, missing cites).
 \begin{itemize}
 \item \todonote{W1 --- BIGGEST GAP: the external-benchmark transferability
   section does not exist in the paper. live.tex has ZERO mention of
@@ -72,7 +83,7 @@
   diagnostic finding with both caveats (ASR latency on critical path
   unmeasured; external-pool survival unmeasured). hard-math recovers
   nothing --- spoken LaTeX is an input-side limit, state it separately
-  in \S\ref{sec:scope}}
+  where input-side limits are stated}
 \item \todonote{W5 --- small syncs: (a) deployment-artifact sentence:
   label-free quantile correction
   (\texttt{gate\_v3\_thresholds\_corrected.json}) removes 11.3\% of
@@ -85,7 +96,7 @@
   .80/.93/1.0)}
 \end{itemize}
 
-\subsection*{[D] Decisions --- ALL RATIFIED 2026-08-25 (user: ``都批了'')}
+\subsection*{[D] Decisions --- ALL RATIFIED 2026-08-25 (user approved all three)}
 % D1 approved -> execute with W2 in one pass. D2 EXECUTED same day
 % (RESULTS \S 8an): delta +0.0119, 95% CI [-0.003,+0.027], p=.13 n.s.;
 % system.tex:21 softened. D3 approved -> "demo available upon publication".
@@ -115,9 +126,9 @@
 
 \subsection*{[M] Mechanical}
 \begin{itemize}
-\item \todonote{M1 --- switch to the NeurIPS 2026 style file (RTCA
-  requirement), anonymize, 8-page main-text budget (refs + appendix
-  free)}
+\item \todonote{M1 --- DONE 2026-08-25: neurips\_2026.sty submission
+  mode, author block anonymized, compiles under tectonic. Remaining:
+  the 8-page main-text compression (currently far over)}
 \item \todonote{M2 --- figure hygiene: (a) regenerate
   \texttt{concept\_probe\_vs\_ppl} with English labels; (b) ROC figure
   to include $\ptrue$ curves; (c) verify \texttt{pareto\_latency}

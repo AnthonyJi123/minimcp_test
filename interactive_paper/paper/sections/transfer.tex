@@ -1,0 +1,266 @@
+\section{Transfer Without Training: The Frozen Gate on Six Public Speech Benchmarks}
+\label{sec:transfer}
+
+Everything so far is measured on our internal pool, and \S\ref{sec:audit}
+showed exactly why that is not enough: in a mixed pool, most of a
+router's apparent margin can be the pool/type shortcut. This section is
+the out-of-distribution test the audit demands. We take the gate
+\emph{frozen} --- probe weights, feature configuration, and layer choice
+fit once on the internal calibration mix --- and run the complete live
+streaming loop of \S\ref{sec:live} on six public speech-QA benchmarks:
+Speech TriviaQA, Speech Web Questions, Llama Questions, and Reasoning QA
+from OpenAudioBench
+\todonote{cite: OpenAudioBench; Web Questions (Berant et al.\ 2013);
+Llama Questions (Nachmani et al.)} \citep{joshi2017triviaqa}, SD-QA
+(real dialectal human speech, not TTS) \citep{faisal2021sdqa}, and
+VoiceBench AlpacaEval \citep{chen2024voicebench, taori2023alpaca}. All
+pools use the benchmarks' official pre-rendered audio --- none of it
+passes through our TTS --- and none of their queries ever touches probe
+training. The deployed probe (v3) is the same L22 end-of-turn read plus
+two additional zero-latency positions (a rolling 8-token tail and the
+running user-audio mean), refit on a calibration mix widened to 2{,}310
+queries drawn from public families (SVAMP, HotpotQA, PopQA, MMLU,
+TruthfulQA-style traps) that are disjoint from --- and deduplicated
+against --- the six evaluation benchmarks; the pre-registered guard held
+with headroom (frozen internal test AUC .860$\to$.879, and feature
+selection never saw the externals). The only per-pool adaptation is
+\emph{label-free}: escalation-tier thresholds are quantiles of the
+probe's own score distribution on each pool, a normalization the score
+scale forces (the aggressive threshold is .111 on Llama Questions vs.\
+.603 on SD-QA --- a 5$\times$ shift for the same probe) and one that
+consumes no labels, no answers, and no judge calls.
+
+Scoring is each benchmark's own where a protocol exists: the three
+OpenAudioBench pools use the official judge verbatim (alias-match
+grading), AlpacaEval uses VoiceBench's official 1--5 judge, and SD-QA /
+Reasoning QA (which ship no replicable protocol) use our
+reference-anchored judge. Under the official judge our offline chat-mode
+control \emph{reproduces} the anchors --- .712 vs.\ the official .755 on
+Speech TriviaQA (250-item subsample + protocol) and .716 vs.\ .702 on
+Web Questions --- so the official lines in our figures are on-scale, and
+the live floor's remaining gap to them is fully accounted (striviaqa:
+$-$.048 streaming-loop tax, $-$.043 subsample/protocol; nothing
+unexplained).
+
+\begin{table}[t]
+\centering\small
+\caption{The frozen gate on six public speech benchmarks, live streaming
+loop, v3 probe, realized escalation rates 15/30/50\%. Judge: OAB = the
+benchmark's official OpenAudioBench judge; VB = VoiceBench's official
+1--5 judge; ours = reference-anchored (no official protocol exists).
+Ceiling = \textsc{gpt-5.5} on gold question text under the same judge;
+AUC = v3 probe score vs.\ never-arm local-fail label; official =
+MiniCPM-o 4.5's reported number (offline chat mode; our own chat-mode
+control reproduces it, see text). Per-arm live accuracies carry a
+replication-noise floor of $\pm$.02--.03 (\S\ref{sec:transfer-neg}).}
+\label{tab:transfer}
+\begin{tabular}{llrccccccc}
+\toprule
+& & & \multicolumn{4}{c}{escalation tier} & & & \\
+\cmidrule(lr){4-7}
+pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & ceiling & AUC & official \\
+\midrule
+Speech TriviaQA      & OAB  & 250 & .664 & .732 & .800 & .860 & .972 & .789 & .755 \\
+Speech Web Questions & OAB  & 250 & .57  & .628 & .680 & .732 & .844 & .785 & .702 \\
+Llama Questions      & OAB  & 250 & .84  & .904 & .904 & .948 & .928 & .806 & --- \\
+SD-QA                & ours & 200 & .51  & .600 & .720 & .795 & .930 & .792 & --- \\
+Reasoning QA (zh)    & ours & 202 & .59  & .653 & .713 & .772 & .871 & .683 & --- \\
+AlpacaEval (1--5)    & VB   & 199 & 3.99 & 3.96 & 4.23 & 4.35 & 4.96 & --- & 4.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Accuracy: the mechanism ports, and the anchors fall}
+\label{sec:transfer-acc}
+
+Table~\ref{tab:transfer} is the headline: the frozen gate transfers
+mechanically everywhere --- thresholds fire at sane rates, every curve
+rises monotonically, and the 50\%-escalation arm lifts the live floor by
++.11 to +.29 across the five QA pools. Three anchor results:
+
+\textbf{Routing beats scaling the speech backbone.} On Speech TriviaQA
+the 9B duplex model plus the frozen gate at 50\% escalation scores
+\textbf{.860 live}, against .755 for MiniCPM-o 4.5's own official
+offline number and \textbf{.629} for Qwen3-Omni-30B-A3B
+(3.3$\times$ the parameters, offline chat mode)
+\todonote{cite: Qwen3-Omni / Kimi-Audio comparison rows (official
+OpenAudioBench table; Kimi-Audio scores .419 here)}. On Web Questions
+the gated system clears the official number (.732 vs.\ .702) and lands
+just under Qwen3-Omni (.749).
+
+\textbf{On Llama Questions, selective escalation matches the expert at
+half the cost.} The pool is single-type (short English factoids), so no
+type shortcut exists to exploit, and the local model is strong (floor
+.84). The probe still splits it cleanly: at 50\% the kept-local half
+scores \textbf{.976} vs.\ \textbf{.696} on the escalated half
+($z{=}6.46$) --- genuine per-query discrimination --- and the expert's
+entire advantage concentrates where the probe sends it (escalated half
+.696$\to$.888, McNemar $p{<}.0001$) while buying nothing measurable on
+the kept half (.976 vs.\ .968, $p{=}1.00$). Selective at 50\% reaches
+.948 vs.\ .928 for always-escalate (directionally above, $p{=}.125$ ---
+both near ceiling): escalating everything spends twice the expert calls
+to buy nothing measurable over the gate.
+
+\textbf{Router quality must be read as AUC plus matched-rate precision,
+not raw precision.} Precision at a fixed escalation rate is capped at
+base-fail/rate: on Llama Questions (base fail .16) the cap at 50\% is
+.32, and the v3 gate's matched-rate precision of .304 is \textbf{95\% of
+the theoretical maximum} (recall .93); quoting ``.30 precision'' without
+the cap would misread the strongest pool as the weakest. The
+scale-free readout is transfer AUC against the never-arm fail label:
+.68--.81 on every external pool (Table~\ref{tab:transfer}) vs.\ .879 on
+the internal held-out test --- the mid-layer signal ports as a generic
+difficulty signal, with a near-uniform matched-rate precision lift of
+$\times$1.33--1.35 across pools rather than pool-specific structure.
+The cleanest evidence that the signal is difficulty, not surface, is
+cross-lingual: the calibration expansion is \emph{English-only}, yet it
+moves Reasoning QA --- a \emph{Chinese} execution-reasoning pool ---
+from AUC .621 to \textbf{.683} (+.062), the largest per-pool gain of the
+refit. Per the replication-noise analysis below, the v3 evidence is
+this offline AUC shift; the corresponding live-arm deltas
+(+.010--.030) are individually within noise and we do not narrate them.
+
+\subsection{Latency: the probe escalates the slowest decodes first}
+\label{sec:transfer-lat}
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}{.325\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{striviaqa_pareto}\\
+    {\small (a) Speech TriviaQA}
+  \end{minipage}\hfill
+  \begin{minipage}{.325\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{sllama_pareto}\\
+    {\small (b) Llama Questions}
+  \end{minipage}\hfill
+  \begin{minipage}{.325\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{sreason_pareto}\\
+    {\small (c) Reasoning QA (zh)}
+  \end{minipage}
+  \caption{Accuracy vs.\ per-arm P50 response latency on three external
+  pools (frozen gate, live arms; official judge on a--b, ours on c).
+  The random reference simulates a random mixture at each rate from
+  per-id \emph{measured} latencies (400 sims $\times$ 21 rates). On
+  (a) and (b) the gated curve dominates random in \emph{both} axes:
+  on Speech TriviaQA random needs $\sim$3.4\,s at the median to reach
+  the accuracy region the gate reaches at 2.0\,s, and on Llama
+  Questions random at 50\% sits at $\sim$2.2\,s/.88 vs.\ the gate's
+  1.42\,s/.948. On (c) escalation truncates the latency \emph{tail}
+  (P90 13.25$\to$10.94\,s). Remaining family figures:
+  \todonote{appendix: dualview + pareto for all six families}.}
+  \label{fig:transfer-pareto}
+\end{figure}
+
+The latency curves of Figure~\ref{fig:transfer-pareto} have a shape
+worth explaining honestly, because at first sight it looks like a
+measurement error: on the easy pools the per-arm P50 is
+\emph{non-monotonic} --- on Llama Questions it \emph{falls} from 1.52\,s
+(never) to 1.17\,s at 15\% escalation before rising again
+(1.60/1.42\,s at 30/50\%). This left-fold is a verified
+median-of-a-mixture mechanism, not noise: the probe preferentially
+escalates exactly the queries whose \emph{local} decode is longest.
+On Speech TriviaQA the 38 queries escalated at 15\% had a never-arm
+local P50 of 1.711\,s vs.\ 1.198\,s for the 212 kept --- and, measured
+in the never arm, local accuracy .32 vs.\ .73: the small model's
+signature failure mode on retrieval pools is hedging at length, so
+wrong answers are slow answers (decode time and answer length are the
+same variable, $r{=}.97$), and a wrongness-selecting probe strips the
+slow tail of the local mixture as a side effect. Controls: the probe
+does not key on length directly (corr(score, length) $= +.05$;
+conditioned on wrongness the score--length coefficient is $\approx 0$),
+and on SD-QA --- where wrong answers happen to be short and confident
+--- the same probe selects wrongness identically and produces
+\emph{no} fold. Figure~\ref{fig:transfer-decomp} decomposes the effect:
+the fold lives only in the median --- the \emph{mean} is monotonic
+(1.65/1.81/1.96/2.06\,s vs.\ P50 1.52/1.17/1.60/1.42\,s) --- and the
+kept-local P50 falls 1.52$\to$0.96$\to$0.86$\to$0.43\,s as the probe
+strips slow decodes while escalated rows pay a flat $\sim$3\,s expert
+round-trip. We report the mean alongside the median for exactly this
+reason; the honest statement is that on these pools escalation buys
+accuracy \emph{and}, at the median, speed. The individual dip depth is
+within noise (striviaqa $-$41\,ms, bootstrap CI $[-285,+254]$\,ms) but
+its sign is deterministic --- identical probe scores select the
+identical escalated set on every rerun.
+
+On Reasoning QA the shape inverts usefully: P50 rises gently but the
+\emph{tail improves} --- P90 drops from 13.25\,s to 10.94\,s under
+escalation. The mechanism is that the local model's chain-of-thought is
+\emph{spoken}, so every reasoning token enters the response clock
+(escalated-set local decodes P50 4.38\,s, tail 13\,s+), while the
+expert's chain is hidden: its median completion is 144 tokens of which
+only 57 characters return, behind a flat $\sim$3.7\,s round-trip. On
+reasoning pools the gate replaces the longest spoken chains with short
+round-trips --- escalation truncates the latency tail rather than
+fattening it.
+
+\subsection{Where transfer fails, and what the live curves can and
+cannot show}
+\label{sec:transfer-neg}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.9\linewidth]{sllama_latency_decomp}
+  \caption{Decomposition of the Llama Questions latency fold. Left: the
+  fold exists only in the median --- the mean is monotonic. Right:
+  kept-local P50 falls 1.52$\to$0.43\,s across tiers as the probe strips
+  the slowest local decodes, while escalated rows pay a flat $\sim$3\,s
+  expert round-trip; the arm median folds left and then rises as the
+  expert mass reaches it.}
+  \label{fig:transfer-decomp}
+\end{figure}
+
+\textbf{AlpacaEval is a negative result, mechanism measured.} On
+VoiceBench AlpacaEval the gate does \emph{not} beat random: aggressive
+4.35 vs.\ random-at-50\% $\approx$4.45. The failure is selection, not
+escalation --- queries the gate selected score 3.90 on the never arm
+vs.\ 3.98 for those it skipped (no discrimination), while escalated rows
+still gain (3.90$\to$4.71) purely because \textsc{gpt-5.5} writes better
+long-form answers; random picks would harvest the same gain. Open-ended
+instruction following has no ``the model lacks this fact'' event for a
+retrieval-failure detector to read, and the score range is compressed
+(1.0 point vs.\ 40 accuracy points on our pool). Two scale caveats make
+the absolute level honest: the official 4.8 is an \emph{offline
+chat-mode} number --- our chat-mode control reproduces it at 4.86 ---
+and the entire chat-vs-live gap (4.86 vs.\ 3.99) is the duplex loop's
+spoken-reply style plus a 512-token cap, so only the live arms are
+comparable to each other.
+
+\textbf{Web Questions and SD-QA are flat under the v3 refit}, offline
+(AUC +.006/+.017) and live alike. On Web Questions a specific share of
+the blame is label fidelity rather than the model: its strict
+Freebase-alias grading decouples ``wrong'' from ``uncertain'' --- the
+wrong-answers-are-longer signature is null there for every model we
+measured, including \textsc{gpt-5.5} on gold text --- so a portion of
+its labels is protocol-wrong that no state-reading probe can predict,
+and even the gold-text expert ceiling is .844.
+
+\textbf{The deployed view understates selection on easy pools.} The
+external channel cost is small --- the aggressive-arm heard-vs-gold-inject
+gap is .040/.024/.025 on striviaqa/swebq/sdqa
+\todonote{verify: gold-inject gaps on the v3 traces; quoted values are
+from the v2-probe sweep} vs.\ .175 on the internal pool (.128 on its
+speakable subset, \S\ref{sec:livecurve}), exactly as predicted for short open questions
+with no option walls --- but on easy homogeneous pools even a small tax
+eats a thin per-query margin, and part of the deployed-view
+``gate $\approx$ random'' on Speech TriviaQA is channel cost: in the
+channel-controlled gold view the gate clears its paired random line
+(+.044 at the aggressive arm). SD-QA meanwhile carries the one property
+no TTS pool has --- real dialectal human speech --- and the escalated
+subset still converts at .82--.84 with expert P50 3.1--3.4\,s: the
+payload survives real speech.
+
+\textbf{Replication-noise discipline.} Re-running the same query with
+the same audio through the live loop flips the judge verdict 2.3--18.8\%
+of the time depending on pool (Llama Questions .023, SD-QA .188),
+implying a paired SE of .009--.028 on any arm-vs-arm accuracy delta.
+Against that floor, all 18 per-arm live v2$\to$v3 deltas are
+individually non-significant (the largest, striviaqa balanced +.036,
+gives McNemar $p{=}.16$). We therefore treat sub-3-point live deltas as
+unresolvable in a single sweep and rest every probe-improvement claim
+in this section on the variance-reduced instruments --- offline AUC over
+the full score distribution and matched-rate precision --- with the
+live curves serving as the end-to-end existence proof, not the
+measurement.

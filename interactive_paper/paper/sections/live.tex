@@ -115,29 +115,52 @@ into \{comply, pushback, lip-service, other\}. Five results:
 
 With the channel verified clean, we ran the full live sweep: 240 frozen
 test queries $\times$ four tiers (never / conservative / balanced /
-aggressive), each a complete duplex session, scored on \emph{heard
-accuracy} --- the judge sees exactly what a user would have heard (the
-relay for escalated queries, the local streaming answer otherwise).
-Labels are frozen in \texttt{gated\_traces\_v2.parquet}; all statistics
-are paired bootstrap over queries on those labels
+aggressive), each a complete duplex session with the deployed v3 probe
+(the multi-position L22 refit of \S\ref{sec:transfer}), scored on
+\emph{heard accuracy} --- the judge sees exactly what a user would have
+heard (the relay for escalated queries, the local streaming answer
+otherwise). Labels are frozen in \texttt{frozen\_v3\_traces.parquet};
+all statistics are paired bootstrap over queries on those labels
 (Table~\ref{tab:live}, Figure~\ref{fig:dualview}).
+
+Headline numbers are reported on the \textbf{speakable subset}
+($n{=}218$): a pre-registered input-side fairness filter --- decidable
+from query text and wav bytes alone, never from outcomes --- removes 21
+formula-LaTeX ids and one digitally-silent wav from the 240. Formula
+content read aloud by a TTS is destroyed before the system under test
+ever hears it (no one speaks LaTeX at a voice assistant), and the
+exclusion is asymmetric in exactly the way the artifact predicts: the
+gold-inject ceiling barely moves (.917 $\to$ .922) while the aggressive
+channel gap drops .175 $\to$ .128 --- LaTeX rows destroy the speech
+channel specifically, they are not intrinsically harder for the expert.
+Rare entities and hard names are deliberately \emph{not} filtered:
+mishearing them is the phenomenon. Full-pool rows appear in
+Table~\ref{tab:live} for comparison.
 
 \begin{table}[t]
 \centering\small
-\caption{Live streaming sweep, frozen test split ($n=240$), paired
-bootstrap 95\% CIs. Heard = honest end-to-end accuracy;
+\caption{Live streaming sweep, probe v3, paired bootstrap 95\% CIs
+($B{=}10^4$). Top block: speakable subset ($n{=}218$, headline); bottom:
+full frozen test pool ($n{=}240$). Heard = honest end-to-end accuracy;
 gold-inject = the channel-controlled counterfactual (escalated rows
-re-scored with the frozen gold-text expert answers); channel cost = their
-paired difference. $^{*}$ = CI excludes 0.}
+re-scored with the frozen gold-text expert answers); channel cost =
+their paired difference. $^{*}$ = CI excludes 0; $^{\dagger}$ = CI lower
+bound at zero.}
 \label{tab:live}
 \begin{tabular}{lccccc}
 \toprule
 tier & esc & heard-acc & $\Delta$ vs.\ floor & gold-inject & channel cost \\
 \midrule
-never (floor) & 0\%  & .400 [.34,.46] & --- & .400 & --- \\
-conservative  & 14\% & .446 [.38,.51] & +.046 [$-$.01,+.10] & .500 [.44,.56] & +.054$^{*}$ \\
-balanced      & 35\% & .529 [.47,.59] & +.129$^{*}$ [+.07,+.19] & .637 [.58,.70] & +.108$^{*}$ \\
-aggressive    & 55\% & .633 [.57,.69] & +.233$^{*}$ [+.17,+.30] & .767 [.71,.82] & +.133$^{*}$ \\
+never (floor) & 0\%  & .422 [.36,.49] & --- & .422 & --- \\
+conservative  & 14\% & .528 [.46,.59] & +.106$^{*}$ [+.05,+.17] & .550 [.49,.62] & +.023$^{\dagger}$ [.00,+.05] \\
+balanced      & 31\% & .592 [.53,.66] & +.170$^{*}$ [+.11,+.24] & .661 [.60,.73] & +.069$^{*}$ [+.03,+.11] \\
+aggressive    & 57\% & .633 [.57,.70] & +.211$^{*}$ [+.14,+.28] & .761 [.70,.82] & +.128$^{*}$ [+.08,+.18] \\
+always (synth) & 100\% & --- & --- & .922 [.89,.95] & --- \\
+\midrule
+never (full) & 0\%  & .383 [.32,.45] & --- & .383 & --- \\
+conservative  & 16\% & .483 [.42,.55] & +.100$^{*}$ [+.05,+.15] & .525 [.46,.59] & +.042$^{*}$ [+.02,+.07] \\
+balanced      & 35\% & .554 [.49,.62] & +.171$^{*}$ [+.11,+.23] & .654 [.59,.71] & +.100$^{*}$ [+.06,+.14] \\
+aggressive    & 61\% & .596 [.53,.66] & +.212$^{*}$ [+.15,+.28] & .771 [.72,.82] & +.175$^{*}$ [+.13,+.23] \\
 always (synth) & 100\% & --- & --- & .917 [.88,.95] & --- \\
 \bottomrule
 \end{tabular}
@@ -145,55 +168,78 @@ always (synth) & 100\% & --- & --- & .917 [.88,.95] & --- \\
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=.85\linewidth]{live_dualview}
-  \caption{Dual-view live tradeoff. Blue: honest heard-accuracy of the
-  live duplex system (paired bootstrap CIs). Green: the
-  channel-controlled counterfactual --- same live sessions, escalated
-  rows re-scored with frozen gold-text expert answers; its random
-  reference (dashed) uses the same gold outcomes, so it pairs with the
-  green curve only. Gray: the offline text-chat curve
-  (Figure~\ref{fig:tradeoff}). The two annotated gaps itemize the
-  deployment price: floor-to-floor, the audio + streaming-answer tax;
-  view-to-view, the speech-channel (ASR-distill + relay) cost.}
+  \includegraphics[width=.85\linewidth]{fair_dualview}
+  \caption{Dual-view live tradeoff on the speakable subset ($n{=}218$).
+  Blue: honest heard-accuracy of the live duplex system (paired
+  bootstrap CIs). Green: the channel-controlled counterfactual --- same
+  live sessions, escalated rows re-scored with frozen gold-text expert
+  answers; its random reference (dashed) uses the same gold outcomes,
+  so it pairs with the green curve only. The two annotated gaps itemize
+  the deployment price: floor-to-floor, the audio + streaming-answer
+  tax; view-to-view, the speech-channel (ASR-distill + relay) cost.
+  Full-pool version: \todonote{appendix figure (live\_dualview)}.}
   \label{fig:dualview}
 \end{figure}
 
-The curve rises monotonically: +.23 accuracy at 55\% escalation, and the
-balanced and aggressive gains over the live floor are significant
-(conservative's +.046 is not, at $n=240$ --- stated for honesty). In the
-channel-controlled view the gate clears its random reference at every arm
-(+.03/+.06/+.08). The interesting content is the \emph{decomposition} of
-the gap to the offline curve, which the two views separate:
+The curve rises monotonically and every tier's gain over the live floor
+is significant: +.106/+.170/+.211 on the speakable subset, +.21 at 61\%
+escalation on the full pool. Selectivity, however, must be read in the
+channel-controlled view. In the heard view the higher tiers sit at or
+below a random-escalation reference drawn to the gold ceiling
+(aggressive .633 vs.\ .709): the speech-channel cost (+.128 at that
+tier) eats the routing margin, so on this mixed pool escalating
+\emph{at all} helps, but \emph{which} queries the gate picks is masked
+by the uplink. Remove exactly that channel --- the gold-inject view ---
+and the gate clears the same random reference at every arm
+(+.059/+.083/+.052). The routing signal survives deployment; the
+binding constraint at high escalation rates is the transcription
+uplink, not the gate (the external pools of \S\ref{sec:transfer}, where
+the channel is milder, show the heard-view advantage directly). One
+deployment correction fell out of this analysis: re-deriving the tier
+thresholds as label-free quantiles of the deployment-mix scores
+(\texttt{gate\_v3\_thresholds\_corrected.json}) removes 11.3\% of the
+expert calls at equal accuracy on this pool --- the drifted aggressive
+threshold was a \emph{cost} bug, not an accuracy bug. The interesting
+content is the \emph{decomposition} of the gap to the offline curve,
+which the two views separate:
 
 \begin{itemize}
-\item \textbf{Audio + streaming-answer tax (floor .588 $\to$ .400).} The
+\item \textbf{Audio + streaming-answer tax (floor .588 $\to$ .383 full
+  pool, .422 speakable).} The
   live floor stacks the audio modality tax (\S\ref{sec:speech}) with a
   streaming-answer tax: in duplex voice mode the model produces short,
   speech-styled answers that sometimes plan aloud and stop. This is real
   deployment behavior --- it is exactly why the never-escalate endpoint
   had to be run live rather than synthesized from chat-mode replays.
-\item \textbf{Speech-channel cost (+.05/+.11/+.13, all significant).} On
-  the escalated population, the expert answering the talker's own
-  transcript scores .57 vs.\ .85 on gold text. Attribution across five
-  transcription arms puts most of the math damage ($-$.70) on a
-  \emph{TTS-of-LaTeX artifact} --- the audio pool reads formula problems
-  aloud and the round-trip destroys the symbolic structure; no one speaks
-  LaTeX at a voice assistant, so the audio arm is scoped to speakable
-  content. The deployment-real residue is entity loss on hard-knowledge
-  ($-$.31): prompt-level rescues are no-ops (a recognition-errors warning
-  changes nothing; $k$-best self-transcription trades a small trap gain
-  for a larger knowledge loss), and even external ASR (Whisper) recovers
-  only .62 of the .82 gold ceiling --- the damaging errors are
-  internally-coherent entity substitutions with no textual residue to
-  correct from. A trace-level decomposition of the 108 escalated
-  heard-failures confirms the loss sits upstream of the relay: 64\%
-  are corrupted transcripts (the expert answers the wrong question),
-  24\% are expert misses on clean transcripts (dominated by trap ---
-  an expert knowledge limit shared with the gold arm), and only 5
-  cases show a correct expert answer dropped in relay --- consistent
-  with the measured relay compliance of 1.00 on the deployed channel
-  and with expert micro-turn answers being short (median 76
-  characters), which rules out talker context length as a mechanism.
+\item \textbf{Speech-channel cost (+.023$^{\dagger}$/+.069/+.128 on the
+  speakable subset; +.175 at aggressive on the full pool).} On the
+  escalated population, the expert answering the talker's own
+  transcript scores .585 vs.\ .871 on gold text ($n{=}147$ escalated
+  ids). The un-speakable share of this loss is exactly what the
+  fairness filter removes; the deployment-real residue is entity loss
+  on hard-knowledge: prompt-level rescues on the self-transcript are
+  no-ops (a recognition-errors warning changes nothing; $k$-best
+  self-transcription trades a small trap gain for a larger knowledge
+  loss) because the damaging errors are internally-coherent entity
+  substitutions with no textual residue to correct from. Replacing the
+  \emph{ears} is different from repairing the transcript: open-weights
+  whisper-large-v3 recovers little (+4\,pp), but routing the same wavs
+  through a stronger cloud ASR (\texttt{gpt-transcribe}) and handing
+  \emph{that} text to the expert scores .694 vs.\ .585 (paired McNemar
+  $p{=}.007$), recovering 38\% of the gap to the gold ceiling --- a
+  diagnostic result for now: its latency on the critical path and its
+  survival on the external pools are unmeasured
+  \todonote{add scope note where input-side limits are stated}. A trace-level
+  decomposition of the escalated heard-failures (first-generation
+  sweep; \todonote{re-run on v3 traces}) confirms the loss sits
+  upstream of the relay: 64\% are corrupted transcripts (the expert
+  answers the wrong question), 24\% are expert misses on clean
+  transcripts (dominated by trap --- an expert knowledge limit shared
+  with the gold arm), and only 5 cases show a correct expert answer
+  dropped in relay --- consistent with the measured relay compliance
+  of 1.00 on the deployed channel and with expert micro-turn answers
+  being short (median 76 characters), which rules out talker context
+  length as a mechanism.
   A final controlled arm closes the attribution: sending the
   \emph{original wavs} directly to an audio-capable expert
   (gpt-audio), with a same-model gold-text control to subtract its
@@ -207,48 +253,69 @@ the gap to the offline curve, which the two views separate:
   of this system.
 \end{itemize}
 
+\paragraph{The replication-noise floor.} Live arm accuracies on a
+200--250-query pool carry substantial judge-and-decode replication
+noise, and we report it rather than narrate inside it: the same query,
+same audio, kept \emph{local} in two different arms flips its judge
+verdict 2.3--18.8\% of the time depending on pool (this pool: .155);
+repeated \emph{escalation} flips 0.7--10.6\%. The implied paired SE on
+an arm-vs-arm accuracy delta is .009--.028, so any live delta under
+$\sim$3 points is undetectable in a single sweep --- accordingly, no
+claim in this paper rests on a sub-3-point live difference; probe
+comparisons rest on offline AUC and matched-rate precision, which are
+far tighter statistics on the full score distribution.
+\todonote{noise\_audit methods figure --- appendix}
+
 \paragraph{What escalation costs in wall-clock time.} The same frozen
 traces carry per-session timers, so the latency price of each operating
 point is measured, not modeled (Table~\ref{tab:latency}). The gate
-itself is free at this scale: the end-of-turn read costs 25\,ms at P50
-and the stall prefill another 30\,ms; the expert round-trip
-(\textsc{gpt-5.5}, low effort; P50 4.8\,s, P95 20.8\,s) accounts for
-85--88\% of escalated-session wall time. The consequence is a specific
-distributional signature: at the balanced tier the \emph{mean} response
-time rises only +1.7\,s and the P50 +2.0\,s over the never floor, but
-the P99 nearly doubles (17.8\,$\to$\,30.4\,s) --- escalation is cheap on
+itself is free at this scale: the end-of-turn read and the stall
+prefill cost $\sim$30\,ms each at P50; the expert round-trip
+(\textsc{gpt-5.5}, low effort; P50 4.8\,s, P95 20.8\,s) dominates
+escalated-session wall time (escalated-session P50 5.1--7.5\,s vs.\
+local 1.9--3.0\,s). The consequence is a specific distributional
+signature: at the balanced tier the \emph{mean} response time rises
+only +1.2\,s and the P50 +1.5\,s over the never floor, but the P99
+nearly doubles (17.8\,$\to$\,32.7\,s) --- escalation is cheap on
 average and expensive exactly in the expert-latency tail ($n=240$ per
 arm, so P99 rests on the two worst sessions and is indicative only).
+The conservative tier even \emph{shortens} the tail (P95
+15.8\,$\to$\,12.8\,s): its few escalations displace exactly the
+longest local decodes, the same median-of-a-mixture mechanism analyzed
+on the external pools (\S\ref{sec:transfer}).
 Figure~\ref{fig:timeline-live} replays three real balanced-arm sessions
 from their recorded timers, showing the three shapes a session takes:
 the expert beating the stall phrase (seamless handoff), the expert
 outliving it (dead air --- the tail case above), and the gate staying
 closed (first token in 0.4\,s).
 Figure~\ref{fig:pareto-latency} joins the accuracy and latency readouts
-into the exchange rate actually paid at the median: +4.6 points of heard
-accuracy for +0.7\,s (never$\to$conservative), +8.3 for +1.2\,s
-(conservative$\to$balanced), and +10.4 for +0.7\,s
-(balanced$\to$aggressive). The steepest tier transition is also the
-cheapest per second, for two measured reasons: the marginal escalations
-are easier queries whose experts return faster (escalated-row expert
-mean 8.9/7.5/6.7\,s across the three tiers), and each escalation
-displaces a local decode that itself averages 4.6\,s.
+into the exchange rate actually paid at the median (speakable subset):
++10.6 points of heard accuracy for +0.3\,s (never$\to$conservative),
++6.4 for +1.0\,s (conservative$\to$balanced), and +4.1 for +1.1\,s
+(balanced$\to$aggressive). The first transition is both the steepest
+and the cheapest per second, for two measured reasons: escalation
+displaces local decodes that average 4.6\,s (and the conservative
+tier's escalations are precisely the slowest of them, hence its P95
+shortening above), while the marginal escalations added at higher
+tiers reach easier queries whose experts return faster
+(escalated-session P50 7.5/6.9/5.1\,s across the three tiers).
 
 \begin{table}[t]
 \centering\small
 \caption{Measured response latency (end of user query $\to$ answer text
-complete; seconds), live sweep traces, $n=240$ per arm. $\Delta$ columns:
-loss vs.\ the never floor at the same statistic. Text-mode pipeline;
-speech synthesis excluded. P99 on $n=240$ is indicative only.}
+complete; seconds), v3 live sweep traces, $n=240$ per arm (latency is
+channel-independent, so the full pool is used). $\Delta$ columns: loss
+vs.\ the never floor at the same statistic. Text-mode pipeline; speech
+synthesis excluded. P99 on $n=240$ is indicative only.}
 \label{tab:latency}
 \begin{tabular}{lrrrrrrrr}
 \toprule
 tier & mean & P50 & P95 & P99 & $\Delta$mean & $\Delta$P50 & $\Delta$P95 & $\Delta$P99 \\
 \midrule
 never (floor) & 4.6 & 2.0 & 15.8 & 17.8 & --- & --- & --- & --- \\
-conservative  & 4.9 & 2.8 & 16.3 & 20.3 & +0.3 & +0.7 & +0.6 & +2.5 \\
-balanced      & 6.3 & 4.0 & 18.1 & 30.4 & +1.7 & +2.0 & +2.3 & +12.6 \\
-aggressive    & 6.6 & 4.7 & 18.0 & 32.9 & +2.0 & +2.7 & +2.3 & +15.2 \\
+conservative  & 4.6 & 2.6 & 12.8 & 23.0 & +0.0 & +0.6 & $-$3.0 & +5.2 \\
+balanced      & 5.8 & 3.5 & 15.9 & 32.7 & +1.2 & +1.5 & +0.1 & +14.9 \\
+aggressive    & 6.6 & 4.4 & 18.5 & 33.0 & +2.0 & +2.4 & +2.7 & +15.2 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -270,19 +337,19 @@ aggressive    & 6.6 & 4.7 & 18.0 & 32.9 & +2.0 & +2.7 & +2.3 & +15.2 \\
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=.9\linewidth]{pareto_latency}
-  \caption{The live accuracy--latency tradeoff: per-arm P50 response
-  latency (Table~\ref{tab:latency}) against accuracy with 95\%
+  \includegraphics[width=.9\linewidth]{fair_pareto_latency}
+  \caption{The live accuracy--latency tradeoff on the speakable subset:
+  per-arm P50 response latency against accuracy with 95\%
   paired-bootstrap CIs (Table~\ref{tab:live}), in the honest heard view
   (blue) and the channel-controlled gold-inject view (green) of the
   same sessions --- rescoring changes outcomes, not timing, so the two
   views share their $x$ positions. Segment labels give the median
-  exchange rate on the heard curve. The always-escalate ceiling is
-  synthesized from frozen gold answers and has no live latency; the
-  random reference appears only in rate space (Figure~\ref{fig:dualview})
-  because random arms were not run live and their latency cannot be
-  placed honestly from frozen data. Median view --- the expert P99 tail
-  is priced in Table~\ref{tab:latency}.}
+  exchange rate on the heard curve; the dotted curve is the
+  simulated-P50 random-escalation reference. The always-escalate
+  ceiling is synthesized from frozen gold answers and has no live
+  latency. Median view --- the expert P99 tail is priced in
+  Table~\ref{tab:latency}. Full-pool version:
+  \todonote{appendix (pareto\_latency)}.}
   \label{fig:pareto-latency}
 \end{figure}
 

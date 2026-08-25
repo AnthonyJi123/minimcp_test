@@ -72,6 +72,26 @@ scopes the claim --- the pre-answer signal is a retrieval-failure
 detector, not a general oracle --- and notes that query-surface routers
 miss species 3 as well.
 
+\subsection{Demonstration system}
+\label{sec:demo}
+
+The measured pipeline runs as an interactive web demo: live microphone
+audio streams to the duplex model on a single H100, the end-of-turn
+probe read costs $\sim$54\,ms against the balanced threshold, and
+escalated turns stall, consult the expert, and \emph{speak} the relayed
+answer through the model's own TTS head. Two demo-only extensions go
+beyond the measured arms: the expert gains a web-search tool ---
+real-time queries such as stock prices, which the v4 FreshQA refit
+(\S\ref{sec:falseqa}) fires on at .80--1.0 across tiers, then return
+live values no cutoff-bound model can produce --- and the loop accepts
+\emph{backchannel-aware barge-in}: sustained speech over the talker
+ducks playback, a $\sim$1\,s ASR pass classifies the burst, and
+backchannels (``ok'', ``mm-hm''; an English+Chinese lexicon) return
+the floor with zero loss while anything else aborts generation and
+seeds the next turn. All measured arms in this paper keep
+the tool-free expert and the turn-based loop; the demo will be made
+available upon publication.
+
 \subsection{Limitations}
 \label{sec:limitations}
 
@@ -122,7 +142,9 @@ the model's own thinking mode on both accuracy and latency. And when the
 thinker's answer comes back, the same signal that fired the escalation
 predicts that the talker will actually say it: run live end-to-end, the
 gated duplex system climbs monotonically from its honest streaming floor
-(.400 $\to$ .633 at 55\% escalation), with the remaining gap to the
-offline curve itemized into named, measured taxes rather than left as
-mystery. Gate and relay are one mechanism; what remains is engineering
+(.422 $\to$ .633 at 57\% escalation on the speakable subset), with the
+remaining gap to the offline curve itemized into named, measured taxes
+rather than left as mystery --- and the frozen gate transfers unchanged
+to six public speech benchmarks, where at 50\% escalation it lifts the
+9B system past models 3$\times$ its size. Gate and relay are one mechanism; what remains is engineering
 the channel around it.

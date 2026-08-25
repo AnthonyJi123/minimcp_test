@@ -103,3 +103,50 @@ scores remains weak and needs deployment-grade calibration
   mid-layer (L22) gate against final-layer probe and $\ptrue$ variants.}
   \label{fig:tradeoffmid}
 \end{figure}
+
+\subsection{A second duplex family: the pre-registered test executed}
+\label{sec:nvda}
+
+The mid-band claim was pre-registered as a prediction: when another
+open-weight full-duplex family became available, its usable read should
+also sit mid-network, not at the standard (final-layer, last-token)
+readout. NVIDIA NemotronLabs-VoiceChat-11B --- a hybrid Mamba/attention
+backbone (Nemotron Nano v2 9B: 56 blocks, 27 Mamba-2 / 4 attention),
+i.e.\ architecturally as far from MiniCPM's dense transformer as the
+open-weight space currently offers --- provides the test, and it passes
+on first execution. With the identical recipe (same wavs, same judge,
+600-query calibration only), the layer sweep peaks mid-band at
+L30--34 (eot-last AUC .714 vs.\ .693/.682 at the endpoints); stacking
+the same three zero-latency positions lifts OOF .714 $\to$ .761 $\to$
+\textbf{.790}; and the frozen-methodology probe transfers to the
+external pools at AUC .781/.793/.754/.701
+(striviaqa/swebq/sdqa/sllama) --- the MiniCPM v3 band reached with a
+quarter of the calibration data (Figure~\ref{fig:nvda}). Two boundary
+notes: the Nemotron backbone is substantially weaker at knowledge
+retrieval (striviaqa local accuracy .32 vs.\ MiniCPM's .62, same
+judge), and it is English-only --- Chinese audio yields fluent
+unrelated English, so the cross-lingual pool has no analog here (zero
+label variance; skipped). The live 4-arm port and the
+trained-checkpoint ablation remain future work; the replicated claim
+is the structural one: \emph{mid-network readability of the
+self-assessment signal is a property of duplex models as a class, not
+of one checkpoint}.
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}{.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{nvda_layer_sweep}\
+    {\small (a) layer sweep}
+  \end{minipage}\hfill
+  \begin{minipage}{.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{nvda_transfer}\
+    {\small (b) external transfer}
+  \end{minipage}
+  \caption{The pre-registered second-family test on
+  NemotronLabs-VoiceChat-11B (hybrid Mamba). (a) The usable read again
+  peaks mid-network (L30--34 of 56). (b) The frozen-recipe probe
+  transfers to the external pools within the MiniCPM v3 AUC band.}
+  \label{fig:nvda}
+\end{figure}
