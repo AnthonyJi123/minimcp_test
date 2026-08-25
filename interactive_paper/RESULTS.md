@@ -3887,6 +3887,34 @@ other +0.012 reference).
 
 
 
+### 8ao — TODO clearance pass: v3 gold-inject gaps recomputed, appendix assembled ($0, 2026-08-25)
+
+Paper-side cleanup to zero in-text todonotes before the peer meeting.
+The one new measurement: **external gold-inject gaps recomputed on the
+v3 traces** (`{pool}_v3_traces.parquet` + `{pool}_ceiling.parquet`,
+local CPU; escalated rows re-scored with the ceiling gold-text expert
+outcome under each family's own judge). Aggressive arm:
+striviaqa **+.056**, swebq **+.036**, sdqa **+.035** (v2-sweep values
+quoted before: .040/.024/.025 — same order, still 3–5× below the
+internal pool's .175). Striviaqa gold-view random-line clearance at
+aggressive: gate .916 vs random-gold .816 = **+.100** (was +.044 on
+v2). transfer.tex updated with the v3 numbers.
+
+Also this pass: appendix.tex assembled (full-pool dualview/pareto,
+noise_audit, six family figure pairs, judge + p(True) prompts verbatim
+from src/escalate.py / modal_app.py, reproducibility statement);
+fig:roc regenerated with p(True) curves (see 79eac42); Limitations
+refreshed (three stale items corrected: threshold calibration now
+label-free-quantile-solved, second-family test executed, conservative
+tier now significant under v3) + input-side scope item + future-work
+paragraph (folds the todo [F] list); trace-decomposition sentence
+scoped to the first-generation sweep rather than re-run. todo.tex is
+now process-only (compress to 8pp / feedback / submission mechanics).
+
+---
+
+
+
 ### 2.1 public pools ✅ (2026-07-07)
 
 `build_public_queries` → **400 queries**: `hard-math` 150 (GSM8K test tail 100 +

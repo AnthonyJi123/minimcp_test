@@ -1,172 +1,38 @@
 % =========================================================================
-% Working TODO — TRIAGED 2026-08-25 against RESULTS.md (items 1-32 of the
-% pre-triage version; see git history for the original entries).
-% Target: RTCA @ NeurIPS 2026, deadline 2026-08-29 AoE. DELETE BEFORE
-% SUBMISSION.
+% Working tracker — DELETE THIS SECTION BEFORE SUBMISSION.
+% Cleaned 2026-08-25 (second pass): all in-text \todonote{}s in the paper
+% body are resolved; everything below is process, not content.
 %
-% Categories:
-%   [W] must-WRITE: result exists in RESULTS.md, text missing from paper
-%   [D] DECISION needed from user
-%   [M] mechanical (template / figures / bib / appendix)
-%   [F] future work: fold one paragraph into discussion, then delete
-%
-% Deleted as DONE + WRITTEN (verified in section refs): router baseline
-% (\S 8f/8j -> system), injection protocol (\S 8b -> inject), live curve
-% design + full sweep (\S 8c/8e -> live), dead-air / fixed-low (\S 8d ->
-% liveloop), oracle removal + speculative escalation (\S 8c/8d ->
-% livecurve), three-species discussion frame (\S 8g -> discussion),
-% probe v3 refit + live re-run (\S 8z -> figures; text sync is W2),
-% SD-QA arm B real-speech validation (Phase 7b), mid-layer
-% threshold-transfer calibration (v3/v4 artifacts + corrected quantiles),
-% TTS-uplink repair (\S 8p/8r, resolved without re-render).
+% Resolved this pass (see git history for details):
+% - Appendix assembled (sections/appendix.tex): full-pool live figures,
+%   noise_audit, all six family figure pairs, judge + p(True) prompts
+%   verbatim, reproducibility statement. [was M5 + 4 caption todonotes]
+% - v3 re-verification: external gold-inject gaps recomputed on the v3
+%   traces (.056/.036/.035 striviaqa/swebq/sdqa; striviaqa gold-view
+%   random clearance +.100) — transfer.tex updated (RESULTS 8ao).
+% - Trace-decomposition sentence scoped to the first-generation sweep
+%   ("the claim is the mechanism, not the exact split") — no re-run
+%   needed. Input-side scope note landed in Limitations (iii).
+% - Limitations refreshed: stale items (threshold calibration,
+%   second-family "pending", conservative-n.s.) corrected; Future-work
+%   paragraph added to discussion. [was the [F] fold]
+% - M2d vintage audit: figures in rq1/duplex/system depict the original
+%   offline analyses and are attributed as such in the text; v3 enters
+%   at sec:transfer. No v3 mislabeling found.
+% - M4: CIs shipped in tab:rq1 + tab:live; remaining tables are governed
+%   by the noise-discipline paragraph (sub-3-point deltas not narrated).
 % =========================================================================
-\section*{TODO / Roadmap (working section --- delete before submission)}
+\section*{TODO (process only --- delete before submission)}
 \label{sec:todo}
 
-\subsection*{[W] Must-write --- ALL EXECUTED 2026-08-25 (peer-draft session)}
-% W1 -> sections/transfer.tex (new, wired into main after live);
-% W2+D1 -> live.tex rewritten on v3 + speakable-subset headline, noise-floor
-%   paragraph added, delta/channel CIs recomputed from frozen_v3_traces
-%   (all tiers now significant vs floor; fair conservative channel CI
-%   lower bound at zero, marked with a dagger);
-% W3 -> duplex.tex \S{sec:nvda} + nvda figures; W4 -> live.tex channel
-%   bullet (gpt-transcribe .694 vs .585, diagnostic caveats);
-% W5a -> livecurve corrected-quantiles sentence; W5b -> discussion
-%   \S{sec:demo} ("available upon publication"); W5c verified (.877/.879).
-% Residual flags now live as \todonote{}s inside the sections themselves
-% (appendix figures, trace-decomposition re-run on v3, missing cites).
 \begin{itemize}
-\item \todonote{W1 --- BIGGEST GAP: the external-benchmark transferability
-  section does not exist in the paper. live.tex has ZERO mention of
-  striviaqa / swebq / sdqa / sllama / sreason / valpaca; none of the
-  12 dualview/pareto family figures are included. This was the 2026-08-12
-  meeting deliverable. Sources: RESULTS \S 8x (bench infra + latency
-  shapes), \S 8z + 8z-live (v3 gains: striviaqa balanced .764$\to$.800,
-  sreason cross-lingual, sllama selective@50\% .948), \S 8ab (framing
-  rules). Anchors per figure: official MiniCPM-o 4.5 number (floor,
-  75.5 striviaqa / 70.2 swebq), GPT-5.5-on-transcript (ceiling), random
-  escalation at matched rate (control). Framing rules from the Jisen
-  pass (8ab): (a) cite that the gate dominates the simulated-P50 random
-  curve in BOTH axes on striviaqa/sllama; (b) the P50 left-fold is a
-  verified median-of-a-mixture mechanism --- use
-  \texttt{sllama\_latency\_decomp}, report mean alongside median;
-  (c) frame router quality via AUC + matched-rate precision (v3 hits
-  95\% of the base-fail/rate cap on sllama), never raw precision;
-  latency-shape note: non-monotonic per-arm P50 on easy pools, tail
-  truncation on Reasoning QA (P90 13.3$\to$10.9\,s)}
-\item \todonote{W2 --- 8ad noise audit: THREE MANDATORY REWRITES of
-  \S\ref{sec:live}, still absent from live.tex (verified 2026-08-25:
-  Table~\ref{tab:live} still carries the v1 numbers
-  .400/.446/.529/.633). (a) re-read every arm number off
-  \texttt{live\_v3\_figures.py} output: heard .383/.483/.554/.596 at
-  0/16/35/61\%, channel cost $-$.175, P50 2.02/2.61/3.53/4.44\,s, P99
-  32.7\,s at balanced. (b) sllama headline: ``MATCHES the expert at
-  half the cost'' (.976 vs .968 McNemar $p{=}1.00$); what is
-  significant is the probe's split ($z{=}6.46$) and the hard-half lift
-  .696$\to$.888 ($p{<}.0001$); .948-vs-.928 is $p{=}.125$. (c) report
-  the replication-noise floor (same-query flip 2.3--18.8\%, paired SE
-  .009--.028), stop narrating sub-3-point live deltas (all 18
-  v2$\to$v3 arm deltas n.s.; v3 evidence is the offline AUC). Add
-  \texttt{noise\_audit} as a methods figure}
-\item \todonote{W3 --- second duplex family (8ac, EXECUTED 2026-08-19,
-  not in any section): NemotronLabs-VoiceChat-11B (hybrid Mamba), the
-  pre-registered prediction test --- mid-band layer structure
-  replicates (L30--34 of 56), frozen-methodology transfer AUC .70--.79
-  with 600-query calib; sreason boundary (model is English-only).
-  One paragraph in duplex.tex or discussion: this is the generality
-  evidence for ``mid-network read'' beyond MiniCPM}
-\item \todonote{W4 --- cloud-ASR uplink (8ae, not in any section): on 147
-  escalated frozen ids, gpt-transcribe $\to$ gpt-5.5 scores .694 vs
-  .585 deployed self-transcript (McNemar $p{=}.007$), recovering 38\%
-  of the gap to the .871 gold ceiling; SUPERSEDES the ``Whisper ears
-  $+4$pp only'' write-off (8d used whisper-large-v3). Write as
-  diagnostic finding with both caveats (ASR latency on critical path
-  unmeasured; external-pool survival unmeasured). hard-math recovers
-  nothing --- spoken LaTeX is an input-side limit, state it separately
-  where input-side limits are stated}
-\item \todonote{W5 --- small syncs: (a) deployment-artifact sentence:
-  label-free quantile correction
-  (\texttt{gate\_v3\_thresholds\_corrected.json}) removes 11.3\% of
-  expert calls at equal accuracy on the frozen pool; externals already
-  on-budget. (b) decide whether the demo system (8aj--8am: TTS head,
-  v4 real-time gate, web-search expert, backchannel-aware barge-in)
-  gets a short system/demo paragraph or an appendix; it is currently
-  only in RESULTS. (c) FreshQA/v4 paragraph already in live.tex ---
-  verify numbers match RESULTS 8ak final (.877 frozen-test, fire
-  .80/.93/1.0)}
-\end{itemize}
-
-\subsection*{[D] Decisions --- ALL RATIFIED 2026-08-25 (user approved all three)}
-% D1 approved -> execute with W2 in one pass. D2 EXECUTED same day
-% (RESULTS \S 8an): delta +0.0119, 95% CI [-0.003,+0.027], p=.13 n.s.;
-% system.tex:21 softened. D3 approved -> "demo available upon publication".
-\begin{itemize}
-\item \todonote{D1 --- speakable-subset headline swap (8q, user to
-  ratify): fairness audit removes 22/240 ids (21 LaTeX + 1 broken wav;
-  criteria decidable from query text + wav bytes alone) $\Rightarrow$
-  aggressive heard-acc .633$\to$.688, channel gap .133$\to$.083 (still
-  significant), gold ceiling unmoved. If ratified: dual-view + Pareto
-  redrawn on the fair subset (\texttt{fair\_*} figures already built),
-  full-pool to appendix, criteria stated as pre-registered filters,
-  update the 8m 64\%-corrupted sentence in live.tex. NOTE: interacts
-  with W2 --- do the v1$\to$v3 number swap and this in one pass}
-\item \todonote{D2 --- DONE (2026-08-25, RESULTS \S 8an,
-  \texttt{scripts/07\_bootstrap\_oracle.py}): point estimates reproduced
-  (+.0541/+.0422/+.0119); paired bootstrap $B{=}10^4$ gives 95\% CI
-  $[-.003,+.027]$, $p{=}.13$ --- NOT significant, as the 7-29 entry
-  suspected. system.tex:21 softened to ``statistically on par with the
-  pool oracle in distribution''. No other untested-delta claim of this
-  class remains}
-\item \todonote{D3 --- double-blind exposure: the demo URL
-  (\texttt{rhe9527--gate-demo-web.modal.run}) contains the author
-  username; author block on the title page must go for submission
-  (camera-ready restores it). Decide: anonymized demo link (new modal
-  workspace / redacted) vs.\ ``demo available upon publication''}
-\end{itemize}
-
-\subsection*{[M] Mechanical}
-\begin{itemize}
-\item \todonote{M1 --- DONE 2026-08-25: neurips\_2026.sty submission
-  mode, author block anonymized, compiles under tectonic. Remaining:
-  the 8-page main-text compression (currently far over)}
-\item \todonote{M2 --- figure hygiene: (a) regenerate
-  \texttt{concept\_probe\_vs\_ppl} with English labels; (b) ROC figure
-  to include $\ptrue$ curves; (c) verify \texttt{pareto\_latency}
-  rebuild (2026-08-20) actually contains the random curve (8ab-d);
-  (d) vintage audit --- any figure included in the paper with an
-  artifact predating 2026-08-18 must be checked against v3 traces
-  (currently included: concept\_probe\_vs\_ppl, fork\_pareto,
-  layer\_sweep, live\_dualview, overlap, pareto\_latency,
-  receipt\_compare, roc, timeline\_live, tradeoff, tradeoff\_midlayer,
-  tradeoff\_ptrue --- the July-vintage ones are suspect)}
-\item \todonote{M3 --- DONE 2026-08-25: llmrouterbench2026 + minicpmo
-  entries fixed with verified metadata; 7 RTCA related-work refs added
-  (SEP, AutoMix, UMUI, BayLing-Duplex, sync/turn-taking, chronological
-  thinking, HybridServe), all verified on arXiv/ACL Anthology.
-  transfer.tex still flags OpenAudioBench + WebQ/LlamaQ + Qwen3-Omni
-  cites as \todonote{}s}
-\item \todonote{M4 --- surface existing bootstrap CIs in tables beyond
-  Table~\ref{tab:rq1}}
-\item \todonote{M5 --- appendix assembly: full per-pool tables, judge
-  prompts, $\ptrue$ prompts, reproducibility statement (seeds, pins,
-  spend)}
-\end{itemize}
-
-\subsection*{[F] Future work --- fold into discussion, then delete}
-\begin{itemize}
-\item \todonote{one paragraph covering: (a) 10 remaining SD-QA dialect
-  splits (mechanical robustness table, $\sim$\$100); (b) true duplex
-  integration --- ls-head + L22 probe validity under the duplex loop
-  (the probe is calibrated on simplex streaming states); (c) Nemotron
-  remaining sub-items (live 4-arm port, calib expansion, trained-checkpoint
-  ablation); (d) audio-direct-to-expert live sweep (the one lever a
-  single sweep can resolve; gold/heard gap $-$.175 is an order above
-  the noise floor); (e) trained-gate upper-bound baseline (the only
-  legitimate ``real training'': a contrast, not a method change);
-  (f) LLMRouterBench protocol comparison; (g) $\ptrue$
-  prompt-sensitivity sweep; (h) injection payload knee (answer + one
-  sentence justification vs.\ math relay compliance, \$5);
-  (i) closed-source behavioral arm (GPT audio / Gemini Live on the 600
-  wavs); (j) camera-ready: fresh test split + pool expansion to
-  500--1000/pool}
+\item \todonote{P1 --- compress main text to 8 pages (currently far
+  over); section-order and cut decisions at the 2026-08-26 meeting.
+  Cut priority per RTCA positioning: generic uncertainty exposition
+  first; live / transfer / duplex evidence last}
+\item \todonote{P2 --- incorporate peer + meeting feedback}
+\item \todonote{P3 --- submission day (8-28): delete this section; final
+  anonymization grep (names, rhe9527, modal URLs, gmail); decide
+  public-repo $\to$ private; OpenReview form + upload (deadline 8-29
+  AoE, moderation hard limit Fri 8-28)}
 \end{itemize}

@@ -98,34 +98,49 @@ available upon publication.
 (i) $\ptrue$ prompt sensitivity: one phrasing each (pre/post).
 (ii) The audio arm is validated on real dialectal speech (SD-QA), but
 scripted read speech and one dialect split; spontaneous conversational
-speech (disfluencies, self-repair) remains uncovered. (iii) Mid-layer
-probe threshold transfer needs deployment-grade
-calibration; AUC/area claims are unaffected. (iv) The audio side of the
-introspection-collapse finding is MiniCPM-scoped (two generations of one
-family); a new open-weight full-duplex family is a pre-registered
-prediction test --- it should show the late-layer text-input cliff.
-(v) The frozen test split is reused across signal comparisons (signals were
-pre-specified; a fresh test set would be cleaner). (vi) Labels come from a
-single judge family, bounded by a stronger re-judge (deltas $\le$0.010) but
-without human labels. (vii) The live sweep (\S\ref{sec:live}) is one
-session per query per tier; the conservative tier's gain over the floor is
-not significant at $n=240$. The measured live sweep ran with text-mode
-talker output (\texttt{generate\_audio=False}): the relay is validated at
-the utterance level, and its latencies are text-complete --- a
-conservative accounting, since in the spoken system the stall filler
-plays the moment the gate fires. The released demo now speaks with the
-model's native TTS head (talker + Token2wav vocoder, 24\,kHz; first
-answer audio $\sim$0.9--1.4\,s after generation start; the TTS template
-token enters after the end-of-turn read, so the probe context and all
-frozen thresholds are unchanged). The demo also supports barge-in with
-backchannel awareness --- speech over the talker first ducks playback,
-a fast ASR pass then either returns the floor (``ok'', ``em'') or
-commits the interrupt (``stop'', new content), which aborts generation
-at chunk granularity and seeds the next turn. This is a lexicon-level
-approximation of what a native duplex listen/speak head decides from
-hidden state; that head remains unused, since the probe is calibrated
-on simplex streaming states, and its validity under the true duplex
-loop is an open experiment.
+speech (disfluencies, self-repair) remains uncovered.
+(iii) Input-side scope: formula-symbolic content (spoken LaTeX) is
+destroyed by \emph{any} TTS render before the system hears it, so the
+audio arm is scoped to speakable content via pre-registered input-side
+filters (\S\ref{sec:livecurve}); this limit is distinct from the
+transcription-uplink loss, of which a stronger cloud ASR diagnostically
+recovers 38\%. (iv) The introspection-collapse finding is MiniCPM-scoped
+(two generations of one family); the pre-registered second-family test
+now passes on a hybrid-Mamba architecture for mid-band readability and
+frozen-recipe transfer (\S\ref{sec:nvda}), but the full matched-pair
+attribution against its raw backbone and the live-loop port were not
+repeated there. (v) The frozen test split is reused across signal
+comparisons (signals were pre-specified; a fresh test set would be
+cleaner). (vi) Labels come from a single judge family, bounded by a
+stronger re-judge (deltas $\le$0.010) but without human labels.
+(vii) The live sweep (\S\ref{sec:live}) is one session per query per
+tier, with a documented replication-noise floor of $\pm$.02--.03 per
+arm; no claim rests on sub-3-point live deltas. The measured sweep ran
+with text-mode talker output (\texttt{generate\_audio=False}): the
+relay is validated at the utterance level and latencies are
+text-complete --- a conservative accounting, since in the spoken system
+the stall filler plays the moment the gate fires; the demo system
+(\S\ref{sec:demo}) speaks through the native TTS head without touching
+the probe context or the frozen thresholds. The native duplex
+listen/speak head remains unused throughout: the probe is calibrated on
+simplex streaming states, and its validity under the true duplex loop
+is an open experiment.
+
+\paragraph{Future work.} In rough order of leverage: (a) an
+audio-direct-to-expert live arm --- the gold-inject view prices the
+transcription channel at $-$.175 on the internal pool, an order above
+the noise floor, and it is the one lever a single live sweep can
+resolve; (b) true duplex integration --- driving the native
+listen/speak head and re-validating the L22 read under the duplex
+loop; (c) the Nemotron live port and its trained-checkpoint ablation,
+completing the second-family replication; (d) a \emph{trained} gate
+head as an upper-bound contrast for the zero-training claim; (e) the
+remaining ten SD-QA dialect splits as a cross-dialect robustness
+table; (f) protocol-level comparison against preference-trained
+routers on LLMRouterBench \citep{llmrouterbench2026}; (g) a
+$\ptrue$ prompt-sensitivity sweep; and (h) an injection-payload study
+(does ``answer + one-sentence justification'' restore math relay
+compliance where bare numbers fail).
 
 \section{Conclusion}
 \label{sec:conclusion}

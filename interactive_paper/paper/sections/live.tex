@@ -177,7 +177,7 @@ always (synth) & 100\% & --- & --- & .917 [.88,.95] & --- \\
   so it pairs with the green curve only. The two annotated gaps itemize
   the deployment price: floor-to-floor, the audio + streaming-answer
   tax; view-to-view, the speech-channel (ASR-distill + relay) cost.
-  Full-pool version: \todonote{appendix figure (live\_dualview)}.}
+  Full-pool version: Figure~\ref{fig:app-dualview-full}.}
   \label{fig:dualview}
 \end{figure}
 
@@ -228,10 +228,11 @@ which the two views separate:
   \emph{that} text to the expert scores .694 vs.\ .585 (paired McNemar
   $p{=}.007$), recovering 38\% of the gap to the gold ceiling --- a
   diagnostic result for now: its latency on the critical path and its
-  survival on the external pools are unmeasured
-  \todonote{add scope note where input-side limits are stated}. A trace-level
-  decomposition of the escalated heard-failures (first-generation
-  sweep; \todonote{re-run on v3 traces}) confirms the loss sits
+  survival on the external pools are unmeasured (the input-side limit
+  is stated in \S\ref{sec:limitations}). A trace-level
+  decomposition of the escalated heard-failures (measured on the
+  first-generation sweep; the claim is the mechanism, not the exact
+  split) confirms the loss sits
   upstream of the relay: 64\% are corrupted transcripts (the expert
   answers the wrong question), 24\% are expert misses on clean
   transcripts (dominated by trap --- an expert knowledge limit shared
@@ -264,7 +265,7 @@ $\sim$3 points is undetectable in a single sweep --- accordingly, no
 claim in this paper rests on a sub-3-point live difference; probe
 comparisons rest on offline AUC and matched-rate precision, which are
 far tighter statistics on the full score distribution.
-\todonote{noise\_audit methods figure --- appendix}
+The full audit is Figure~\ref{fig:app-noise}.
 
 \paragraph{What escalation costs in wall-clock time.} The same frozen
 traces carry per-session timers, so the latency price of each operating
@@ -349,7 +350,7 @@ aggressive    & 6.6 & 4.4 & 18.5 & 33.0 & +2.0 & +2.4 & +2.7 & +15.2 \\
   ceiling is synthesized from frozen gold answers and has no live
   latency. Median view --- the expert P99 tail is priced in
   Table~\ref{tab:latency}. Full-pool version:
-  \todonote{appendix (pareto\_latency)}.}
+  Figure~\ref{fig:app-pareto-full}.}
   \label{fig:pareto-latency}
 \end{figure}
 

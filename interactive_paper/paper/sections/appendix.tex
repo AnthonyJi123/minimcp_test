@@ -1,0 +1,128 @@
+% =========================================================================
+% Appendix (assembled 2026-08-25, M5). Page-unlimited per RTCA CFP.
+% =========================================================================
+
+\section{Full-pool live figures}
+\label{app:fullpool}
+
+Figures~\ref{fig:app-dualview-full} and \ref{fig:app-pareto-full} repeat
+the headline live figures of \S\ref{sec:livecurve} on the \emph{full}
+frozen test pool ($n{=}240$), i.e.\ without the pre-registered
+speakable-content filter; numbers for both views appear in the lower
+block of Table~\ref{tab:live}. Figure~\ref{fig:app-noise} is the
+replication-noise audit behind the $\pm$.02--.03 floor quoted throughout.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.85\linewidth]{live_dualview}
+  \caption{Dual-view live tradeoff, full pool ($n{=}240$); companion to
+  Figure~\ref{fig:dualview}.}
+  \label{fig:app-dualview-full}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.85\linewidth]{pareto_latency}
+  \caption{Accuracy--latency tradeoff, full pool; companion to
+  Figure~\ref{fig:pareto-latency}.}
+  \label{fig:app-pareto-full}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.9\linewidth]{noise_audit}
+  \caption{Replication-noise audit: same query, same audio, re-run
+  through the live loop across arms. Kept-local judge verdicts flip
+  2.3--18.8\% of the time depending on pool; repeated escalation flips
+  0.7--10.6\%; implied paired SE on an arm-vs-arm delta .009--.028.
+  This floor is why the paper interprets no sub-3-point live delta.}
+  \label{fig:app-noise}
+\end{figure}
+
+\clearpage
+\section{External-benchmark figure set}
+\label{app:families}
+
+Dual-view and accuracy--latency figures for all six external families
+(frozen v3 gate, live streaming loop; \S\ref{sec:transfer}).
+
+\begin{figure}[h]
+  \centering
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{swebq_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{swebq_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sdqa_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sdqa_pareto}\end{minipage}
+  \caption{Speech TriviaQA, Speech Web Questions, SD-QA: dual-view
+  (left) and accuracy--latency (right).}
+  \label{fig:app-fam1}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sllama_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sllama_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sreason_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sreason_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{valpaca_dualview}\end{minipage}\hfill
+  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{valpaca_pareto}\end{minipage}
+  \caption{Llama Questions, Reasoning QA (zh), VoiceBench AlpacaEval:
+  dual-view (left) and accuracy--latency (right). AlpacaEval is the
+  measured negative result of \S\ref{sec:transfer-neg}.}
+  \label{fig:app-fam2}
+\end{figure}
+
+\clearpage
+\section{Judge and self-evaluation prompts}
+\label{app:prompts}
+
+All adequacy labels use the following fixed system prompt
+(\texttt{gpt-5.4-mini}, low reasoning effort, OpenAI Structured Outputs
+with a strict \{\texttt{reason}, \texttt{adequate}\} JSON schema; the
+judge never sees which system produced the answer):
+
+\begin{quote}\small\ttfamily
+You are a strict, fair grader of a small language model's answers. You
+are given a QUESTION, an optional REFERENCE answer, and a CANDIDATE
+answer produced by a small model. Decide whether the CANDIDATE is
+ADEQUATE, meaning ALL of: (1) factually correct; (2) any reasoning
+shown is valid; (3) it actually and completely answers the question
+that was asked. For multiple-choice questions the candidate must land
+on the correct option (by letter or by unambiguously stating the
+option's content). A partially correct, hedged, refused, off-topic, or
+truncated answer is NOT adequate. If a REFERENCE is provided, grade
+against it. Be strict but do not penalize harmless differences in
+format or extra correct detail.
+\end{quote}
+
+The verbalized self-evaluation baselines (\S\ref{sec:rq1}) use one fixed
+phrasing each; $P(\text{Yes})$ is read from the first generated token's
+distribution:
+
+\begin{quote}\small\ttfamily
+[pre] I am going to show you a question. Do NOT answer it. Judge
+honestly whether you yourself would answer it correctly.
+Question: \{q\}
+Would you answer this question correctly? Reply with exactly one word:
+Yes or No.
+
+[post] Here is a question and a proposed answer.
+Question: \{q\}
+Proposed answer: \{a\}
+Is the proposed answer correct? Reply with exactly one word: Yes or No.
+\end{quote}
+
+\section{Reproducibility}
+\label{app:repro}
+
+All sampling and splits use a fixed seed (42); the calibration/test
+split is frozen once and the test split is touched only by the
+evaluation scripts. Environment pins are listed in \S\ref{sec:setup}
+(torch 2.8.0; transformers 4.51.0 for MiniCPM-o~4.5, with per-model
+pins for the comparison backbones); all experiments run on single-H100
+instances. Probe artifacts (weights, feature configuration, per-pool
+label-free thresholds), the judge prompt above, all trace parquets, and
+the per-experiment execution log --- including per-run GPU and API
+spend, on the order of \$500 total across the project --- ship in the
+project repository, released upon publication.
