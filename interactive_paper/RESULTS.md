@@ -3029,7 +3029,29 @@ duplex model loses exactly the compute that emitting the chain buys
 (serial steps via tokens), while on pure-knowledge failures the chain
 never mattered. NVDA has no fold (verified, nvda_fold_test) not
 because it is stronger but because it traded away spoken reasoning —
-fold-free and math-broken are the same design choice. (Also corrects
+fold-free and math-broken are the same design choice.
+
+**Addendum 8 (2026-08-24) — Jisen Q4 ("why is gain-over-random visible
+only on some pools, e.g. fig-5 swebq") now has its post-investigation
+answer.** Visible gain = probe selectivity x headroom x LABEL FIDELITY
+− channel cost, over measurement noise; selectivity itself is nearly
+pool-invariant (AUC .70-.81 everywhere, including on NVDA with 600
+generic calib queries — which also first-order kills "the probe
+trained more on some pools": zero-recalibration transfer, the
+most-in-family pool striviaqa shows no advantage, precision lift is an
+eerily uniform x1.33-1.35; second-order true via calib width, 8z's
+sreason +.062). "Base model trained more" is real but acts as
+arithmetic: high floor -> precision cap = base-fail/rate (sllama .32,
+we sit at 95% of it). Synthetic-data bias has no referent (public
+benchmarks only). What actually suppresses fig-5: swebq's labels
+half-measure the Freebase grading, not the model — the
+hedging/entropy signature is null there for ALL THREE models
+(P=.47-.53) and even gpt-5.5 on gold text scores only .864, so a
+large share of "wrong" is judge-protocol wrong that no state-reading
+probe can predict; plus the deployed-view channel tax (gold view
+clears random, 8s) and the 8ad noise floor (per-arm ±.02-.03 vs
++.035-.066 excesses — consistent in sign across pools/tiers,
+significant on the low-variance instruments). (Also corrects
 a user misconception worth guarding in the paper: the chain must be
 emitted because tokens ARE the serial compute feedback path, not
 because of GPU memory.) (2) TEXT models hedge too — gpt-5.5's own wrong answers on
@@ -3646,6 +3668,53 @@ anti-hedge. Spend ≈ $5.
 
 
 
+
+
+
+### 8aj — demo audio-out: the talker SPEAKS (lifts milestone shortcut #3) (~$3, 2026-08-24)
+
+User (looking at the live demo): "我以为真实的情况应该是audio进,audio出"
+— correct; text-only output was the recorded milestone shortcut. Lifted
+today, faithfully (no OpenAI TTS dub — the talker's own head):
+
+**TTS smoke (`modal_tts_smoke.py`), first init_tts=True run of the
+project.** MiniCPM-o 4.5's talker head + stepaudio2 Token2wav vocoder
+work under the pinned stack (torch 2.8 / transformers 4.51): load
+16.5 s + vocoder 10.5 s, VRAM 23.1 GB (peak 26.9 — H100 fine). Local
+answer path: first audio chunk **1.39 s** after generation start,
+15.0 s speech. Relay path: first audio **0.91 s**, relays the injected
+expert answer verbatim. Gotchas found: (1) `Token2wav` needs a one-time
+voice-prompt cache (`init_token2wav_cache`, official
+`system_ref_audio.wav`) or streaming_generate crashes on
+`token2wav_cache[...]`; (2) `reset_session()` silently wipes that cache
+— every per-turn reset must pass `reset_token2wav_cache=False`.
+
+**Demo wiring (`demo_app.py`, deployed).** `init_tts=True` at load; both
+answer paths generate with `generate_audio=True` and stream ~1 s 24 kHz
+PCM chunks over the WS as base64 events (typed /say returns a full
+`answer_wav`); the stall is a canned filler in the talker's OWN voice,
+teacher-forced once at container start (audio == STALL text guaranteed),
+played the moment the gate fires — exactly the `tts_filler` deployment
+semantics. **The probe context is byte-identical**: `<|tts_bos|>` enters
+at generation time, AFTER the end-of-turn read, and the vocoder voice
+prompt never touches the LLM context, so every frozen threshold stays
+valid. Cold start 28.7 s (was ~18).
+
+Live verification (typed /say, real GPU turns): "What is NVIDIA stock
+trading at right now?" scored **.693 ≥ .680** and escalated (the user's
+earlier voice render scored .624 — same question straddles the balanced
+threshold render-to-render: boundary behavior, the motivation for 8ak);
+first relay audio 847 ms, 15.8 s spoken. Regiomontanus (aggressive)
+escalated .568 ≥ .400, relay spoken 7.4 s, first audio 661 ms. Also
+live-confirmed: the no-browsing gpt-5.5 expert CANNOT answer the NVDA
+question either — it relays a polite refusal, so escalating real-time
+queries buys nothing until the expert gets a web tool (open decision).
+
+New metric surfaced in the demo table: "first answer audio" — the
+audio-out analogue of answer_ms; text-complete latency is unchanged and
+stays the paper's conservative metric.
+
+---
 
 
 
