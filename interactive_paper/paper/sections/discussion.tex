@@ -89,9 +89,15 @@ pre-specified; a fresh test set would be cleaner). (vi) Labels come from a
 single judge family, bounded by a stronger re-judge (deltas $\le$0.010) but
 without human labels. (vii) The live sweep (\S\ref{sec:live}) is one
 session per query per tier; the conservative tier's gain over the floor is
-not significant at $n=240$. The loop runs with text-mode talker output
-(\texttt{generate\_audio=False}): the relay is validated at the utterance
-level, and spoken TTS output plus barge-in remain unimplemented.
+not significant at $n=240$. The measured live sweep ran with text-mode
+talker output (\texttt{generate\_audio=False}): the relay is validated at
+the utterance level, and its latencies are text-complete --- a
+conservative accounting, since in the spoken system the stall filler
+plays the moment the gate fires. The released demo now speaks with the
+model's native TTS head (talker + Token2wav vocoder, 24\,kHz; first
+answer audio $\sim$0.9--1.4\,s after generation start; the TTS template
+token enters after the end-of-turn read, so the probe context and all
+frozen thresholds are unchanged); barge-in remains unimplemented.
 
 \section{Conclusion}
 \label{sec:conclusion}
