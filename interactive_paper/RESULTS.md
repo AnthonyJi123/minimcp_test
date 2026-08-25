@@ -2990,7 +2990,31 @@ same-math positive control. Mechanism as predicted: NVDA local P90 =
 2.0 s < expert ~4 s, so escalation is a net time-add on every query.
 The prediction is now an observation (under the stated frame-clock
 convention; a full live port would add turn-take offsets, which are
-constant and cannot create a fold). (2) TEXT models hedge too — gpt-5.5's own wrong answers on
+constant and cannot create a fold).
+
+**Addendum 6 (2026-08-24, user: "sreason 拐弯最深——是小模型的链比大模型
+长吗?", $0 from the expert cache).** `modal_bench.py::expert_usage`
+pulled the cached gpt-5.5 usage for every escalated query
+(completion_tokens INCLUDES hidden reasoning). sreason escalated 101:
+expert total chain P50 = **144 tok** (P90 548) of which only **57
+visible chars** return; RTT P50 3.67 s; throughput ≈ 39 tok/s — i.e.
+NOT faster per token than the local H100 stream. The fold's depth
+decomposes into three factors, in order: (1) **spoken vs hidden** —
+the local model's chain IS its answer and every token enters the
+clock (P50 4.38 s, tail 13 s+), the expert's chain is hidden and only
+the RTT lands; (2) **effort=low is a governor** — the expert's chain
+is capped short by design (144 tok median), so its path is a ~3.7 s
+flat top; higher effort would lengthen it and shallow the fold — a
+system knob, not model talent; (3) the user's "small model's chain is
+longer" holds in TIME mostly via the TAIL: median chain lengths are
+same-order (~197 chars vs 144 tok), but the local chain blows up on
+hard problems while the governed expert cannot — and the probe selects
+exactly the hard ones. sreason folds deepest because reasoning pools
+have the fattest removable local mass (whole chains spoken aloud)
+against a governed flat expert path; also explains 8x's old
+observation that sreason's P90 IMPROVES with escalation (13 s chains
+swapped for 3.7 s round-trips). Comparison rows: sllama expert 64 tok
+/ 2.39 s, striviaqa 69 tok / 2.71 s. (2) TEXT models hedge too — gpt-5.5's own wrong answers on
 sllama run ~2x longer; the claim is capability-relative (each model
 hedges at ITS boundary), and the kink only needs the asymmetry that
 TriviaQA sits inside the 9B's boundary (84 wrongs) but barely

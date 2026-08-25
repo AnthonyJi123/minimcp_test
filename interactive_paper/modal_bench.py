@@ -1247,3 +1247,36 @@ def entropy_replay(per_group: int = 27, seed: int = 42) -> int:
     print(f">>> wrote entropy_traj.parquet ({len(rows)} rows)",
           flush=True)
     return len(rows)
+
+@app.function(image=util_st, volumes={DATA: gate_data}, timeout=60 * 10)
+def expert_usage(benches: str = "sreason,sllama,striviaqa"):
+    """Pull cached gpt-5.5 usage (completion_tokens INCLUDES hidden
+    reasoning tokens) for the escalated queries — direct evidence for
+    "whose chain is longer" (8ab follow-up)."""
+    import numpy as np
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+    from modal_app import EXPERT_CACHE
+    for bench in benches.split(","):
+        bench = bench.strip()
+        tr = pd.read_parquet(f"{DATA}/{bench}_v3_traces.parquet")
+        esc = (tr[tr["mode"] == "escalated"].drop_duplicates("id"))
+        toks, lats, vis = [], [], []
+        for _, r in esc.iterrows():
+            hit = escalate._cache_get(EXPERT_CACHE, r["transcript"],
+                                      "low")
+            if hit is None:
+                hit = escalate._cache_get(EXPERT_CACHE, r["query"],
+                                          "low")
+            if hit and hit.get("completion_tokens"):
+                toks.append(hit["completion_tokens"])
+                lats.append(hit.get("latency_s"))
+                vis.append(len(str(hit.get("answer") or "")))
+        t = np.array(toks, float)
+        print(f"{bench}: cache hits {len(t)}/{len(esc)} | "
+              f"completion_tokens(含隐藏推理) P50={np.median(t):.0f} "
+              f"P90={np.percentile(t, 90):.0f} | 可见答案字符 P50="
+              f"{np.median(vis):.0f} | RTT P50={np.median(lats):.2f}s | "
+              f"专家吞吐≈{np.median(t) / np.median(lats):.0f} tok/s",
+              flush=True)
