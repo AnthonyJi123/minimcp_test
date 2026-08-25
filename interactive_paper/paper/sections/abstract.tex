@@ -1,46 +1,27 @@
 \begin{abstract}
-Full-duplex speech models must answer in real time with a small on-device
-backbone, yet many queries exceed that backbone's competence. We study the
-first half of a two-stage design: can the small model itself signal, with
-\emph{zero additional training}, that a query should be escalated to a large
-cloud model? We attach candidate gate signals---decode-time scalars, linear
-probes on hidden states, and verbalized self-evaluation
-($\ptrue$)---to MiniCPM-o~4.5 (9B, omni/duplex fine-tune of Qwen3-8B) and
-evaluate them against judged failure labels on 600 frozen public-benchmark
-queries, with matched-pair controls across ten backbones and both text and
-speech input. We find that (i) a standard final-layer probe is largely a
-query-type shortcut that inverts under distribution shift, while pre-answer
-$\ptrue$ catches 100\%-fail long-tail traps with no training; (ii) duplex
-fine-tuning \emph{overwrites self-knowledge readouts without destroying the
-underlying information}: mid-layer probe transfer is near the raw backbone's
-(leave-one-pool-out math 0.931 at layer 22 vs.\ 0.366 at layer 35), and the
-damage is specific to the late-layer last-token position where a streaming
-head encodes turn control; (iii) the two readouts fail in complementary
-modalities---the late-layer cliff is text-input-specific, whereas verbalized
-introspection collapses on audio input because the verbal self-check runs
-over text-token pathways that audio embeddings do not feed; (iv) the
-modality-shared mid-layer core that makes cheap text-side calibration
-transfer to speech is created by end-to-end training and is absent under a
-frozen-backbone adapter. As a system, the resulting mid-layer gate decides in
-20\,ms (text) / 45\,ms (audio)---before the first output token---and
-gated-cloud escalation dominates the model's own thinking mode on both
-accuracy and latency at every escalation rate (e.g.\ 0.787 vs.\ 0.637
-accuracy at $3.4\times$ lower latency at a 33\% escalation budget).
-We close the loop live: in full streaming duplex sessions, an
-end-of-turn mid-layer read decides before the first output token
-(AUC .887), the returned expert answer is spoken by the talker---the
-same low-confidence state that fires the gate predicts relay compliance,
-so escalation and injection are two uses of one signal---and the live
-system climbs monotonically from its honest streaming floor
-(.422 $\to$ .633 at 57\% escalation on speakable content), with the gap
-to offline operation decomposed into measured audio, streaming, and
-speech-channel taxes. Finally, the gate transfers \emph{frozen}: on six
-public speech benchmarks it fires at sane rates with only label-free
-threshold quantiles, lifts Speech TriviaQA to .860 live (official
-offline anchor: .755; a 30B omni model: .629), matches the cloud expert
-at half the expert calls on Llama Questions, and the mid-network
-readability it exploits replicates on a second, architecturally
-disjoint duplex family (hybrid-Mamba NemotronLabs-VoiceChat-11B) ---
-evidence that duplex models as a class carry a free, readable
-self-assessment signal that standard readouts miss.
+Full-duplex speech models answer in real time with a small on-device
+backbone, yet many queries exceed its competence. We ask whether such a
+model exposes --- with \emph{zero additional training} --- a pre-answer,
+modality-robust internal signal reliable enough to hand a query off to a
+large cloud model mid-conversation, without breaking the live session.
+On MiniCPM-o~4.5 we find the standard readouts each fail in a systematic
+way: duplex fine-tuning re-purposes the late-layer last-token position
+for turn control, breaking final-layer probes on text input, while
+verbalized self-evaluation collapses on audio input. The information
+survives underneath: a mid-network linear probe transfers from cheap
+text calibration to speech, decides at end-of-turn in $\sim$30\,ms ---
+before the first output token (AUC .887) --- and the same
+low-confidence state predicts that the talker will actually relay the
+expert's answer, so escalation and injection are one signal. Run live
+end-to-end, the gated duplex system climbs monotonically from its
+honest streaming floor (.422 $\to$ .633 accuracy at 57\% escalation),
+with the gap to offline operation itemized into measured audio,
+streaming, and speech-channel taxes. The gate then transfers
+\emph{frozen} to six public speech benchmarks using only label-free
+threshold quantiles --- lifting Speech TriviaQA to .860 live against an
+official offline anchor of .755 --- and its mid-network readability
+replicates on an architecturally disjoint second duplex family. Duplex
+models carry a free, readable competence signal that standard readouts
+miss; read correctly, it turns a 9B talker into a system that knows
+when to hand off.
 \end{abstract}

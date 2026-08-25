@@ -74,9 +74,18 @@ duplex-fine-tune-induced ways.} Concretely:
   largely dissolves for \emph{gated} escalations because the same
   low-confidence state that fires the gate predicts relay compliance
   (comply .42 $\to$ .75 across gate-score quartiles). The live system
-  climbs monotonically from its honest streaming floor (.400 $\to$ .633 at
-  55\% escalation), with the gap to offline operation itemized into
-  measured audio, streaming, and speech-channel taxes.
+  climbs monotonically from its honest streaming floor (.422 $\to$ .633
+  at 57\% escalation on speakable content), with the gap to offline
+  operation itemized into measured audio, streaming, and speech-channel
+  taxes.
+\item \textbf{The gate transfers frozen (\S\ref{sec:transfer}).} With
+  probe weights fixed and only label-free threshold quantiles per pool,
+  the same gate runs the live loop on six public speech benchmarks ---
+  lifting Speech TriviaQA to .860 at 50\% escalation against the
+  model's official offline .755, matching the cloud expert at half the
+  expert calls on Llama Questions --- and the mid-network readability
+  it exploits replicates on a second, architecturally disjoint duplex
+  family (hybrid-Mamba NemotronLabs-VoiceChat-11B, \S\ref{sec:nvda}).
 \end{enumerate}
 
 \begin{figure}[t]
