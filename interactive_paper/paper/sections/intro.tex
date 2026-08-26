@@ -24,12 +24,15 @@ of public-benchmark queries, in matched text and speech conditions.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=.85\linewidth]{hero_system}
-  \caption{The system and the headline numbers. A linear read of the
-  talker's mid-network hidden state at end of turn decides, before
-  decoding starts, whether the talker answers or a cloud expert does ---
-  and the expert's answer is spoken by the same talker, preserving the
-  session.}
+  \includegraphics[width=\linewidth]{teaser}
+  \caption{\textbf{Left}: standard competence readouts break on duplex
+  models. \textbf{Middle}: a mid-network (L22) linear read decides in
+  $\sim$30\,ms --- before the first output token --- so the expert call
+  is already in flight while local decoding would just be starting.
+  \textbf{Right}: the live system hands off mid-conversation and the
+  \emph{same talker speaks} the expert's answer, improving real duplex
+  sessions (.422$\to$.633) and, frozen, public speech benchmarks
+  (Speech TriviaQA .664$\to$.860).}
   \label{fig:hero}
 \end{figure}
 
