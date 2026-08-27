@@ -128,6 +128,12 @@ FIGS = [
 <b>边界（如实报）</b>：sreason（中文）在此模型上 fail rate = 1.000——NVDA VoiceChat 是英文单语模型，听中文音频直接幻觉英文答案，跨语言迁移在它身上没有对应物，该池无 AUC 可算。另外它的知识 floor 明显低于 MiniCPM（striviaqa 本地正确率 .32 vs .62，同判分器）——底座弱不妨碍探针读失败信号，反而 base-fail 高信号更足。
 <b>公平吗</b>：判分器与标签定义完全同口径；尚未跑实时 4 臂曲线（需要把 streaming loop 移植到 NeMo，是下一步的花钱决定）。
 """),
+    ("nvda_remix", "图24 · NVDA 五池重混：MiniCPM 上 flat 的三个池在第二家族全部跑赢随机", "win", """
+<b>看什么</b>：把 tab:transfer 的格子在 NVDA 上补满——按 NVDA 探针分数 top-r 换成实测 gpt-5.5 结果、其余保留 NVDA 本地答案的离线重混（8ad 验证过的算术），逐池用官方判分器（OAB 三池 = 官方 gpt-4o judge、SD-QA = 我们的、AlpacaEval = VoiceBench 1-5）。
+<b>数字</b>：五个池全部跑赢 matched-rate random（置换检验 p≤.0003）。50% 档：striviaqa .356→.741（随机 .656）、swebq .376→.696（.602）、sllama .705→.876（.818）、sdqa .310→.675（.600）、AlpacaEval 3.55→4.46（4.23）。
+<b>为什么重要</b>：论文正文的两个 honest negative（WebQ/SD-QA flat、AlpacaEval 不赢随机）在第二家族<b>都不复现</b>——选择性没变（官方标签下 AUC .72-.78），变的是 headroom（NVDA floor .31-.38 vs MiniCPM .51-.66）和失败物种（NVDA 开放题是硬失败：被选中半边 VB 3.01 vs 留下 4.08）。negative 是"池×底座"的属性，不是信号的属性。
+<b>公平吗</b>：离线重混非实时 loop；expert 听的是 MiniCPM 的 heard transcript（NVDA 离线没有自己的 ASR relay），A 口径不含转述税——含实测转述结果的 B 口径档位点差 ≤.032。striviaqa 3 题、sllama 16 题因官方 judge 输出不可解析剔除。
+"""),
 ]
 
 VERDICT = {"win": ("✓ 有利", "#1e9e50"), "mixed": ("~ 有保留", "#b8860b"),

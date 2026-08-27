@@ -274,6 +274,7 @@ POOLS = {
     "sllama":     (f"{DATA}/bench_audio",     f"{DATA}/queries_sllama.jsonl"),
     "sreason":    (f"{DATA}/bench_audio",     f"{DATA}/queries_sreason.jsonl"),
     "sdqa":       (f"{DATA}/sdqa_audio",      f"{DATA}/queries_sdqa.jsonl"),
+    "valpaca":    (f"{DATA}/bench_audio",     f"{DATA}/queries_valpaca.jsonl"),
 }
 NVDA_H = f"{DATA}/nvda_h"                    # + _{tag}.shard{i}.npz
 NVDA_ANS = f"{DATA}/nvda_answers"            # + _{tag}.shard{i}.jsonl

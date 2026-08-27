@@ -4068,3 +4068,74 @@ PDF wrap. Source data fetched to figures/_voldata/ (gitignored).
 self-barge-in -> next-turn recovery is now a short Discussion paragraph
 pointing at app:duplexval. Build check: References starts on page 9 =
 main text still fits the 8-page budget.
+
+### 8at — NVDA paper-grid completion: official-judge re-mix on every transfer pool ⭐ (~$12, 2026-08-26)
+
+User: "凡是论文表格里的 benchmark，都用在 MiniCPM 上训练过的 probe 套到
+NVDA 的模型上重新跑一遍" — executed as the 8ac frozen-recipe probe (same
+features/recipe/600-query calib, refit on Nemotron hiddens; raw weights
+cannot cross hidden spaces) evaluated with tab:transfer's per-pool
+protocol on every pool in the table. New infra: `modal_nvda_ext.py`
+(rejudge_local / expert_fill / judge_experts / vb_local_valpaca /
+dump_valpaca), `modal_nvda.py` POOLS += valpaca,
+`figures/nvda_remix.py` + `nvda_remix_fig.py`.
+
+**Protocol.** Offline re-mix (8ad's arithmetic, accuracy version):
+top-r by NVDA probe score takes the expert outcome, the rest keep
+NVDA's local answer. Judges aligned with tab:transfer per pool: the
+three OAB pools re-judged with the OFFICIAL gpt-4o OAB judge (local
+floors move ours→official: striviaqa .324→.352, swebq .280→.376,
+sllama .668→.705), SD-QA ours, AlpacaEval VoiceBench 1-5. Expert
+outcomes: 575 measured gpt-5.5 answers from the v3 escalated arms +
+574 fresh fills on the same heard-transcript channel (gpt-5.5 low,
+expert_cache), all 1,149 judged uniformly on the gold query (A
+protocol = relay-free; B variant substitutes the measured live relay
+outcome where one exists — tier points shift ≤ .032, the 100% point
+≤ .040). AlpacaEval GPU pass: 199 official wavs through
+NemotronVoiceChat with hidden capture; VB-judged local mean 3.548.
+
+**⭐ All five pools clear matched-rate random (permutation p ≤ .0003).**
+A-protocol table (see `data/nvda_remix.json`, figure `nvda_remix`):
+
+| pool (judge) | 0% | 15% | 30% | 50% | 100% | AUC (official label) | rnd@50% |
+|---|---|---|---|---|---|---|---|
+| striviaqa (OAB) | .356 | .498 | .615 | .741 | .955 | .775 | .656 |
+| swebq (OAB) | .376 | .480 | .588 | .696 | .828 | .771 | .602 |
+| sllama (OAB) | .705 | .786 | .838 | .876 | .932 | .720 | .818 |
+| sdqa (ours) | .310 | .425 | .545 | .675 | .890 | .754 | .600 |
+| valpaca (VB 1-5) | 3.55 | 3.83 | 4.13 | 4.46 | 4.92 | — | 4.23 |
+
+Probe split decisive everywhere — local accuracy escalated-half vs
+kept-half: .187/.524 (striviaqa), .168/.584 (swebq), .581/.829
+(sllama), .160/.460 (sdqa), VB 3.01/4.08 (valpaca).
+
+**The paper's honest negatives do NOT replicate on this family.**
+WebQ, SD-QA and AlpacaEval — all flat-vs-random on MiniCPM — are
+unambiguous wins here. Direct confirmation of Addendum 8's
+decomposition: selectivity is pool-invariant (AUC .72–.78 under
+official labels), what changed is HEADROOM (floors .31–.38 vs
+MiniCPM's .51–.66) and, on AlpacaEval, failure SPECIES — the terse
+English-only model fails open-ended queries hard (probe-selected half
+VB 3.01), where MiniCPM fails them soft (style/verbosity, invisible
+to a wrongness detector, floor already 3.99).
+
+**Caveats.** (1) Offline re-mix, not a live streaming run — the NeMo
+live-loop port stays future work; on MiniCPM 8ad measured re-mix vs
+live deviation at .011 mean. Why the port is non-trivial (now also in
+app:nvda): the released NeMo path is CACHELESS (full-prefix re-run
+per 80 ms frame, O(T²) — the 8ac receipt), so real-time needs
+stateful streaming (Mamba-2 state is O(1)/frame in principle) wired
+into the duplex frame protocol; a reference-code gap, not an
+architecture one. (2) The expert hears MiniCPM's heard
+transcript (NVDA has no offline ASR relay of its own); the A protocol
+excludes the relay-back tax. (3) Dropped ids: striviaqa 3, sllama 16
+(OAB judge unparsable). (4) sreason skipped — English-only model,
+fail = 1.000, zero label variance (8ac boundary finding stands).
+
+Files: `data/nvda_remix.json`, `nvda_expert_outcomes.parquet`,
+`nvda_{striviaqa,swebq,sllama}.parquet` (+oab_ok col),
+`nvda_valpaca.parquet`, `nvda_scores_valpaca.parquet`,
+`nvda_expert_fill.parquet`, `figures/nvda_remix.{png,pdf}` (also in
+paper/figures). Paper: app:nvda extended (tier table + figure),
+transfer honest-negatives paragraph updated. Cost: ~25 min H100 +
+~2.3k API calls (574 gpt-5.5 low + ~1.9k judge) ≈ $12.

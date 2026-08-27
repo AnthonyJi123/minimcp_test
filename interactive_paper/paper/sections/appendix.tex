@@ -168,7 +168,75 @@ reached with a quarter of the calibration data. Boundary notes: the
 backbone is much weaker at knowledge retrieval (striviaqa local 0.32
 vs.\ MiniCPM 0.62, same judge) and English-only (the cross-lingual pool
 has no analog). The live-loop port and the trained-checkpoint ablation
-remain future work.
+remain future work; the port is gated by the released inference path,
+not by the architecture. The only supported loading path (the NeMo
+Speech \texttt{nemotron-labs-voicechat} branch) runs the duplex loop
+\emph{cacheless} --- every 80\,ms frame re-runs the full prefix, an
+$O(T^2)$ schedule that cannot hold the frame clock in real time ---
+although the hybrid backbone's Mamba-2 state is exactly the $O(1)$
+per-frame recurrence a streaming port would need; wiring stateful
+inference into the released duplex frame protocol is the engineering
+gap. (Offline, the same property is a convenience: the final frame's
+forward contains every position, so one hook captures the whole
+eot window.) Accuracy-side conclusions do not wait on the port: the
+re-mix arithmetic below tracks measured live arms at 0.011 mean
+deviation on MiniCPM, inside the $\pm$0.02--0.03 replication floor.
+
+\paragraph{Escalation re-mix on every transfer pool.} Completing the
+grid of Table~\ref{tab:transfer} on this family: an offline re-mix
+(the same top-$r$ reconstruction arithmetic that, on MiniCPM, tracks
+the measured live arms at 0.011 mean deviation) sends the
+top-$r$ of each pool by NVDA probe score to the measured
+\textsc{gpt-5.5} outcome and keeps NVDA's own answer for the rest,
+scored with each pool's official protocol (the OAB judge for the
+three OpenAudioBench pools --- NVDA local floors 0.352/0.376/0.705 ---
+our judge for SD-QA, VoiceBench 1--5 for AlpacaEval; the expert
+answers the heard transcript and is judged directly, so the
+relay-back channel is excluded --- including the measured relay
+outcomes where they exist shifts tier points by $\le$0.032).
+\textbf{Selective escalation beats matched-rate random on all five
+pools} (permutation $p\le.0003$; Table~\ref{tab:nvda-remix},
+Figure~\ref{fig:nvda-remix}) --- including Web Questions, SD-QA and
+AlpacaEval, the three pools that are flat or negative on MiniCPM
+(\S\ref{sec:transfer-neg}). Selectivity is nearly unchanged (AUC
+0.72--0.78 under official labels); what changed is headroom --- floors
+of 0.31--0.38 against MiniCPM's 0.51--0.66 --- and on AlpacaEval the
+failure species: the terse English-only model fails open-ended
+queries \emph{hard} (the probe-selected half scores 3.01 vs.\ 4.08
+kept), where MiniCPM's open-ended failures are soft quality
+gradations a wrongness detector cannot see. The negatives are
+properties of the pool $\times$ backbone pairing, not of the signal.
+
+\begin{table}[h]
+\centering\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\caption{The frozen-recipe NVDA probe re-mixed at fixed escalation
+rates, official judge per pool. AlpacaEval rows are VoiceBench 1--5
+scores; others accuracy. rnd@50 = matched-rate random expectation;
+all five selective-vs-random gaps hold at $p\le.0003$ (permutation).}
+\label{tab:nvda-remix}
+\begin{tabular}{llccccccc}
+\toprule
+pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & 100\% & rnd@50 \\
+\midrule
+Speech TriviaQA      & OAB  & 247 & .356 & .498 & .615 & .741 & .955 & .656 \\
+Speech Web Questions & OAB  & 250 & .376 & .480 & .588 & .696 & .828 & .602 \\
+Llama Questions      & OAB  & 234 & .705 & .786 & .838 & .876 & .932 & .818 \\
+SD-QA                & ours & 200 & .310 & .425 & .545 & .675 & .890 & .600 \\
+AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 & 4.23 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{nvda_remix}
+  \caption{Re-mix curves for the frozen-recipe NVDA probe: selective
+  (top-$r$ by probe score) vs.\ matched-rate random on the five
+  transfer pools, official judge per pool. Every pool separates,
+  including the three that are flat on MiniCPM.}
+  \label{fig:nvda-remix}
+\end{figure}
 
 \begin{figure}[h]
   \centering

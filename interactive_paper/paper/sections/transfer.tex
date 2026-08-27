@@ -82,7 +82,14 @@ event for a retrieval-failure detector to read.
 refit: on Web Questions strict alias-based labels decouple ``wrong''
 from ``uncertain'' (even the gold-text ceiling is 86.4\%), and the
 failures the gate ranks highest are ones the expert misses too
-(expert-fixable share 66\% at the 15\% cut vs.\ 75\% pool-wide). The external
+(expert-fixable share 66\% at the 15\% cut vs.\ 75\% pool-wide).
+Neither negative is intrinsic to the signal: on the second duplex
+family, where local floors are 0.31--0.38, the same frozen recipe
+beats matched-rate random on \emph{all five} pools --- WebQ, SD-QA
+and AlpacaEval included ($p\le.0003$;
+Appendix~\ref{app:nvda}) --- so the flat pools here are a headroom
+and failure-species property of the pool $\times$ backbone pairing.
+The external
 channel cost is small (heard-vs-gold gap 3.5--5.6 points at aggressive vs.\
 17.5 internally), and SD-QA's escalated subset converts at 82--84\% on
 real dialectal speech. Routing can also \emph{reduce} tail latency,
