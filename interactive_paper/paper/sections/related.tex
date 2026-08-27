@@ -17,12 +17,21 @@ time-slicing learns an idle token that keeps the model silent
 synchronization tokens \citep{veluri2024syncllm}; LSLM halts
 generation on a detected-interruption token \citep{ma2024lslm}; VITA
 and SALMONN-omni emit state tokens around the speak/listen decision
-\citep{fu2024vita,yu2024salmonnomni}. A neighboring line moves the
+\citep{fu2024vita,yu2024salmonnomni}; DuplexSLA adds a third
+structured-action channel so tool calls are emitted without pausing
+speech \citep{zhang2026duplexsla}; BayLing-Duplex converts a
+turn-based SpeechLM into a native duplex one with a handful of state
+tokens and interleaved channels \citep{bayling2026duplex}; and the
+checkpoint we probe is itself of this design --- MiniCPM-o~4.5
+predicts a binary listen/speak token before it generates content
+\citep{openbmb2026minicpmo}. A neighboring line moves the
 same decision into small classifier heads --- FlexDuo
 \citep{liao2025flexduo}, MinMo \citep{chen2025minmo}, Freeze-Omni's
 state heads --- at 120--250\,ms cadences that show a live loop
 tolerates far more decision latency than our $\sim$30\,ms read
-\citep[cf.][]{sync2026turntaking,chrono2026thinking}.
+\citep[cf.][]{sync2026turntaking,chrono2026thinking}; a further line
+tunes these behaviours by RL over interaction-level rewards
+\citep{ohashi2026interactivity}.
 All of these decide \emph{when the local model should speak}; our
 gate decides the orthogonal question --- \emph{whether the local
 model should be the one answering} --- and their shared choice of a
@@ -82,16 +91,33 @@ beats the model's own trained think token at matched budget
 (Table~\ref{tab:policy}). Learning-to-defer \citep{madras2018predict}
 and early exit \citep{schuster2022confident} decide inside one model.
 
+\paragraph{Escalating out of a live duplex session.} Two concurrent
+systems do escalate from a small duplex model to a stronger resource,
+and both differ from us in \emph{what fires the handoff}. MoshiRAG
+\citep{chien2026moshirag} pairs a compact duplex interface with
+selective retrieval, exploiting the lag between speech onset and the
+first content word to fetch asynchronously and inject the result as
+embeddings --- the trigger is read off the model's own emerging
+\emph{output}, and what arrives is knowledge for the small model
+rather than an answer from a larger one. DuplexOmni
+\citep{huang2026duplexomni} separates a real-time interaction layer
+from a pluggable thinking layer and trains a think-control token that
+hands work to it; the policy is once more fine-tuned into the talker.
+Our gate decides \emph{before} the talker commits to any output, from
+a frozen checkpoint's internal state, with no talker fine-tuning and a
+budget moved by a deployment-time threshold.
+
 \paragraph{The gap.}
 The prior work factors cleanly along two axes --- \{text-based,
 full-duplex\} $\times$ \{policy trained in as special tokens, probe
 read out of frozen internals\}. Three cells are dense: text models
 both train routing tokens and read probes; duplex models train their
-control policies in as tokens (or heads). The fourth cell is empty:
+control policies in as tokens (or heads), including the two systems
+above that escalate out of a live session. The fourth cell is empty:
 no prior work we know of reads a \emph{frozen} full-duplex model's
 internal state for a pre-answer, modality-robust competence signal
---- and fills it at the moment our results say token-training cannot
-be trusted there, because fine-tuning the talker is what damages the
-readout the trained policies sit on. That empty cell is this paper:
-a probe early enough to drive a live small-to-large handoff while
-preserving the session.
+--- and it is empty at exactly the point our results say
+token-training is least safe, since fine-tuning the talker is what
+damages the readout those trained policies sit on. That empty cell is
+this paper: a probe early enough to drive a live small-to-large
+handoff while preserving the session.

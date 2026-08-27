@@ -18,7 +18,11 @@ re-judge bounds deltas at $\le$1 point), no human labels.
 (iv) One session per query per tier ($\pm$2--3 point floor); under
 concurrent prefill the frozen read degrades (AUC .87$\to$.76) and an
 in-regime refit recovers .82 --- calibration must follow the regime
-(Appendix~\ref{app:duplexval}).
+(Appendix~\ref{app:duplexval}). (v) Our live protocol is turn-based
+end-of-turn escalation on scripted single-turn queries; the harder
+setting --- barge-in, disfluent self-correction, chained tool calls
+mid-utterance --- is what full-duplex agent benchmarks now target
+\citep{lin2026fdbv3}, and porting the gate there is future work.
 
 \paragraph{Conclusion.}
 Duplex-trained speech models carry a competence signal their standard
