@@ -2,3 +2,7 @@ __pycache__/
 .claude/worktrees/
 .venv_ip/
 .venv_boot/
+
+# large activation dumps — re-fetch from the gate-data Modal volume
+interactive_paper/data/layers/layers_*.npz
+interactive_paper/data/layers/cues_*.npz
