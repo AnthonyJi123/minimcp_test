@@ -29,15 +29,16 @@ unchanged.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{teaser_tikz}
-  \caption{\textbf{Left}: late-layer competence readouts turn brittle
-  after duplex fine-tuning. \textbf{Middle}: a mid-network (L22) linear read decides in
+  \includegraphics[width=\linewidth]{teaser_v2}
+  \caption{\textbf{(1)} Speech streams live into a small duplex-trained
+  local model. \textbf{(2)} A mid-network (L22) linear read decides in
   $\sim$30\,ms --- before the first output token --- so the expert call
   is already in flight while local decoding would just be starting.
-  \textbf{Right}: the live system hands off mid-conversation and the
-  \emph{same talker speaks} the expert's answer, improving live spoken
-  sessions (.422$\to$.633) and, frozen, public speech benchmarks
-  (Speech TriviaQA .664$\to$.860).}
+  \textbf{(3)} Easy queries stay local; hard ones escalate to a cloud
+  expert. \textbf{(4)} The \emph{same talker speaks} the expert's
+  answer in one continuous session, improving live spoken sessions
+  (.422$\to$.633) and, frozen, public speech benchmarks (Speech
+  TriviaQA .664$\to$.860).}
   \label{fig:hero}
 \end{figure}
 
