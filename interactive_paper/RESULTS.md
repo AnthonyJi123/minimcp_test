@@ -4048,3 +4048,23 @@ live.tex (one sentence in the live-result paragraph) + app:livedetail
 replication discipline as the sweep); spoken answers run long on math
 (spoken_s p95 146 s — the loop speaks the whole chain of thought, a
 separate UX problem, not a latency one).
+
+### 8as — presentation pass: percent numbers, vector figures, fun finding ($0, 2026-08-26)
+
+Meeting feedback executed, no new experiments. (1) **Number format**:
+main text accuracies/rates -> percent (42.2% -> 63.3% etc.), AUC/probe
+scores/thresholds -> 0.xx; appendix uniformly 0.xx. While converting,
+fixed three silently-truncated never-arm values in the main transfer
+table (WebQ .570 -> 57.2, SD-QA .510 -> 51.5, Reasoning .590 -> 58.9,
+verified against data/*_v3_live.json + RESULTS 8w/8z tables; avg/delta
+columns recomputed). (2) **All figures now embed as vector PDF** —
+verified via build log, zero PNGs left in main.pdf. Redrew the five
+PNG-only matplotlib figures from volume data with paper-size fonts/
+legends (figures/paper_pdf_redraw.py; layer_sweep is now a 2-panel
+LOPO-hard-math last/mean view with an L22 marker, replacing the 6-panel
+diagnostic grid; accuracy axes in percent); teaser_v2 got a lossless
+PDF wrap. Source data fetched to figures/_voldata/ (gitignored).
+(3) **Fun finding into the paper**: 8al's accidental early-endpoint ->
+self-barge-in -> next-turn recovery is now a short Discussion paragraph
+pointing at app:duplexval. Build check: References starts on page 9 =
+main text still fits the 8-page budget.
