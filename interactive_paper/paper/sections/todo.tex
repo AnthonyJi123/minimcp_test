@@ -72,10 +72,25 @@
   token 0.4\,s'' but the plotted value is answer\_ms = \emph{full}
   answer decode; caption + figure title corrected and the figure
   regenerated.
-  (d) SKIP for this deadline: native-duplex validation (explicit
-  limitation + future work), human continuity study, second expert.
+  (d) PARTIAL DONE 2026-08-26 (was SKIP): duplex-validation sweep ran
+  --- the frozen-pool 240 replayed through the DEPLOYED voice loop
+  (talker on, spoken answers) in clean + overlap/barge-in arms via
+  \_ws\_duplex.py against the live demo; frozen v4 probe, no refit:
+  AUC .871/.856 vs .866 headless (paired deltas inside the
+  replication floor), decision agreement .89/.91, barged 237/239.
+  Landed: live.tex closing paragraph, app:duplexval, intro scope
+  sentence updated, Limitations (vi) narrowed to
+  ``concurrent-with-generation read remains open''. Data:
+  gate-data volume duplex\_sweep/\{clean,overlap\}.jsonl; analysis
+  \_duplex\_analyze.py. This also partially recovers (c): the voice
+  loop logs EOT$\to$first-audible per turn
+  (first\_audio\_client\_ms, p50 $\approx$.58\,s, both arms) ---
+  usable if a reviewer asks, though only under probe-off replay, not
+  the escalating sweep. Still skipped: human continuity study, second
+  expert, model-level concurrent listen/speak read.
   Frame the paper as what it is: pre-response competence probing in
-  duplex-trained models + turn-based live escalation.}
+  duplex-trained models + turn-based live escalation, now with a
+  deployed-loop validity check.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29

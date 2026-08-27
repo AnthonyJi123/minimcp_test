@@ -401,6 +401,40 @@ or commits the interrupt, aborting generation at chunk granularity and
 seeding the next turn. All measured arms keep the tool-free expert and
 turn-based loop; the demo will be made available upon publication.
 
+\section{Duplex-validation sweep: the gate under the talker}
+\label{app:duplexval}
+
+The headless live sweep (\S\ref{sec:live}) never engages the talker
+head; this sweep replays its full 240-query pool through the deployed
+voice loop above to test whether the frozen probe read survives the
+spoken regime. Two arms, one session per query, deployed v4 gate with
+scores logged but escalation disabled (the arm isolates gate validity,
+not routing outcomes). \textbf{Clean}: the query streams as
+mic-shaped PCM (pool TTS audio plus steady noise at RMS .008), the
+energy VAD ends the turn, the talker answers aloud, and the session is
+cut after the first audible chunk. \textbf{Overlap}: an easy warmup
+question (probe score $<$.25, locally answered, $>$5\,s spoken answer)
+puts the talker mid-answer, and the target query is then spoken over
+it; sustained overlapping speech commits a barge-in whose audio seeds
+the next turn. The barge-in path engaged on 237/239 pairs.
+
+Against the frozen local-failure labels of the same pool, the
+identical frozen probe reads: headless AUC .866 [.817,\,.909], clean
+.871 [.824,\,.914], overlap .856 [.803,\,.901]; barged-only subset
+($n{=}237$) .854. Paired bootstrap deltas vs.\ headless are $+.005$
+$[-.025,+.035]$ (clean) and $-.009$ $[-.036,+.016]$ (overlap) --- both
+inside the $\pm$.02--.03 live replication floor. Per-query scores
+correlate across regimes at $r{=}.90$--$.92$, and the balanced
+threshold makes the same fire/hold decision as the headless read on
+.887 (clean) and .912 (overlap) of queries. The end-of-turn read costs
+24--26\,ms at p50 (p95 $\le$30\,ms) in both arms, with the first
+audible answer chunk arriving $\ge$0.5\,s after the gate decision
+(p50 $\approx$0.58\,s), so the decision precedes any audible
+commitment. Scope: the loop keeps per-turn session control --- the mic
+stays open while the talker speaks and interruptions seed the next
+read, but incoming audio is not prefilled \emph{during} generation;
+validating a probe read concurrent with generation remains open.
+
 \section{Fixed-threshold transfer and the expert-benefit oracle}
 \label{app:fixedthr}
 

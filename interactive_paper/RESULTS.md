@@ -3951,6 +3951,56 @@ text ~25pp → must be 8. Executed same day:
 
 ---
 
+### 8aq — duplex-validation sweep: the gate under the talker ⭐ (~$4, 2026-08-26)
+
+Answers the external reviewer's #1 objection ("the native duplex loop is
+never engaged") with the cheapest credible experiment: replay the frozen
+live-sweep 240 through the DEPLOYED demo voice loop (talker head ON,
+spoken answers, mic open during speech) and check the frozen v4 probe.
+
+**Protocol** (`_ws_duplex.py` → gate-data `duplex_sweep/{clean,overlap}.jsonl`,
+analysis `_duplex_analyze.py`):
+- probe_on=0: eot scores computed + logged per turn, nothing escalates —
+  isolates gate validity from routing outcomes.
+- clean arm: pool TTS wav + mic noise (rms .008) streamed at 4×, VAD EOT,
+  talker answers aloud, abort after first audible chunk. 239/240, ~7 s/q.
+- overlap arm: easy warmup (score<.25, local-correct, answer>5 s) puts the
+  talker mid-answer; target query spoken OVER it at gain 1.6 → duck →
+  interrupt → barge-in speech seeds the next turn → EOT read. barged on
+  237/239 pairs, 0 false backchannel-resumes, ~16 s/pair.
+- labels: frozen local-failure (max heard_ok over mode=local rows across
+  tiers); same 239 joined ids for all three regimes.
+
+**Headline: the frozen read survives the spoken loop, including barge-in
+turns.**
+
+| regime | AUC [95% CI] | ΔAUC vs headless (paired) |
+|---|---|---|
+| headless (frozen_v3_traces) | .866 [.817,.909] | — |
+| clean voice loop | .871 [.824,.914] | +.005 [−.025,+.035] |
+| overlap/barge-in | .856 [.803,.901] | −.009 [−.036,+.016] |
+| overlap, barged-only n=237 | .854 [.805,.902] | — |
+
+- per-query score stability across regimes r=.90–.92; balanced-threshold
+  decision agreement .887 (clean) / .912 (overlap).
+- eot_read_ms p50 24–26, p95 ≤30 — matches the paper's ~30 ms claim on
+  the deployed stack.
+- **EOT→first-audible (client wall): p50 ≈ .58 s both arms** — the gate
+  decision precedes audible commitment by >0.5 s. This partially recovers
+  P2(c) (first-audio timing), though under probe-off replay only.
+- server-side turn.first_audio_ms came back null (deployed build predates
+  the field?) — client wall clock used instead; do not chase.
+
+**Scope honesty** (stated in app:duplexval): the loop keeps per-turn
+session control — mic stays open while the talker speaks and interrupts
+seed the next read, but incoming audio is NOT prefilled during
+generation. "Concurrent-with-generation read" stays future work.
+
+**Paper**: live.tex closing ¶ "Gate validity with the talker on",
+app:duplexval, intro scope sentence updated, Limitations (vi) narrowed.
+
+---
+
 
 
 ### 2.1 public pools ✅ (2026-07-07)
