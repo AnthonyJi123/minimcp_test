@@ -4142,3 +4142,28 @@ into the MAIN table tab:transfer (2026-08-27: always-local /
 gate 15-30-50 / ceiling / AUC rows over the four available pools,
 avg+Delta over its own floor, zh cell ---). Cost: ~25 min H100 +
 ~2.3k API calls (574 gpt-5.5 low + ~1.9k judge) ≈ $12.
+
+### 8au — measured always-escalate arms on all seven pools (~$8, 2026-08-27)
+
+User challenge on Fig 3 ("why don't the curves reach 100%?") -> the
+100% points were synthesized (gold ceiling), never measured through the
+deployed heard channel. Ran tier=always (thr=-1e9, built into
+bench_live) on frozen + striviaqa/swebq/sllama/sreason/sdqa/valpaca,
+sequentially (expert concurrency <=3); fast because the expert cache
+already held ~half the transcripts. New `always_append` in
+modal_bench.py folds the shards in INCREMENTALLY — judges only the new
+rows (bench_report re-judges everything, which would wobble published
+arms by the +-2-3pt judge noise; verified old arm numbers byte-stable
+after the merge).
+
+Results (heard, official judge where applicable): frozen full-pool
+.617 / fair-subset .665 [.601,.729] P50 4.2s vs gated@57% .633 and
+gold .922 — the last 43 points of escalation buy 3.2 points; the
+uplink channel binds, not selection. External: striviaqa oab .880,
+swebq .808, sllama .936 (**below selective .948 — the 8w offline
+finding now holds in the live loop**), sreason .837, sdqa .885,
+valpaca 4.76. Transfer table gained an "always-escalate (measured)"
+row (avg 86.9, delta +23.3 vs floor); live.tex + Llama-Q claim
+updated; all dualview/pareto/fair figures now end at a real measured
+100% point (ARMS += always in the four figure scripts; pareto's
+"synthesized" annotation removed). Commit e43ac72.
