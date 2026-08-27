@@ -4137,5 +4137,8 @@ Files: `data/nvda_remix.json`, `nvda_expert_outcomes.parquet`,
 `nvda_valpaca.parquet`, `nvda_scores_valpaca.parquet`,
 `nvda_expert_fill.parquet`, `figures/nvda_remix.{png,pdf}` (also in
 paper/figures). Paper: app:nvda extended (tier table + figure),
-transfer honest-negatives paragraph updated. Cost: ~25 min H100 +
+transfer honest-negatives paragraph updated; NVDA block promoted
+into the MAIN table tab:transfer (2026-08-27: always-local /
+gate 15-30-50 / ceiling / AUC rows over the four available pools,
+avg+Delta over its own floor, zh cell ---). Cost: ~25 min H100 +
 ~2.3k API calls (574 gpt-5.5 low + ~1.9k judge) ≈ $12.

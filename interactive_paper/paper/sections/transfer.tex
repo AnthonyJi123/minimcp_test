@@ -31,9 +31,15 @@ QA benchmarks (TriviaQA/WebQ/Llama Q.\ judged by OAB official, $n$ =
 250; SD-QA/Reasoning zh reference-anchored, $n$ = 200/202). Top:
 live deployed loop, heard accuracy in \% ($\pm$2--3 point
 replication floor). Middle: gold-inject view at a matched 30\% budget
-(Appendix~\ref{app:fixedthr}). $\Delta$ = average gain over
+(Appendix~\ref{app:fixedthr}). Bottom: the second duplex family,
+NemotronLabs-VoiceChat-11B --- same frozen recipe, offline re-mix
+with measured \textsc{gpt-5.5} outcomes, official judges
+(Appendix~\ref{app:nvda}); the English-only model has no zh pool, so
+its avg spans four benchmarks and $\Delta$ is over its own local
+floor. $\Delta$ = average gain over
 always-local (points). AlpacaEval (VoiceBench 1--5, scale-incompatible) is
-reported in the text: 3.99$\to$4.35, no gain over random.}
+reported in the text: 3.99$\to$4.35, no gain over random on MiniCPM;
+the second family does gain (3.55$\to$4.46 vs.\ random 4.23).}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
 \toprule
@@ -51,7 +57,15 @@ random reference      & 75.5 & 65.7 & 86.4 & 63.9 & 67.4 & 71.8 & +8.2 \\
 \textbf{gate}         & \textbf{83.6} & \textbf{70.0} & \textbf{91.2} & \textbf{74.5} & \textbf{72.8} & \textbf{78.4} & \textbf{+14.8} \\
 benefit oracle        & 96.4 & 86.8 & 94.8 & 81.5 & 89.1 & 89.7 & +26.1 \\
 \midrule
+\multicolumn{8}{l}{\emph{second family: NemotronLabs-VoiceChat-11B (offline re-mix, official judges)}} \\
+always-local          & 35.6 & 37.6 & 70.5 & 31.0 & --- & 43.7 & --- \\
+\;+ gate @15\%        & 49.8 & 48.0 & 78.6 & 42.5 & --- & 54.7 & +11.0 \\
+\;+ gate @30\%        & 61.5 & 58.8 & 83.8 & 54.5 & --- & 64.6 & +21.0 \\
+\;\textbf{+ gate @50\%} & \textbf{74.1} & \textbf{69.6} & \textbf{87.6} & \textbf{67.5} & --- & \textbf{74.7} & \textbf{+31.0} \\
+always-expert (ceiling) & 95.5 & 82.8 & 93.2 & 89.0 & --- & 90.1 & +46.4 \\
+\midrule
 probe AUC (frozen)    & 0.789 & 0.785 & 0.806 & 0.792 & 0.683 & 0.771 & --- \\
+probe AUC (2nd family) & 0.775 & 0.771 & 0.720 & 0.754 & --- & 0.755 & --- \\
 official offline      & 75.5 & 70.2 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}
