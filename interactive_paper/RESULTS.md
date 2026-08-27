@@ -4167,3 +4167,37 @@ row (avg 86.9, delta +23.3 vs floor); live.tex + Llama-Q claim
 updated; all dualview/pareto/fair figures now end at a real measured
 100% point (ARMS += always in the four figure scripts; pareto's
 "synthesized" annotation removed). Commit e43ac72.
+
+### 8as — concurrent-prefill probe validation + in-regime refit (~$10, 2026-08-27)
+
+The tier the paper left open, now measured. Harness (modal_duplex_concurrent.py):
+time-division interleave through the streaming API — while the talker is
+mid-answer, each 1 s chunk of the target query prefills into the SAME session
+between generation chunks (positions self-consistent: the decode loop re-derives
+them from cache length), EOT read fires while generation is active (238/240
+full coverage). Carrier answer teacher-forced — under sampling the duplex model
+EOSes within ~2 s of user audio appearing in context (trained turn-yielding,
+made visible by interleave; three failed smoke designs document it).
+
+**Frozen v3 probe, concurrent state (n=240, labels = local-fail as 8aq):**
+AUC .869 (headless surrogate) → .758 [.693,.816]; paired dAUC −.109
+[−.158,−.064]. Scores drift up (mean .479→.714; frozen balanced thr fire rate
+.367→.754); label-free requantiling recovers decision agreement only to .750.
+The ONE shift on the transfer ladder that breaks the frozen read.
+
+**In-regime refit (v2 scale): the signal is intact.** Same 12288-d linear read
+refit on calib-360 concurrent features (existing escalate_label, C=3e-4, OOF
+.775) → test-240 concurrent **AUC .818 [.761,.871]** — more than half the gap
+recovered at a quarter of the deployed probe's calibration data. Read: L22
+competence direction persists under concurrent listen/speak; calibration must
+follow the regime. Run1-vs-run2 concurrent score corr .895; feature-pipeline
+sanity: frozen weights on run-2 features reproduce .768 ≈ run-1's .758.
+
+Caveat: interleave via the public streaming API (turn headers mid-generation,
+forced carrier) — measures the concurrent STATE, not the official duplex
+serving format. Artifacts: gate-data volume frozen_concurrent_traces.jsonl.shard*
+(scores run), frozen_conc_{calib,test}_{traces,feats}.* (feature runs);
+local copies in data/; scripts/11_concurrent_auc.py, 12_concurrent_refit.py,
+figures/concurrent_refit.json. Paper: app:duplexval third arm, Limitations (vi),
+intro scope clause. NOTE: landed while the parallel session's restructure
+(Table 3, % scale, teaser_v2) is uncommitted — page rebalance owed after merge.
