@@ -4201,3 +4201,113 @@ local copies in data/; scripts/11_concurrent_auc.py, 12_concurrent_refit.py,
 figures/concurrent_refit.json. Paper: app:duplexval third arm, Limitations (vi),
 intro scope clause. NOTE: landed while the parallel session's restructure
 (Table 3, % scale, teaser_v2) is uncommitted — page rebalance owed after merge.
+
+---
+
+## Phase 8aw — why does the final layer invert? (advisor request, 2026-08-27)
+
+济森 8-27: "最好能分析出来,为什么最后一层不行,比如我们假设到后面 Full Duplex
+在考虑 Listen/Speak"。Consulted gpt-5.5 (`modal_askgpt.py` → `askgpt_interp.md`,
+7 proposed experiments), ran the four that need no new GPU capture, on the
+Phase-5d all-layer dumps. Scripts 14–17; data/interp_{lastlayer,controls,
+subspace,reliance}.json. Probe protocol identical to `layer_sweep_report`
+(reproduces L22 0.931 exactly, final layer 0.378 vs published 0.366).
+
+### The Listen/Speak hypothesis does NOT survive in its simple form
+
+Four candidates ruled out (paper Table `tab:mech`):
+
+| candidate | test | result |
+|---|---|---|
+| prepare-to-speak state | speak-mode template prefill (5d ttstpl) | .362 vs .366 — unchanged |
+| modality (audio/text) axis | cos(mean audio−text dir, w_final) | .013; chance = 1/√4096 = .016 |
+| late layers add more shortcut | pool-identity decoding by depth | .88–.96 at ALL depths, duplex AND backbone |
+| representation rewritten late | CKA vs backbone, standardized | .82→.78 flat (raw CKA .80→.47 is an artifact) |
+| massive-activation coords | project out top-k such axes | .35–.40, no rescue (random ctrl .37) |
+| query-type directions | project out pool-mean dirs | .34–.45, no rescue |
+
+⚠️ **The raw-CKA collapse is a massive-activation artifact.** Residual streams
+here carry coords of |h|~250 vs ~1 typical; they dominate the Gram matrix and
+drive CKA to exactly 1.0 at some layers. Per-feature standardization removes
+the effect. Any future CKA in this project must standardize.
+
+### What does separate duplex from backbone (paper Fig `fig:mech`)
+
+Non-destructive: split the trained probe's held-out score into the part in the
+layer's top-5 PCs (estimated on TRAINING rows only) and the residual,
+s = wᵀPx + wᵀ(I−P)x.
+
+| model | residual-component LOPO math, mid → final | score var in dominant subspace, final |
+|---|---|---|
+| **MiniCPM-o 4.5 (duplex)** | **0.93 → 0.27** | **0.39** (≤0.18 at all earlier depths) |
+| Qwen3-8B (its backbone) | 0.92 → 0.86 | 0.05 |
+| **MiniCPM-o 2.6 (duplex)** | **0.81 → 0.52** | 0.16 |
+| Qwen2.5-7B (raw) | 0.73 → 0.71 | 0.14 |
+
+**Both duplex models lose the distributed read at the output; neither backbone
+does** — that replicates. The *concentration* (var share .39) is o4.5-only; o2.6
+matches its own backbone, so it is reported as a property of the stronger duplex
+model, not a law.
+
+### Explicitly NOT claimed
+
+Removing the top-5 PCs at the final layer lifts LOPO math .378 → .758 — but the
+same op costs the backbone .90 → .14 and the intact L22 read .931 → .760. It is a
+damaging intervention that happens to help a broken readout, **not** evidence of
+a duplex-added subspace. Paper states the finding only as: duplex tuning does not
+erase the competence signal, it stops delivering it in distributed form to the
+final last-token position. Attribution to a specific duplex objective needs
+training-time access we don't have; the practical conclusion (read mid-network)
+is unaffected.
+
+Not run (need GPU / new captures): logit-lens over control tokens, listen/speak
+prompt-intervention causal test (GPT's exps 3 and 6) — the two that could
+actually confirm turn-control. Listed as future work.
+
+Paper: signal.tex §4.2 mechanism paragraph rewritten (removed the unsupported
+"consistent with late-layer specialization for duplex turn control" assertion),
+new appendix `app:mech` + `tab:mech` + `fig:mech` (figures/lastlayer_mech.py).
+
+### 8at — the FULL loop in the concurrent regime: 7-pool sweep + in-regime gate (~$60, 2026-08-27)
+
+The user's directive: make it full-duplex. Everything the paper's main table
+reports for the turn-based loop, re-run end-to-end in the concurrent
+interleaved regime (carrier speaking, target audio prefilled into the same
+KV stream, EOT read mid-generation, then stall->expert->relay or local
+answer). Gate = the 8as in-regime refit probe (gate_conc_frozen.json);
+per-pool label-free quantile thresholds from each pool's own never arm
+(scripts/13). 36 arms total: 7 pools x {never, 15, 30, 50, always} + internal
+conservative + a TTS-on latency arm. Judged with the standard pipeline
+(::report / oab_rejudge_live / valpaca_report, suffix _conclive).
+
+**Heard accuracy (our judge), concurrent regime:**
+| pool | never | @15 | @30 | @50 | always |
+|---|---|---|---|---|---|
+| frozen (240) | .404 | .400* | .521 | .662 | .617 |
+| sllama | .780 | .796 | .808 | .864 | .856 |
+| striviaqa | .492 | .520 | .620 | .692 | .880 |
+| swebq | .468 | .532 | .560 | .608 | .696 |
+| sdqa | .495 | .555 | .605 | .705 | .895 |
+| sreason | .406 | .485 | .584 | .644 | .807 |
+| valpaca (VB 1-5) | 4.36 | 4.45 | 4.53 | 4.60 | 4.76 |
+*frozen conservative realized only 3% (top-quantile calib->test transfer
+missed in-regime; balanced 36%/aggressive 66% fine). External realized rates
+.10-.51 track nominal.
+
+**Headlines:** every pool monotone in budget; **selective > always-escalate
+on BOTH frozen (.662 vs .617) and sllama (.864 vs .856)** — the paper's
+signature result reproduces in the concurrent regime; latency profile holds
+(EOT read 23ms, stall onset 27-34ms, local first-audio p50 .655s vs .552
+turn-based — ~+100-200ms context cost); OAB arbitration: swebq floor shift
+shrinks to +4.8pp under the official judge (near the +-2-3 floor; the
+our-judge +9.6 is alias/style sensitivity), striviaqa floor -16pp and
+sreason -18pp are real per-pool regime costs (EN carrier x zh query worst).
+valpaca flips from honest-negative to rising curve (4.36->4.60) — carrier
+context helps open-ended IF; random reference TBD before claiming gain.
+
+Artifacts: {pool}_conclive_traces.jsonl.{tier}.shard* + judged parquets +
+{pool}_conclive_live.json on gate-data; frozen_conclivetts_* (latency arm);
+data/conc_thresholds.json; gate_conc_frozen.json (in-regime probe artifact).
+TODO Friday: in-regime probe AUC per pool (never scores x labels), speakable
+subset + CIs + gold-inject views, random references, the concurrent table
+(ADD, not replace), Nemotron scope sentence, page balance.
