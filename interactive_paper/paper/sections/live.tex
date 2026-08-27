@@ -39,7 +39,11 @@ spoken formulas are destroyed by any TTS render before the system
 hears them). Heard accuracy climbs monotonically,
 $\mathbf{42.2\% \to 52.8\% \to 59.2\% \to 63.3\%}$ at 0/14/31/57\% escalation,
 every tier's gain significant (paired bootstrap;
-Figure~\ref{fig:dualview}). The remaining gap to the
+Figure~\ref{fig:dualview}). A measured always-escalate arm closes the
+curve at 66.5\% (P50 4.2\,s): the last 43 points of escalation buy
+3.2 points, because past the gated tiers the binding constraint is the
+transcription-uplink channel, not selection --- the same sessions
+re-scored with gold-text expert answers reach 92.2\%. The remaining gap to the
 channel-controlled counterfactual (escalated rows re-scored with
 gold-text expert answers) is dominated by \emph{transcription-uplink}
 errors, not gate failure: the channel costs +2.3/+6.9/+12.8 points across

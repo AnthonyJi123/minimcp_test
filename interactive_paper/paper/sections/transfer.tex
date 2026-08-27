@@ -38,7 +38,8 @@ with measured \textsc{gpt-5.5} outcomes, official judges
 its avg spans four benchmarks and $\Delta$ is over its own local
 floor. $\Delta$ = average gain over
 always-local (points). AlpacaEval (VoiceBench 1--5, scale-incompatible) is
-reported in the text: 3.99$\to$4.35, no gain over random on MiniCPM;
+reported in the text: 3.99$\to$4.35 gated, 4.76 measured
+always-escalate, no gain over random on MiniCPM;
 the second family does gain (3.55$\to$4.46 vs.\ random 4.23).}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
@@ -50,7 +51,8 @@ always-local          & 66.4 & 57.2 & 84.0 & 51.5 & 58.9 & 63.6 & --- \\
 \;+ gate @15\%        & 73.2 & 62.8 & 90.4 & 60.0 & 65.3 & 70.3 & +6.7 \\
 \;+ gate @30\%        & 80.0 & 68.0 & 90.4 & 72.0 & 71.3 & 76.3 & +12.7 \\
 \;\textbf{+ gate @50\%} & \textbf{86.0} & \textbf{73.2} & \textbf{94.8} & \textbf{79.5} & \textbf{77.2} & \textbf{82.1} & \textbf{+18.5} \\
-always-expert (ceiling) & 96.8 & 86.4 & 92.8 & 93.0 & 87.1 & 91.2 & +27.6 \\
+always-escalate (measured) & 88.0 & 80.8 & 93.6 & 88.5 & 83.7 & 86.9 & +23.3 \\
+always-expert (gold-text ceiling) & 96.8 & 86.4 & 92.8 & 93.0 & 87.1 & 91.2 & +27.6 \\
 \midrule
 \multicolumn{8}{l}{\emph{gold-inject view, 30\% budget}} \\
 random reference      & 75.5 & 65.7 & 86.4 & 63.9 & 67.4 & 71.8 & +8.2 \\
@@ -85,8 +87,8 @@ from AUC 0.621 to 0.683, the largest per-pool gain. On Llama Questions
 escalation matches the expert at half the expert calls}: the probe's
 split is decisive (kept-local 97.6\% vs.\ escalated 69.6\%, $z{=}6.46$),
 the expert's whole advantage lands where the probe sends it
-(69.6\%$\to$88.8\%, $p{<}.0001$), and always-escalate buys nothing
-measurable over selective; matched-rate precision reaches 95\% of the
+(69.6\%$\to$88.8\%, $p{<}.0001$), and a measured live always-escalate
+arm lands \emph{below} selective (93.6 vs.\ 94.8 at half the calls); matched-rate precision reaches 95\% of the
 base-rate cap (Appendix~\ref{app:transferdetail}).
 
 Two honest negatives. \textbf{AlpacaEval}: the gate does not beat

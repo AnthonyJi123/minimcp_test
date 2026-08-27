@@ -22,7 +22,7 @@ import pandas as pd
 
 BLUE, GREEN = "#2a78d6", "#1baf7a"
 INK, MUT, GRID = "#0b0b0b", "#52514e", "#e6e4de"
-ARMS = ("never", "conservative", "balanced", "aggressive")
+ARMS = ("never", "conservative", "balanced", "aggressive", "always")
 DATA = "../data"
 
 BENCHES = {

@@ -22,7 +22,7 @@ import pandas as pd
 
 BLUE, GREEN = "#2a78d6", "#1baf7a"
 INK, MUT, GRID = "#0b0b0b", "#52514e", "#e6e4de"
-ARMS = ("never", "conservative", "balanced", "aggressive")
+ARMS = ("never", "conservative", "balanced", "aggressive", "always")
 DATA = "../data"
 
 VER = "_v3"     # "" = original v1 sweep (gated_traces_v2), "_v2" = probe v2
@@ -113,8 +113,8 @@ ax.plot(rand_lat, rand_acc, ls="--", lw=1.0, color=MUT, alpha=.8,
         zorder=2, label="random escalation (simulated P50 latency)")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.0, alpha=.55, zorder=1)
 ax.text(lat50[0] + .05, ceil - .012,
-        f"always-escalate ceiling {ceil:.3f} (synthesized — no live "
-        "latency)", fontsize=7.5, color=MUT, va="top")
+        f"gold-text expert ceiling {ceil:.3f}", fontsize=7.5, color=MUT,
+        va="top")
 ax.errorbar(lat50, gm, yerr=[gm - ciB[0], ciB[1] - gm], fmt="--s", ms=5.5,
             color=GREEN, capsize=3, lw=1.4, alpha=.9, zorder=3,
             label="gold-inject — counterfactual: expert answers the gold text")

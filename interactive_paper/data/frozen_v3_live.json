@@ -27,6 +27,13 @@
    "heard": 0.38333333333333336,
    "heard_escalated": null,
    "heard_local": 0.38333333333333336
+  },
+  "always": {
+   "n": 240,
+   "esc": 1.0,
+   "heard": 0.6166666666666667,
+   "heard_escalated": 0.6166666666666667,
+   "heard_local": null
   }
  },
  "eot_p25_50_75": [

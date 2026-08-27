@@ -318,7 +318,8 @@ if __name__ == "__main__":
 # ---------------------------------------------------- fair dualview (Fig 3)
 def fig_fair_dualview():
     d = json.load(open("figures/fair_figures.json"))
-    arms = ["never", "conservative", "balanced", "aggressive"]
+    arms = [a for a in ("never", "conservative", "balanced", "aggressive",
+                        "always") if a in d["arms"]]
     esc = np.array([d["arms"][a]["esc"] for a in arms]) * 100
     heard = np.array([d["arms"][a]["heard"] for a in arms]) * 100
     h_ci = np.array([d["arms"][a]["heard_ci"] for a in arms]) * 100
@@ -342,8 +343,10 @@ def fig_fair_dualview():
                 textcoords="offset points", xytext=(-8, 4), ha="right",
                 fontsize=12, color=MUT)
     for a, x, y in zip(arms, esc, heard):
+        dx, dy = (-12, -22) if a == "always" else (8, -16)
         ax.annotate(a, (x, y), textcoords="offset points",
-                    xytext=(8, -16), fontsize=12, color=C1)
+                    xytext=(dx, dy), fontsize=12, color=C1,
+                    ha="right" if a == "always" else "left")
     ax.set_xlim(-3, 104)
     ax.set_xlabel("realized escalation rate (%)")
     ax.set_ylabel(f"accuracy, speakable subset (%)  [n={d['n']}]")
