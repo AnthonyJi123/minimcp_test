@@ -1,0 +1,250 @@
+{
+  "tau": 0.628,
+  "tau_source": "internal frozen pool, balanced tier (threshold_old), as deployed",
+  "internal_rate_at_tau": 0.35,
+  "seed": 42,
+  "bootstrap": 10000,
+  "view": "gold-inject (expert answers the gold text)",
+  "pools": [
+    {
+      "pool": "Speech TriviaQA",
+      "n": 250,
+      "fixed_tau": {
+        "rate": 0.284,
+        "acc": 0.832,
+        "random_acc_matched": 0.750336,
+        "oracle_acc_matched": 0.948,
+        "delta_vs_random_ci": [
+          0.04393479999999998,
+          0.1205772000000001
+        ],
+        "beats_random": true
+      },
+      "floor_local": 0.664,
+      "ceiling_expert": 0.968,
+      "benefit_base_rate": 0.308,
+      "auc_vs_local_fail": 0.7956827309236948,
+      "auc_vs_expert_benefit": 0.781773140154643,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.76,
+          "random": 0.7096,
+          "oracle": 0.8160000000000001
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.836,
+          "random": 0.7552,
+          "oracle": 0.964
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.912,
+          "random": 0.8160000000000001,
+          "oracle": 0.972
+        }
+      ]
+    },
+    {
+      "pool": "Speech Web Questions",
+      "n": 250,
+      "fixed_tau": {
+        "rate": 0.36,
+        "acc": 0.72,
+        "random_acc_matched": 0.6745599999999999,
+        "oracle_acc_matched": 0.8919999999999999,
+        "delta_vs_random_ci": [
+          0.007676000000000026,
+          0.08400000000000007
+        ],
+        "beats_random": true
+      },
+      "floor_local": 0.568,
+      "ceiling_expert": 0.864,
+      "benefit_base_rate": 0.324,
+      "auc_vs_local_fail": 0.7729199269692227,
+      "auc_vs_expert_benefit": 0.6893125867484842,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.64,
+          "random": 0.6123999999999999,
+          "oracle": 0.72
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.7,
+          "random": 0.6567999999999999,
+          "oracle": 0.8679999999999999
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.764,
+          "random": 0.716,
+          "oracle": 0.8919999999999999
+        }
+      ]
+    },
+    {
+      "pool": "Llama Questions",
+      "n": 250,
+      "fixed_tau": {
+        "rate": 0.08,
+        "acc": 0.868,
+        "random_acc_matched": 0.84336,
+        "oracle_acc_matched": 0.9159999999999999,
+        "delta_vs_random_ci": [
+          0.005599999999999938,
+          0.045924000000000006
+        ],
+        "beats_random": true
+      },
+      "floor_local": 0.836,
+      "ceiling_expert": 0.928,
+      "benefit_base_rate": 0.112,
+      "auc_vs_local_fail": 0.8302018905356517,
+      "auc_vs_expert_benefit": 0.8127413127413127,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.888,
+          "random": 0.8497999999999999,
+          "oracle": 0.948
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.912,
+          "random": 0.8635999999999999,
+          "oracle": 0.948
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.932,
+          "random": 0.882,
+          "oracle": 0.948
+        }
+      ]
+    },
+    {
+      "pool": "SD-QA",
+      "n": 200,
+      "fixed_tau": {
+        "rate": 0.48,
+        "acc": 0.805,
+        "random_acc_matched": 0.7142000000000001,
+        "oracle_acc_matched": 0.95,
+        "delta_vs_random_ci": [
+          0.04459999999999997,
+          0.13640000000000008
+        ],
+        "beats_random": true
+      },
+      "floor_local": 0.515,
+      "ceiling_expert": 0.93,
+      "benefit_base_rate": 0.435,
+      "auc_vs_local_fail": 0.8002201981783605,
+      "auc_vs_expert_benefit": 0.7648255518258569,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.635,
+          "random": 0.57725,
+          "oracle": 0.665
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.745,
+          "random": 0.6395,
+          "oracle": 0.815
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.82,
+          "random": 0.7225,
+          "oracle": 0.95
+        }
+      ]
+    },
+    {
+      "pool": "Reasoning QA (zh)",
+      "n": 202,
+      "fixed_tau": {
+        "rate": 0.019801980198019802,
+        "acc": 0.6089108910891089,
+        "random_acc_matched": 0.5946965983727086,
+        "oracle_acc_matched": 0.6089108910891089,
+        "delta_vs_random_ci": [
+          -0.0013233996666993653,
+          0.034506420939123705
+        ],
+        "beats_random": false
+      },
+      "floor_local": 0.5891089108910891,
+      "ceiling_expert": 0.8712871287128713,
+      "benefit_base_rate": 0.30198019801980197,
+      "auc_vs_local_fail": 0.6786473625594815,
+      "auc_vs_expert_benefit": 0.6340541797465411,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.6782178217821783,
+          "random": 0.6314356435643564,
+          "oracle": 0.7376237623762376
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.7277227722772277,
+          "random": 0.6737623762376237,
+          "oracle": 0.891089108910891
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.7673267326732673,
+          "random": 0.7301980198019802,
+          "oracle": 0.891089108910891
+        }
+      ]
+    },
+    {
+      "pool": "internal frozen test",
+      "n": 240,
+      "fixed_tau": {
+        "rate": 0.35,
+        "acc": 0.6541666666666667,
+        "random_acc_matched": 0.5700000000000001,
+        "oracle_acc_matched": 0.7333333333333334,
+        "delta_vs_random_ci": [
+          0.038124999999999964,
+          0.13104166666666672
+        ],
+        "beats_random": true
+      },
+      "floor_local": 0.38333333333333336,
+      "ceiling_expert": 0.9166666666666666,
+      "benefit_base_rate": 0.5333333333333333,
+      "auc_vs_local_fail": 0.8396004700352527,
+      "auc_vs_expert_benefit": 0.7315150669642858,
+      "frontier": [
+        {
+          "budget": 0.15,
+          "gate": 0.49166666666666664,
+          "random": 0.4633333333333334,
+          "oracle": 0.5333333333333333
+        },
+        {
+          "budget": 0.3,
+          "gate": 0.6083333333333333,
+          "random": 0.5433333333333332,
+          "oracle": 0.6833333333333333
+        },
+        {
+          "budget": 0.5,
+          "gate": 0.7416666666666667,
+          "random": 0.65,
+          "oracle": 0.8833333333333333
+        }
+      ]
+    }
+  ]
+}

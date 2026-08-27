@@ -15,7 +15,10 @@ speech) \citep{faisal2021sdqa}, and VoiceBench AlpacaEval
 benchmarks' official pre-rendered audio; no query ever touches probe
 calibration. The only per-pool adaptation is \emph{label-free}: tier
 thresholds are quantiles of the probe's own score distribution on each
-pool, consuming no labels and no judge calls. Where an official
+pool, consuming no labels and no judge calls. It buys budget control,
+not discrimination: one absolute threshold frozen on the internal pool
+still beats matched-rate random on four of five pools, but fires at
+2--48\% across them (Appendix~\ref{app:fixedthr}). Where an official
 protocol exists we score with it (the OpenAudioBench judge;
 VoiceBench's 1--5 judge), and our chat-mode control reproduces the
 official anchors on-scale.
@@ -50,8 +53,8 @@ AlpacaEval (1--5)    & VB   & 199 & 3.99 & 3.96 & 4.23 & 4.35 & 4.96 & --- & 4.8
 rises monotonically, and 50\% escalation lifts the live floor by +.11
 to +.29. On Speech TriviaQA the 9B system reaches \textbf{.860 live}
 --- against its own official offline .755 and .629 for Qwen3-Omni-30B
-\citep{qwen3omni2025} at $3.3\times$ the parameters: routing beats
-scaling the speech backbone. Transfer AUC holds a .68--.81 band on
+\citep{qwen3omni2025} at $3.3\times$ the parameters: selective cloud
+escalation outperforms larger standalone backbones. Transfer AUC holds a .68--.81 band on
 every pool against .879 internally, and the cleanest evidence that the
 signal is difficulty rather than surface is cross-lingual: an
 English-only calibration expansion moved \emph{Chinese} Reasoning QA
@@ -66,15 +69,14 @@ base-rate cap (Appendix~\ref{app:transferdetail}).
 
 Two honest negatives. \textbf{AlpacaEval}: the gate does not beat
 random --- open-ended instruction following has no ``missing fact''
-event for a retrieval-failure detector to read; escalated rows still
-gain, but random picks would harvest the same gain.
+event for a retrieval-failure detector to read.
 \textbf{Web Questions and SD-QA are flat} under the deployed-probe
 refit: on Web Questions strict alias-based labels decouple ``wrong''
-from ``uncertain'' (even the gold-text ceiling is .844). The external
+from ``uncertain'' (even the gold-text ceiling is .844), and the
+failures the gate ranks highest are ones the expert misses too
+(expert-fixable share .66 at the 15\% cut vs.\ .75 pool-wide). The external
 channel cost is small (heard-vs-gold gap .035--.056 at aggressive vs.\
 .175 internally), and SD-QA's escalated subset converts at .82--.84 on
-real dialectal speech. As a side effect of routing, selective
-escalation can also \emph{reduce} median and tail latency by replacing
-the slowest wrong local decodes with short expert round-trips
-(Reasoning QA P90 13.3$\to$10.9\,s); Appendix~\ref{app:transferdetail}
-analyzes the latency shapes.
+real dialectal speech. Routing can also \emph{reduce} tail latency,
+replacing slow wrong local decodes with short expert round-trips
+(Reasoning QA P90 13.3$\to$10.9\,s; Appendix~\ref{app:transferdetail}).

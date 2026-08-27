@@ -21,16 +21,21 @@ fine-tunes, and evaluate every standard zero-shot competence readout ---
 decode-time entropy, verbalized self-assessment ($\ptrue$), and linear
 probes on hidden states --- with judged failure labels on a frozen pool
 of public-benchmark queries, in matched text and speech conditions.
+Throughout, \emph{duplex} names the training regime, not the
+interaction protocol: we study duplex-trained weights driven through a
+\emph{turn-based} loop whose only decision point is an end-of-turn read
+(\S\ref{sec:live}); the native listen/speak head is never engaged, and
+validating the probe inside it is future work.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{teaser}
-  \caption{\textbf{Left}: standard competence readouts break on duplex
-  models. \textbf{Middle}: a mid-network (L22) linear read decides in
+  \includegraphics[width=\linewidth]{teaser_tikz}
+  \caption{\textbf{Left}: late-layer competence readouts turn brittle
+  after duplex fine-tuning. \textbf{Middle}: a mid-network (L22) linear read decides in
   $\sim$30\,ms --- before the first output token --- so the expert call
   is already in flight while local decoding would just be starting.
   \textbf{Right}: the live system hands off mid-conversation and the
-  \emph{same talker speaks} the expert's answer, improving real duplex
+  \emph{same talker speaks} the expert's answer, improving live spoken
   sessions (.422$\to$.633) and, frozen, public speech benchmarks
   (Speech TriviaQA .664$\to$.860).}
   \label{fig:hero}
@@ -42,8 +47,8 @@ calibrated once on text. Three findings, in increasing order of
 system-level consequence:
 
 \begin{enumerate}
-\item \textbf{Representation: duplex fine-tuning breaks the standard
-  readouts; a mid-network signal survives.} The conventional
+\item \textbf{Representation: duplex fine-tuning makes the late-layer
+  readouts brittle; a mid-network signal survives.} The conventional
   final-layer probe looks strong in distribution (AUC .82) but is
   mostly a query-type shortcut: under leave-one-pool-out transfer it
   \emph{inverts} on held-out math (.93$\to$.37). The damage is specific

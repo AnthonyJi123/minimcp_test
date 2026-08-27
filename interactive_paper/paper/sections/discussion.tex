@@ -3,23 +3,22 @@
 
 \paragraph{What the signal detects.}
 The pre-answer probe is specifically a \emph{retrieval-failure}
-detector: it is strongest on missing-knowledge and long-tail-trap
-failures, where the empty lookup is an observable event in the model's
-state. Execution failures (getting stuck mid-derivation) surface in
+detector, strongest on missing-knowledge and long-tail-trap failures
+where the empty lookup is an observable event in the model's state.
+Execution failures (getting stuck mid-derivation) surface in
 \emph{decode-time} signals instead, and metacognitive failures ---
 questions with false premises, where no failure event occurs in the
 model's experience --- are invisible to every signal we tested,
 query-surface routers included (fire rate .18 vs.\ trap's .90;
-Appendix~\ref{app:livedetail}). This is the honest scope statement for
-pre-answer gating, and it motivates adding a decode-time check behind
-the pre-answer gate.
+Appendix~\ref{app:livedetail}). This scope motivates a
+decode-time check behind the pre-answer gate.
 
 \paragraph{Limitations.}
 (i) One phrasing per $\ptrue$ variant. (ii) Real-speech validation
 covers scripted read speech in one dialect. (iii) Formula-symbolic
-content is out of scope for the audio arm (destroyed by any TTS render
---- an input-side limit distinct from the transcription-uplink loss).
-(iv) The second-family replication covers mid-band readability and
+content is out of scope for the audio arm --- destroyed by any TTS
+render, an input-side limit distinct from the transcription-uplink
+loss. (iv) The second-family replication covers mid-band readability and
 frozen-recipe transfer, not the full matched-pair attribution or the
 live loop. (v) Labels come from one judge family, bounded by a stronger re-judge
 (deltas $\le$.010), without human labels. (vi) The live sweep is one
@@ -30,8 +29,8 @@ under the true duplex loop is an open experiment.
 \section{Conclusion}
 \label{sec:conclusion}
 
-Duplex speech models carry a competence signal their standard readouts
-miss: a mid-network linear read that survives the readout damage,
+Duplex-trained speech models carry a competence signal their standard
+readouts miss: a mid-network linear read that survives the readout damage,
 transfers from text calibration to speech, and lands tens of
 milliseconds before the first output token. Deployed live, it turns a
 9B talker into a system that knows when to hand off; frozen, it lifts

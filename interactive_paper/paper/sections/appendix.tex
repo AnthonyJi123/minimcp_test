@@ -336,7 +336,10 @@ aggressive    & 6.6 & 4.4 & 18.5 & 33.0 & +2.0 & +2.4 & +2.7 & +15.2 \\
   \includegraphics[width=\linewidth]{timeline_live}
   \caption{Three real sessions from recorded timers: expert beats the
   stall phrase (seamless); expert outlives it (dead air, the P99
-  signature); gate stays closed (first token 0.4\,s).}
+  signature); gate stays closed (local answer fully decoded 0.4\,s
+  after end of turn). Speech occupancy is estimated at 150\,wpm
+  (hatched); the measured arms are text-out, so no vocoder onset is
+  plotted.}
   \label{fig:timeline-live}
 \end{figure}
 
@@ -397,6 +400,111 @@ floor on backchannels (``ok'', ``mm-hm''; an English+Chinese lexicon)
 or commits the interrupt, aborting generation at chunk granularity and
 seeding the next turn. All measured arms keep the tool-free expert and
 turn-based loop; the demo will be made available upon publication.
+
+\section{Fixed-threshold transfer and the expert-benefit oracle}
+\label{app:fixedthr}
+
+Both analyses below run in the \emph{gold-inject} view (escalated rows
+take the expert's answer to the gold text). The deployed heard view
+cannot evaluate a freely moving threshold: the most permissive arm
+escalates 50\%, so the other half of each pool has no expert outcome on
+record, whereas the ceiling runs cover every id. Labels follow each
+pool's own judge (Table~\ref{tab:transfer}); the two judges disagree by
+up to 13 points on Web Questions, so they are never mixed within a row.
+AlpacaEval is excluded --- it has no binary correctness label on either
+side, only a 1--5 score whose expert ceiling is degenerate (195/199 at
+5).
+
+\paragraph{One absolute threshold, six pools.}
+The deployed gate adapts per pool, but only through label-free
+quantiles of its own score distribution. To separate what the probe's
+\emph{ranking} carries from what its \emph{scale} carries, we freeze
+the single absolute threshold the internal system actually deployed
+($\tau{=}.628$, the balanced tier) and apply that number verbatim
+everywhere. \textbf{Scale does not transfer}: the same $\tau$ realizes
+escalation rates from 2.0\% (Reasoning QA) to 48.0\% (SD-QA), a
+24-fold spread, so a fixed cut cannot hold an escalation budget across
+pools. \textbf{Ranking does}: at whatever rate it fires, fixed-$\tau$
+escalation beats a random reference at the same realized rate on four
+of five external pools, paired-bootstrap interval excluding zero
+(Table~\ref{tab:fixedthr}). The exception is Reasoning QA, where
+$\tau$ fires on 2\% of queries and there is almost nothing to measure.
+This is the concrete case for the label-free quantile step: it buys
+budget control, not discrimination.
+
+\paragraph{Does the gate find failures the expert can fix?}
+The probe is fit and read against \emph{local failure}, but what a
+routing system needs is \emph{expert benefit}: $y{=}1$ when the local
+model is wrong \emph{and} the expert is right. Re-scoring the same
+frozen scores against this harder label costs little on the retrieval
+pools (Speech TriviaQA .796$\to$.782, Llama Questions .830$\to$.813)
+and more where the expert is itself weak (Web Questions
+.773$\to$.689 against a .864 expert ceiling; internal .840$\to$.732).
+The gate thus remains a usable benefit predictor out of distribution
+(.63--.81) despite never having seen an expert outcome, and the drop
+is largest exactly where the paper already reports a flat live curve.
+On Web Questions the mechanism is direct: 75.0\% of local failures are
+expert-fixable pool-wide, but only 65.5\% of the failures inside the
+gate's top-scoring 15\% are, and that share climbs monotonically as
+the cut widens (.655/.685/.711 at 15/30/50\%) --- the gate's most
+confident failure calls are the ones the expert also misses.
+Table~\ref{tab:oracle} places the
+deployed gate against the matched-budget oracle that escalates true
+benefit cases first: the gate clears random at every pool and budget,
+capturing a fifth to three fifths of the random-to-oracle span, and
+the residual gap is the headroom a decode-time or expert-aware second
+stage would have to claim.
+
+\begin{table}[h]
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{One absolute threshold ($\tau{=}.628$, frozen on the internal
+pool) applied verbatim to every pool; gold-inject view. $\Delta$ is
+fixed-$\tau$ accuracy minus a random reference at the \emph{same
+realized rate} (paired bootstrap over ids, $B{=}10^4$, seed 42). AUC
+columns re-score the same frozen scores against local failure and
+against expert benefit ($y{=}$ local wrong $\wedge$ expert right, base
+rate in the last column).}
+\label{tab:fixedthr}
+\begin{tabular}{lrrrrrcrrr}
+\toprule
+pool & $n$ & rate & local & acc & rand & $\Delta$ 95\% CI & AUC$_{\text{fail}}$ & AUC$_{\text{benefit}}$ & base \\
+\midrule
+Speech TriviaQA & 250 & .284 & .664 & .832 & .750 & $[+.044,+.121]$ & .796 & .782 & .308 \\
+Speech Web Questions & 250 & .360 & .568 & .720 & .675 & $[+.008,+.084]$ & .773 & .689 & .324 \\
+Llama Questions & 250 & .080 & .836 & .868 & .843 & $[+.006,+.046]$ & .830 & .813 & .112 \\
+SD-QA & 200 & .480 & .515 & .805 & .714 & $[+.045,+.136]$ & .800 & .765 & .435 \\
+Reasoning QA (zh) & 202 & .020 & .589 & .609 & .595 & $[-.001,+.035]$ & .679 & .634 & .302 \\
+\midrule
+internal frozen test & 240 & .350 & .383 & .654 & .570 & $[+.038,+.131]$ & .840 & .732 & .533 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\caption{Oracle frontier at matched escalation budgets (gold-inject
+view): random reference / deployed quantile gate / benefit oracle,
+which escalates the true $y{=}1$ cases first. The gate clears random
+everywhere; the oracle column is the remaining headroom.}
+\label{tab:oracle}
+\begin{tabular}{lccccccccc}
+\toprule
+& \multicolumn{3}{c}{15\% budget} & \multicolumn{3}{c}{30\% budget} & \multicolumn{3}{c}{50\% budget} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+pool & rand & gate & oracle & rand & gate & oracle & rand & gate & oracle \\
+\midrule
+Speech TriviaQA & .710 & .760 & .816 & .755 & .836 & .964 & .816 & .912 & .972 \\
+Speech Web Questions & .612 & .640 & .720 & .657 & .700 & .868 & .716 & .764 & .892 \\
+Llama Questions & .850 & .888 & .948 & .864 & .912 & .948 & .882 & .932 & .948 \\
+SD-QA & .577 & .635 & .665 & .639 & .745 & .815 & .723 & .820 & .950 \\
+Reasoning QA (zh) & .631 & .678 & .738 & .674 & .728 & .891 & .730 & .767 & .891 \\
+\midrule
+internal frozen test & .463 & .492 & .533 & .543 & .608 & .683 & .650 & .742 & .883 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Transfer latency shapes}
 \label{app:transferdetail}

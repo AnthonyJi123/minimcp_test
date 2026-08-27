@@ -3,20 +3,21 @@ Full-duplex speech models answer in real time with a small on-device
 backbone, yet many queries exceed its competence. We ask whether the
 model's own hidden state signals, \emph{before the first output token},
 that a query is beyond it --- reliably enough to hand off to a large
-cloud model without breaking the live session. Standard competence
-readouts fail on duplex models: final-layer probes collapse under
+cloud model without breaking the live session. Late-layer competence
+readouts turn brittle after duplex fine-tuning: final-layer probes collapse under
 distribution shift on text input (leave-one-pool-out math AUC
 .93$\to$.37), consistent with late-layer specialization for duplex turn
 control, while verbalized self-assessment collapses on audio input. A
 mid-network linear probe survives both: leave-one-pool-out math .93,
 text-calibrated speech deployment .86, and an end-of-turn read in the
 streaming loop that reaches AUC .887 in $\sim$30\,ms --- before decoding
-starts. Run live end-to-end, the gated duplex system climbs from .422
+starts. Run live end-to-end in a turn-based loop, the gated system
+climbs from .422
 to .633 heard accuracy at 57\% escalation, with the remaining gap
 dominated by the transcription uplink rather than the gate. The gate
 then transfers \emph{frozen} to six public speech benchmarks using only
 label-free threshold quantiles, lifting Speech TriviaQA to .860 live
 against the model's official offline .755. A competence signal
 sufficient for real-time escalation is already present mid-network in
-duplex speech models; the standard readouts simply miss it.
+duplex-trained speech models; the standard readouts simply miss it.
 \end{abstract}

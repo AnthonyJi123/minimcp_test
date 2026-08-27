@@ -6,7 +6,7 @@ recorded timer from the live loop, not a median reconstruction).
       voicing the stall phrase -> seamless handoff, zero dead air
   (b) q0593  escalated (trap), expert takes 10.3 s -> the stall ends first,
       5.9 s of dead air before the relayed answer
-  (c) q0388  gate stays closed -> local answer, first token at 0.4 s
+  (c) q0388  gate stays closed -> local answer, fully decoded at 0.4 s
 
 Measured: chunked prefill cadence, eot read, gate fire, stall prefill,
 expert round-trip, relay prefill+decode, local answer decode. Estimated
@@ -125,8 +125,8 @@ note(ax, t_dec, YT - H * 0.78, f"answer decoded in {r['answer_ms']:.0f} ms",
      1.6, YT - 1.05)
 n_w = len(str(r["answer"]).split())
 speech(ax, t_dec, t_dec + n_w / WPS, BLUE, "local answer  (est. speech)")
-ax.set_title("(c)  q0388 · easy-fact · not escalated — local answer, "
-             "first token at 0.4 s", fontsize=9, loc="left")
+ax.set_title("(c)  q0388 · easy-fact · not escalated — local answer "
+             "fully decoded at 0.4 s", fontsize=9, loc="left")
 ax.set_xlabel("time relative to end of user query (s)", fontsize=8)
 
 for ax in axes:

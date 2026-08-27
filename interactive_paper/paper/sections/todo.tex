@@ -33,7 +33,49 @@
   causal claims softened (``consistent with''); no version numbers /
   artifact filenames in main text; everything cut lives in the
   appendix (A--L) or git history}
-\item \todonote{P2 --- incorporate peer + meeting feedback}
+\item \todonote{P2 --- peer + meeting feedback (GPT reviewer pass
+  2026-08-26, borderline 4/7). (a) and (b) DONE 2026-08-26; (c)
+  dropped as not computable; (d) unchanged.
+  (a) DONE --- three claims narrowed: ``routing beats scaling the
+  speech backbone'' $\to$ ``selective cloud escalation outperforms
+  larger standalone backbones''; ``standard readouts fail'' $\to$
+  ``late-layer readouts turn brittle after duplex fine-tuning''
+  (abstract, intro contribution 1, hero + teaser panel-1 titles); and
+  the EOT loop is no longer equated with native full-duplex --- intro
+  now carries an explicit scope sentence (``\emph{duplex} names the
+  training regime, not the interaction protocol''), live.tex states
+  the turn-based protocol up front and is retitled ``Live End-of-Turn
+  Escalation'', and ``duplex session/system'' $\to$ ``spoken
+  session''/``live system'' throughout.
+  (b) DONE --- new appendix section (app:fixedthr) + two tables:
+  one absolute threshold ($\tau{=}.628$, frozen internally) applied
+  verbatim to all pools fires at 2--48\% yet still beats matched-rate
+  random on 4/5 (ranking transfers, scale does not); expert-benefit
+  oracle (y = local-wrong AND expert-right) with AUC re-scored per
+  pool and a gate/random/oracle frontier at 15/30/50\% budgets.
+  Script: scripts/09\_fixed\_threshold\_oracle.py $\to$
+  figures/fixed\_threshold\_oracle.json. Gold-inject view (heard view
+  only observes the $\sim$50\% of ids some arm escalated); labels
+  follow each pool's own judge (oab\_ok vs adequate --- they differ by
+  13pp on Web Questions, never mix); AlpacaEval excluded, it has no
+  binary label on either side.
+  (c) DROPPED --- EOT$\to$first-audible is NOT computable from any
+  existing log. The whole live sweep ran init\_tts=False /
+  generate\_audio=False (audio-in, text-out), so no vocoder onset was
+  ever produced, let alone timestamped; every time field is a duration,
+  not a wall clock. stall\_ms is stall-token \emph{prefill} (p50 23ms),
+  not speech onset --- do not pass it off as time-to-first-audio.
+  Real first-audio instrumentation exists only in demo\_app.py
+  (\_gen\_speak), which persists nothing. Would require re-running the
+  sweep with TTS on.
+  Fixed en route: fig:timeline-live panel (c) was captioned ``first
+  token 0.4\,s'' but the plotted value is answer\_ms = \emph{full}
+  answer decode; caption + figure title corrected and the figure
+  regenerated.
+  (d) SKIP for this deadline: native-duplex validation (explicit
+  limitation + future work), human continuity study, second expert.
+  Frame the paper as what it is: pre-response competence probing in
+  duplex-trained models + turn-based live escalation.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29

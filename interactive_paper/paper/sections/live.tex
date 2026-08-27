@@ -1,10 +1,12 @@
-\section{Live Duplex Escalation}
+\section{Live End-of-Turn Escalation}
 \label{sec:live}
 \label{sec:liveloop}
 \label{sec:livecurve}
 
 \paragraph{The streaming loop.}
-Audio streams in 1\,s chunks; per-chunk probe scores are strictly
+The protocol is turn-based: audio streams in 1\,s chunks, but the
+talker speaks only after the user's turn ends and the model's native
+listen/speak head is not engaged. Per-chunk probe scores are strictly
 weaker than the offline read (best chunk statistic AUC .764) and miss
 short utterances whose critical entity lands in the final chunk. The
 fix is an \textbf{end-of-turn read}: after the last audio chunk,
@@ -30,7 +32,7 @@ Conflicting-injection and framing controls: Appendix~\ref{app:livedetail}.
 
 \paragraph{The live result.}
 We ran 240 frozen test queries $\times$ four escalation tiers, each a
-complete duplex session, scored on \emph{heard accuracy} --- what a
+complete turn-based spoken session, scored on \emph{heard accuracy} --- what a
 user would actually have heard. Headline numbers use a pre-registered
 input-side filter (21 formula-LaTeX ids + 1 broken recording removed;
 spoken formulas are destroyed by any TTS render before the system
@@ -51,9 +53,9 @@ Appendix~\ref{app:livedetail}.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=.62\linewidth]{fair_dualview}
+  \includegraphics[width=.56\linewidth]{fair_dualview}
   \caption{Live dual-view tradeoff ($n{=}218$ speakable subset). Blue:
-  honest heard accuracy of the live duplex system (paired-bootstrap
+  honest heard accuracy of the live system (paired-bootstrap
   CIs). Green: the channel-controlled counterfactual (same sessions,
   escalated rows re-scored with gold-text expert answers) with its
   paired random reference (dashed). The view-to-view gap is the
