@@ -13,10 +13,10 @@ $\ptrue$-post a full draft: 1.9/3.5\,s; per-layer cost curves in
 Appendix~\ref{app:gatedetail}).
 
 \paragraph{Accuracy--cost tradeoff.}
-On the frozen test split ($n{=}240$): small-only .588, big-only
-(\texttt{gpt-5.5}) .917. Gated escalation beats random escalation at
+On the frozen test split ($n{=}240$): small-only 58.8\%, big-only
+(\texttt{gpt-5.5}) 91.7\%. Gated escalation beats random escalation at
 every operating point (Figure~\ref{fig:tradeoff}, appendix); the
-balanced tier at a 33\% budget reaches \textbf{.779--.787}, recovering
+balanced tier at a 33\% budget reaches \textbf{77.9--78.7\%}, recovering
 $\sim$58\% of the small$\to$big gap at one third of the big-only cost.
 In distribution the gate is statistically on par with a pool-oracle
 (type-only) router --- as the type-shortcut audit predicts --- so its
@@ -27,8 +27,8 @@ collapses (\S\ref{sec:audit}) and the mid-layer signal does not.
 \label{sec:thinking}
 MiniCPM-o~4.5 ships a built-in reasoning mode --- self-escalation in
 place. Gated-cloud escalation dominates all-THINK on both accuracy and
-latency at every escalation rate (gated-cloud@.33: .787 at mean 6.5\,s
-vs.\ all-THINK .637 at 22.4\,s; Table~\ref{tab:policy}). The reason is
+latency at every escalation rate (gated-cloud@33\%: 78.7\% at mean 6.5\,s
+vs.\ all-THINK 63.7\% at 22.4\,s; Table~\ref{tab:policy}). The reason is
 mechanistic: the gate predominantly flags knowledge and trap failures,
 which extra compute cannot fix --- thinking helps math and hurts chat
 --- so external escalation is necessary, not merely better.
@@ -40,14 +40,14 @@ measured.}
 \label{tab:policy}
 \begin{tabular}{lcccc}
 \toprule
-policy & acc & lat.\ mean (s) & P50 & P95 \\
+policy & acc (\%) & lat.\ mean (s) & P50 & P95 \\
 \midrule
-fast-only & .588 & 3.0 & 3.5 & 4.2 \\
-all-THINK (built-in) & .637 & 22.4 & 17.2 & 60.1 \\
-gated-think @.33 & .613 & 12.1 & 3.6 & 47.6 \\
-gated-cloud @.15 & .688 & 5.3 & 3.6 & 10.1 \\
-\textbf{gated-cloud @.33} & \textbf{.787} & \textbf{6.5} & 3.6 & 20.8 \\
-gated-cloud @.50 & .858 & 7.0 & 3.6 & 24.4 \\
+fast-only & 58.8 & 3.0 & 3.5 & 4.2 \\
+all-THINK (built-in) & 63.7 & 22.4 & 17.2 & 60.1 \\
+gated-think @33\% & 61.3 & 12.1 & 3.6 & 47.6 \\
+gated-cloud @15\% & 68.8 & 5.3 & 3.6 & 10.1 \\
+\textbf{gated-cloud @33\%} & \textbf{78.7} & \textbf{6.5} & 3.6 & 20.8 \\
+gated-cloud @50\% & 85.8 & 7.0 & 3.6 & 24.4 \\
 \bottomrule
 \end{tabular}
 \end{table}

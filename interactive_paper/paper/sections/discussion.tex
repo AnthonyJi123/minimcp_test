@@ -9,9 +9,19 @@ Execution failures (getting stuck mid-derivation) surface in
 \emph{decode-time} signals instead, and metacognitive failures ---
 questions with false premises, where no failure event occurs in the
 model's experience --- are invisible to every signal we tested,
-query-surface routers included (fire rate .18 vs.\ trap's .90;
+query-surface routers included (fire rate 18\% vs.\ trap's 90\%;
 Appendix~\ref{app:livedetail}). This scope motivates a
 decode-time check behind the pre-answer gate.
+
+\paragraph{A serendipitous recovery behavior.}
+An accidental run surfaced one bonus behavior worth reporting: when a
+long question contains a ${>}1.25$\,s internal pause, the endpointer
+fires early and the talker starts answering the fragment --- but the
+question's own continuation then triggers barge-in, and the remainder
+becomes the next turn, where the gate simply re-scores it. Early
+end-pointing thus degrades into an extra turn rather than a lost query
+--- the honest duplex-ish recovery available to a turn-based loop
+(Appendix~\ref{app:duplexval}).
 
 \paragraph{Limitations.}
 (i) One phrasing per $\ptrue$ variant. (ii) Real-speech validation
@@ -21,8 +31,8 @@ render, an input-side limit distinct from the transcription-uplink
 loss. (iv) The second-family replication covers mid-band readability and
 frozen-recipe transfer, not the full matched-pair attribution or the
 live loop. (v) Labels come from one judge family, bounded by a stronger re-judge
-(deltas $\le$.010), without human labels. (vi) The live sweep is one
-session per query per tier ($\pm$.02--.03 replication floor); the
+(deltas $\le$1 point), without human labels. (vi) The live sweep is one
+session per query per tier ($\pm$2--3 point replication floor); the
 talker-on replay (Appendix~\ref{app:duplexval}) leaves
 concurrent-with-generation reads open.
 

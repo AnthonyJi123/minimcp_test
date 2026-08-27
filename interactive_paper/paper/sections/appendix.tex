@@ -45,17 +45,17 @@ ROC for the signals of Table~\ref{tab:signals}.
 
 \paragraph{$\ptrue$ backbone dependence.} Across backbones, post-draft
 $\ptrue$ beats the trained final-layer probe on four of five raw/duplex
-models tested; the exception (GLM4-9B-chat, .685 vs.\ probe .798) shows
+models tested; the exception (GLM4-9B-chat, 0.685 vs.\ probe 0.798) shows
 the pattern depends on the backbone's self-evaluation quality.
 
 \paragraph{Matched pairs.} Table~\ref{tab:lopo}: with label coverage
 matched by subsampling the raw control to the duplex model's per-pool
-fail rates, the raw backbone keeps LOPO math at .825/.809 while duplex
+fail rates, the raw backbone keeps LOPO math at 0.825/0.809 while duplex
 models sit at chance --- label coverage is ruled out; the
 representation changed. Degradation is ordered raw $>$ omni-streaming
 $>$ duplex. Table~\ref{tab:sweep} gives the by-depth summary behind
 Figure~\ref{fig:layersweep}: the within-pair deficit at the best
-mid-layer is only $-.03$ vs.\ $-.59$ at the final layer; mean-pooled
+mid-layer is only $-0.03$ vs.\ $-0.59$ at the final layer; mean-pooled
 probes survive to the final layer on duplex models; duplex damage is
 severe but local, omni-streaming damage mild but diffuse.
 
@@ -92,21 +92,21 @@ Qwen2.5-Omni (streaming) & 0.794 (L16/28) & 0.746 & diffuse depression \\
 \end{table}
 
 \paragraph{Modality specificity of the cliff.} Under audio input the
-final layer does \emph{not} invert (L35 audio LOPO math .936 vs.\ .366
+final layer does \emph{not} invert (L35 audio LOPO math 0.936 vs.\ 0.366
 text); a speak-mode template control on text input leaves the cliff
-unchanged (.362) --- the operative variable is the modality of the
+unchanged (0.362) --- the operative variable is the modality of the
 input context, not the output mode.
 
 \paragraph{Audio collapse of verbalized introspection.}
 Table~\ref{tab:audioptrue}. Three controlled arms pin the mechanism on
-MiniCPM-o~4.5: \emph{not perception} (ASR audit WER .074; $\ptrue$ on
-the model's own transcript snaps back to .074; the well-heard subset
+MiniCPM-o~4.5: \emph{not perception} (ASR audit WER 0.074; $\ptrue$ on
+the model's own transcript snaps back to 0.074; the well-heard subset
 still collapses); \emph{not a context prior} (irrelevant filler audio
 does not inflate $p_{\mathrm{yes}}$); \emph{binding} (duplicating the
 question as text alongside the audio fully restores introspection,
-.034). The verbal instance-check runs over text-token pathways that
+0.034). The verbal instance-check runs over text-token pathways that
 audio embeddings do not feed, while a linear probe reads the same
-information off the same forward pass at .93+. The failure implies its
+information off the same forward pass at 0.93+. The failure implies its
 own cheap fix, confirmed twice: re-present the query as text before
 asking (``repeat-then-judge'').
 
@@ -120,20 +120,20 @@ a 100\%-fail pool (lower is better).}
 \toprule
 model & FT type & trap $p_{\mathrm{yes}}$: text $\rightarrow$ audio & audio $\ptrue$-pre AUC \\
 \midrule
-MiniCPM-o 4.5 & duplex & .055 $\rightarrow$ \textbf{.556} (collapse) & .786 (trap dead) \\
-MiniCPM-o 2.6 & duplex & .196 $\rightarrow$ .345 & \textbf{.491} $\approx$ chance \\
-Qwen2.5-Omni & omni-streaming & .279 $\rightarrow$ .213 (intact) & .727 \\
-Freeze-Omni & frozen + adapter & .165 $\rightarrow$ .112 (intact) & .612 (capability caveat) \\
+MiniCPM-o 4.5 & duplex & 0.055 $\rightarrow$ \textbf{0.556} (collapse) & 0.786 (trap dead) \\
+MiniCPM-o 2.6 & duplex & 0.196 $\rightarrow$ 0.345 & \textbf{0.491} $\approx$ chance \\
+Qwen2.5-Omni & omni-streaming & 0.279 $\rightarrow$ 0.213 (intact) & 0.727 \\
+Freeze-Omni & frozen + adapter & 0.165 $\rightarrow$ 0.112 (intact) & 0.612 (capability caveat) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Real-speech validation.} The matched-pair design rerun on
 200 real human recordings (VoiceBench SD-QA, USA split) replicates all
-three audio-side findings: modality tax (.400$\to$.450),
-audio overconfidence (paired $p_{\mathrm{yes}}$ shift $+.089$; failure
-subset .415$\to$.581), and the layer structure (text-calibrated read on
-real-speech audio holds .76--.80 at L22--L26, peak .800 at L25 ---
+three audio-side findings: modality tax (0.400$\to$0.450),
+audio overconfidence (paired $p_{\mathrm{yes}}$ shift $+0.089$; failure
+subset 0.415$\to$0.581), and the layer structure (text-calibrated read on
+real-speech audio holds 0.76--0.80 at L22--L26, peak 0.800 at L25 ---
 transfer across both content and modality).
 
 \paragraph{Synthesis.} End-to-end multimodal training \emph{builds} the
@@ -148,7 +148,7 @@ single-position L22 read. The deployed probe adds two zero-latency
 pooled positions (an 8-token tail mean and the running user-audio
 mean), refit on a calibration mix widened to 2{,}310 public-benchmark
 queries disjoint from every evaluation benchmark; a pre-registered
-guard held (frozen internal test AUC .860$\to$.879) and feature
+guard held (frozen internal test AUC 0.860$\to$0.879) and feature
 selection never saw the externals. In the mid-layer band the in-mix
 tradeoff optimum is broad (L20--L30) and the mid-layer probe's
 in-distribution area advantage is modest --- its real advantage is
@@ -160,24 +160,24 @@ LOPO robustness, which an in-mix test cannot show.
 The pre-registered prediction test: with the identical recipe (same
 audio, same judge, 600-query calibration), the layer sweep on this
 hybrid-Mamba duplex model (56 blocks: 27 Mamba-2 / 4 attention) peaks
-mid-band at L30--34 (eot-last AUC .714 vs.\ .693/.682 at the
+mid-band at L30--34 (eot-last AUC 0.714 vs.\ 0.693/0.682 at the
 endpoints); stacking the same three positions lifts OOF
-.714$\to$.761$\to$.790; the frozen-methodology probe transfers to the
-external pools at AUC .781/.793/.754/.701 --- the deployed-probe band
+0.714$\to$0.761$\to$0.790; the frozen-methodology probe transfers to the
+external pools at AUC 0.781/0.793/0.754/0.701 --- the deployed-probe band
 reached with a quarter of the calibration data. Boundary notes: the
-backbone is much weaker at knowledge retrieval (striviaqa local .32
-vs.\ MiniCPM .62, same judge) and English-only (the cross-lingual pool
+backbone is much weaker at knowledge retrieval (striviaqa local 0.32
+vs.\ MiniCPM 0.62, same judge) and English-only (the cross-lingual pool
 has no analog). The live-loop port and the trained-checkpoint ablation
 remain future work.
 
 \begin{figure}[h]
   \centering
-  \begin{minipage}{.48\linewidth}
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{nvda_layer_sweep}\\
     {\small (a) layer sweep}
   \end{minipage}\hfill
-  \begin{minipage}{.48\linewidth}
+  \begin{minipage}{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{nvda_transfer}\\
     {\small (b) external transfer}
@@ -192,23 +192,23 @@ remain future work.
 \label{app:router}
 
 A RouteLLM-style TF-IDF$\to$LR router under identical labels reaches
-OOF AUC .669 (below the pool oracle's .715); a 24-configuration sweep
-tops out at .689, so this is the query surface's ceiling, not tuning.
-Under LOPO it collapses to .38--.57 and scores the 100\%-fail trap
-pool at .230 --- it misses the pool a router most needs. The training
+OOF AUC 0.669 (below the pool oracle's 0.715); a 24-configuration sweep
+tops out at 0.689, so this is the query surface's ceiling, not tuning.
+Under LOPO it collapses to 0.38--0.57 and scores the 100\%-fail trap
+pool at 0.230 --- it misses the pool a router most needs. The training
 receipt: at the argmax threshold its out-of-fold accuracy exactly
 matches the majority class; the internal probes under the same
 accounting clear majority by 9--29 points (Figure~\ref{fig:receipt}).
 Nor is it data-starved: the identical recipe on RouterBench
 \citep{hu2024routerbench} (36{,}497 prompts) reaches only in-domain
-AUC .710 with leave-one-benchmark-out at chance; RouteLLM's released
-preference-trained routers score .523/.533 zero-shot on our pool and
+AUC 0.710 with leave-one-benchmark-out at chance; RouteLLM's released
+preference-trained routers score 0.523/0.533 zero-shot on our pool and
 rank the trap pool below ordinary hard pools; our router transfers to
-RouterBench below chance (.440). On audio labels the router improves
-(test .814) but still trails the mid-layer probe (.879) and cannot
+RouterBench below chance (0.440). On audio labels the router improves
+(test 0.814) but still trails the mid-layer probe (0.879) and cannot
 fire mid-stream. In distribution, the gate's area over random
-($+.054$) is statistically on par with the pool oracle's ($+.042$;
-paired bootstrap delta CI $[-.003,+.027]$, $p{=}.13$) --- the gate's
+($+0.054$) is statistically on par with the pool oracle's ($+0.042$;
+paired bootstrap delta CI $[-0.003,+0.027]$, $p{=}0.13$) --- the gate's
 case is transfer, not the in-distribution margin. $\ptrue$ tradeoff
 variants: Figure~\ref{fig:tradeoffptrue}.
 
@@ -286,13 +286,13 @@ own voice) measures speech onset directly. The gate decision is
 unchanged --- the TTS token enters the context only after the
 end-of-turn read (read p50 21\,ms / p99 32\,ms), and the same
 84/240 queries fire. From gate decision to first audible audio:
-\textbf{local answers p50 .552\,s / p95 .599 / p99 .644};
-\textbf{escalated turns p50 .022\,s / p99 .029} --- the canned
+\textbf{local answers p50 0.552\,s / p95 0.599 / p99 0.644};
+\textbf{escalated turns p50 0.022\,s / p99 0.029} --- the canned
 stall (3.2--4.1\,s of speech) plays the moment the gate fires, so
 the escalated path reaches first audio $25\times$ faster. Expert
 \emph{content} becomes audible at p50 6.4\,s / p95 26.0 / p99
 34.0 (cache-corrected expert round-trip $+$ first relay PCM, p50
-.66\,s after the answer returns); the stall covers the head of that
+0.66\,s after the answer returns); the stall covers the head of that
 wait, and Table~\ref{tab:latency}'s completion profile bounds the
 tail.
 
@@ -308,17 +308,17 @@ $^{\dagger}$ CI lower bound at zero.}
 \toprule
 tier & esc & heard-acc & $\Delta$ vs.\ floor & gold-inject & channel cost \\
 \midrule
-never & 0\%  & .422 [.36,.49] & --- & .422 & --- \\
-conservative  & 14\% & .528 [.46,.59] & +.106$^{*}$ & .550 & +.023$^{\dagger}$ \\
-balanced      & 31\% & .592 [.53,.66] & +.170$^{*}$ & .661 & +.069$^{*}$ \\
-aggressive    & 57\% & .633 [.57,.70] & +.211$^{*}$ & .761 & +.128$^{*}$ \\
-always (synth) & 100\% & --- & --- & .922 [.89,.95] & --- \\
+never & 0\%  & 0.422 [0.36,0.49] & --- & 0.422 & --- \\
+conservative  & 14\% & 0.528 [0.46,0.59] & +0.106$^{*}$ & 0.550 & +0.023$^{\dagger}$ \\
+balanced      & 31\% & 0.592 [0.53,0.66] & +0.170$^{*}$ & 0.661 & +0.069$^{*}$ \\
+aggressive    & 57\% & 0.633 [0.57,0.70] & +0.211$^{*}$ & 0.761 & +0.128$^{*}$ \\
+always (synth) & 100\% & --- & --- & 0.922 [0.89,0.95] & --- \\
 \midrule
-never (full) & 0\%  & .383 [.32,.45] & --- & .383 & --- \\
-conservative  & 16\% & .483 [.42,.55] & +.100$^{*}$ & .525 & +.042$^{*}$ \\
-balanced      & 35\% & .554 [.49,.62] & +.171$^{*}$ & .654 & +.100$^{*}$ \\
-aggressive    & 61\% & .596 [.53,.66] & +.212$^{*}$ & .771 & +.175$^{*}$ \\
-always (synth) & 100\% & --- & --- & .917 [.88,.95] & --- \\
+never (full) & 0\%  & 0.383 [0.32,0.45] & --- & 0.383 & --- \\
+conservative  & 16\% & 0.483 [0.42,0.55] & +0.100$^{*}$ & 0.525 & +0.042$^{*}$ \\
+balanced      & 35\% & 0.554 [0.49,0.62] & +0.171$^{*}$ & 0.654 & +0.100$^{*}$ \\
+aggressive    & 61\% & 0.596 [0.53,0.66] & +0.212$^{*}$ & 0.771 & +0.175$^{*}$ \\
+always (synth) & 100\% & --- & --- & 0.917 [0.88,0.95] & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -363,27 +363,27 @@ aggressive    & 6.6 & 4.4 & 18.5 & 33.0 & +2.0 & +2.4 & +2.7 & +15.2 \\
 \paragraph{Speculative prefetch, measured and dropped.} Framed as
 speculative escalation (draft--verify at sentence granularity), its
 acceptance rate --- does an expert answer to the partial transcript
-answer the full question --- is .07/.19/.51 at 25/50/75\% of the audio;
+answer the full question --- is 0.07/0.19/0.51 at 25/50/75\% of the audio;
 at the mid-stream gate's typical fire point 6--8 of 10 calls would be
-wasted. The trap pool's floor (.00/.10/.27) shares the
+wasted. The trap pool's floor (0.00/0.10/0.27) shares the
 back-loaded-core property that breaks mid-stream probe reads.
 
 \paragraph{Conflicting-injection controls (172 sessions).} Fabricated
 conflicting expert answers by within-pool derangement, four framings:
-worst-case comply is .00 neutral / .53 deployed authority / .79
+worst-case comply is 0.00 neutral / 0.53 deployed authority / 0.79
 strong-override, while \emph{seeding} words into the talker's mouth
-backfires (comply .25, lip-service .62 --- forced speech is treated as
+backfires (comply 0.25, lip-service 0.62 --- forced speech is treated as
 revisable). Math is silently re-derived rather than relayed or
-disputed. Model-wrong $\times$ wrong-injection swallow rate is .64:
+disputed. Model-wrong $\times$ wrong-injection swallow rate is 0.64:
 expert quality is the accuracy ceiling of the cascade.
 
 \paragraph{Uplink diagnostics.} On the escalated population the expert
-answering the talker's own transcript scores .585 vs.\ .871 on gold
+answering the talker's own transcript scores 0.585 vs.\ 0.871 on gold
 text. Prompt-level rescues on the self-transcript are no-ops (the
 damaging errors are internally-coherent entity substitutions);
 replacing the ears helps: open-weights Whisper recovers little
 (+4\,pp) but a stronger cloud ASR on the same audio recovers 38\% of
-the gap (.585$\to$.694, McNemar $p{=}.007$) --- diagnostic only (its
+the gap (0.585$\to$0.694, McNemar $p{=}0.007$) --- diagnostic only (its
 critical-path latency and external-pool survival are unmeasured). A
 same-model gold-text control with an audio-capable expert shows the
 audio channel itself is lossless for speakable content: the leak is
@@ -392,16 +392,16 @@ drops: 5 cases of 108; corrupted transcripts dominate the escalated
 heard-failures, first-generation sweep).
 
 \paragraph{Boundary query classes.} \emph{False premises}: the model
-fails substantially (.63 text / .47 audio) and the expert would help
-(.80), but the gate is blind (fire@balanced .18 vs.\ trap's .90; no
+fails substantially (0.63 text / 0.47 audio) and the expert would help
+(0.80), but the gate is blind (fire@balanced 0.18 vs.\ trap's 0.90; no
 score separation) --- answering along a false premise does not feel
 like inability. \emph{Real-time queries} (``what is NVDA trading at''):
 the gate is not blind, the class was simply absent from every static
 training family; extending calibration with FreshQA
 \citep{vu2023freshllms} (fast-changing labeled escalate a priori,
 never-changing as in-family controls) raises held-out fast-changing
-fire rates to .80/.93/1.0 across tiers with frozen-test AUC unchanged
-(.877 vs.\ .879). One calibration subtlety: tier budgets must remain
+fire rates to 0.80/0.93/1.0 across tiers with frozen-test AUC unchanged
+(0.877 vs.\ 0.879). One calibration subtlety: tier budgets must remain
 quantiles of the deployment-mix scores, or the new capability is
 spent on its own threshold shift.
 
@@ -427,23 +427,23 @@ voice loop above to test whether the frozen probe read survives the
 spoken regime. Two arms, one session per query, deployed v4 gate with
 scores logged but escalation disabled (the arm isolates gate validity,
 not routing outcomes). \textbf{Clean}: the query streams as
-mic-shaped PCM (pool TTS audio plus steady noise at RMS .008), the
+mic-shaped PCM (pool TTS audio plus steady noise at RMS 0.008), the
 energy VAD ends the turn, the talker answers aloud, and the session is
 cut after the first audible chunk. \textbf{Overlap}: an easy warmup
-question (probe score $<$.25, locally answered, $>$5\,s spoken answer)
+question (probe score $<$0.25, locally answered, $>$5\,s spoken answer)
 puts the talker mid-answer, and the target query is then spoken over
 it; sustained overlapping speech commits a barge-in whose audio seeds
 the next turn. The barge-in path engaged on 237/239 pairs.
 
 Against the frozen local-failure labels of the same pool, the
-identical frozen probe reads: headless AUC .866 [.817,\,.909], clean
-.871 [.824,\,.914], overlap .856 [.803,\,.901]; barged-only subset
-($n{=}237$) .854. Paired bootstrap deltas vs.\ headless are $+.005$
-$[-.025,+.035]$ (clean) and $-.009$ $[-.036,+.016]$ (overlap) --- both
-inside the $\pm$.02--.03 live replication floor. Per-query scores
-correlate across regimes at $r{=}.90$--$.92$, and the balanced
+identical frozen probe reads: headless AUC 0.866 [0.817,\,0.909], clean
+0.871 [0.824,\,0.914], overlap 0.856 [0.803,\,0.901]; barged-only subset
+($n{=}237$) 0.854. Paired bootstrap deltas vs.\ headless are $+0.005$
+$[-0.025,+0.035]$ (clean) and $-0.009$ $[-0.036,+0.016]$ (overlap) --- both
+inside the $\pm$0.02--0.03 live replication floor. Per-query scores
+correlate across regimes at $r{=}0.90$--$0.92$, and the balanced
 threshold makes the same fire/hold decision as the headless read on
-.887 (clean) and .912 (overlap) of queries. The end-of-turn read costs
+0.887 (clean) and 0.912 (overlap) of queries. The end-of-turn read costs
 24--26\,ms at p50 (p95 $\le$30\,ms) in both arms, with the first
 audible answer chunk arriving $\ge$0.5\,s after the gate decision
 (p50 $\approx$0.58\,s), so the decision precedes any audible
@@ -464,8 +464,8 @@ pool's own judge (Table~\ref{tab:transfer}); the two judges disagree by
 up to 13 points on Web Questions, so they are never mixed within a row.
 AUC columns are recomputed from the deployed sweep's stored
 end-of-turn scores; they differ from Table~\ref{tab:transfer}'s AUC
-column --- captured in a separate scoring pass --- by up to .03
-externally and .04 on the internal pool (.840 here vs.\ .879 there):
+column --- captured in a separate scoring pass --- by up to 0.03
+externally and 0.04 on the internal pool (0.840 here vs.\ 0.879 there):
 the passes render and prefill the audio independently, and the probe
 score carries render-to-render jitter.
 AlpacaEval is excluded --- it has no binary correctness label on either
@@ -477,7 +477,7 @@ The deployed gate adapts per pool, but only through label-free
 quantiles of its own score distribution. To separate what the probe's
 \emph{ranking} carries from what its \emph{scale} carries, we freeze
 the single absolute threshold the internal system actually deployed
-($\tau{=}.628$, the balanced tier) and apply that number verbatim
+($\tau{=}0.628$, the balanced tier) and apply that number verbatim
 everywhere. \textbf{Scale does not transfer}: the same $\tau$ realizes
 escalation rates from 2.0\% (Reasoning QA) to 48.0\% (SD-QA), a
 24-fold spread, so a fixed cut cannot hold an escalation budget across
@@ -494,16 +494,16 @@ The probe is fit and read against \emph{local failure}, but what a
 routing system needs is \emph{expert benefit}: $y{=}1$ when the local
 model is wrong \emph{and} the expert is right. Re-scoring the same
 frozen scores against this harder label costs little on the retrieval
-pools (Speech TriviaQA .796$\to$.782, Llama Questions .830$\to$.813)
+pools (Speech TriviaQA 0.796$\to$0.782, Llama Questions 0.830$\to$0.813)
 and more where the expert is itself weak (Web Questions
-.773$\to$.689 against a .864 expert ceiling; internal .840$\to$.732).
+0.773$\to$0.689 against a 0.864 expert ceiling; internal 0.840$\to$0.732).
 The gate thus remains a usable benefit predictor out of distribution
-(.63--.81) despite never having seen an expert outcome, and the drop
+(0.63--0.81) despite never having seen an expert outcome, and the drop
 is largest exactly where the paper already reports a flat live curve.
 On Web Questions the mechanism is direct: 75.0\% of local failures are
 expert-fixable pool-wide, but only 65.5\% of the failures inside the
 gate's top-scoring 15\% are, and that share climbs monotonically as
-the cut widens (.655/.685/.711 at 15/30/50\%) --- the gate's most
+the cut widens (0.655/0.685/0.711 at 15/30/50\%) --- the gate's most
 confident failure calls are the ones the expert also misses.
 Table~\ref{tab:oracle} places the
 deployed gate against the matched-budget oracle that escalates true
@@ -515,7 +515,7 @@ stage would have to claim.
 \begin{table}[h]
 \centering\footnotesize
 \setlength{\tabcolsep}{4pt}
-\caption{One absolute threshold ($\tau{=}.628$, frozen on the internal
+\caption{One absolute threshold ($\tau{=}0.628$, frozen on the internal
 pool) applied verbatim to every pool; gold-inject view. $\Delta$ is
 fixed-$\tau$ accuracy minus a random reference at the \emph{same
 realized rate} (paired bootstrap over ids, $B{=}10^4$, seed 42). AUC
@@ -527,13 +527,13 @@ rate in the last column).}
 \toprule
 pool & $n$ & rate & local & acc & rand & $\Delta$ 95\% CI & AUC$_{\text{fail}}$ & AUC$_{\text{benefit}}$ & base \\
 \midrule
-Speech TriviaQA & 250 & .284 & .664 & .832 & .750 & $[+.044,+.121]$ & .796 & .782 & .308 \\
-Speech Web Questions & 250 & .360 & .568 & .720 & .675 & $[+.008,+.084]$ & .773 & .689 & .324 \\
-Llama Questions & 250 & .080 & .836 & .868 & .843 & $[+.006,+.046]$ & .830 & .813 & .112 \\
-SD-QA & 200 & .480 & .515 & .805 & .714 & $[+.045,+.136]$ & .800 & .765 & .435 \\
-Reasoning QA (zh) & 202 & .020 & .589 & .609 & .595 & $[-.001,+.035]$ & .679 & .634 & .302 \\
+Speech TriviaQA & 250 & 0.284 & 0.664 & 0.832 & 0.750 & $[+0.044,+0.121]$ & 0.796 & 0.782 & 0.308 \\
+Speech Web Questions & 250 & 0.360 & 0.568 & 0.720 & 0.675 & $[+0.008,+0.084]$ & 0.773 & 0.689 & 0.324 \\
+Llama Questions & 250 & 0.080 & 0.836 & 0.868 & 0.843 & $[+0.006,+0.046]$ & 0.830 & 0.813 & 0.112 \\
+SD-QA & 200 & 0.480 & 0.515 & 0.805 & 0.714 & $[+0.045,+0.136]$ & 0.800 & 0.765 & 0.435 \\
+Reasoning QA (zh) & 202 & 0.020 & 0.589 & 0.609 & 0.595 & $[-0.001,+0.035]$ & 0.679 & 0.634 & 0.302 \\
 \midrule
-internal frozen test & 240 & .350 & .383 & .654 & .570 & $[+.038,+.131]$ & .840 & .732 & .533 \\
+internal frozen test & 240 & 0.350 & 0.383 & 0.654 & 0.570 & $[+0.038,+0.131]$ & 0.840 & 0.732 & 0.533 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -552,13 +552,13 @@ everywhere; the oracle column is the remaining headroom.}
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
 pool & rand & gate & oracle & rand & gate & oracle & rand & gate & oracle \\
 \midrule
-Speech TriviaQA & .710 & .760 & .816 & .755 & .836 & .964 & .816 & .912 & .972 \\
-Speech Web Questions & .612 & .640 & .720 & .657 & .700 & .868 & .716 & .764 & .892 \\
-Llama Questions & .850 & .888 & .948 & .864 & .912 & .948 & .882 & .932 & .948 \\
-SD-QA & .577 & .635 & .665 & .639 & .745 & .815 & .723 & .820 & .950 \\
-Reasoning QA (zh) & .631 & .678 & .738 & .674 & .728 & .891 & .730 & .767 & .891 \\
+Speech TriviaQA & 0.710 & 0.760 & 0.816 & 0.755 & 0.836 & 0.964 & 0.816 & 0.912 & 0.972 \\
+Speech Web Questions & 0.612 & 0.640 & 0.720 & 0.657 & 0.700 & 0.868 & 0.716 & 0.764 & 0.892 \\
+Llama Questions & 0.850 & 0.888 & 0.948 & 0.864 & 0.912 & 0.948 & 0.882 & 0.932 & 0.948 \\
+SD-QA & 0.577 & 0.635 & 0.665 & 0.639 & 0.745 & 0.815 & 0.723 & 0.820 & 0.950 \\
+Reasoning QA (zh) & 0.631 & 0.678 & 0.738 & 0.674 & 0.728 & 0.891 & 0.730 & 0.767 & 0.891 \\
 \midrule
-internal frozen test & .463 & .492 & .533 & .543 & .608 & .683 & .650 & .742 & .883 \\
+internal frozen test & 0.463 & 0.492 & 0.533 & 0.543 & 0.608 & 0.683 & 0.650 & 0.742 & 0.883 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -567,9 +567,9 @@ internal frozen test & .463 & .492 & .533 & .543 & .608 & .683 & .650 & .742 & .
 \label{app:transferdetail}
 
 \paragraph{Matched-rate precision.} Precision at a fixed escalation
-rate is capped at base-fail/rate: on Llama Questions (base fail .16)
-the 50\% cap is .32 and the deployed probe reaches .304 --- 95\% of
-the cap (recall .93). Quoting raw precision would misread the
+rate is capped at base-fail/rate: on Llama Questions (base fail 0.16)
+the 50\% cap is 0.32 and the deployed probe reaches 0.304 --- 95\% of
+the cap (recall 0.93). Quoting raw precision would misread the
 strongest pool as the weakest.
 
 \paragraph{The median left-fold.} On easy pools per-arm P50 is
@@ -577,11 +577,11 @@ non-monotonic (Llama Questions 1.52$\to$1.17$\to$1.60/1.42\,s): a
 verified median-of-a-mixture mechanism, not noise. The probe
 preferentially escalates the queries whose \emph{local} decode is
 longest --- on retrieval pools wrong answers hedge at length
-(decode time and answer length $r{=}.97$), so a wrongness-selecting
+(decode time and answer length $r{=}0.97$), so a wrongness-selecting
 probe strips the slow tail as a side effect (escalated-at-15\% ids:
-never-arm local P50 1.711\,s vs.\ 1.198\,s kept; local accuracy .32
-vs.\ .73). Controls: the probe does not key on length (corr(score,
-length) $=+.05$; $\approx$0 conditioned on wrongness), and on SD-QA
+never-arm local P50 1.711\,s vs.\ 1.198\,s kept; local accuracy 0.32
+vs.\ 0.73). Controls: the probe does not key on length (corr(score,
+length) $=+0.05$; $\approx$0 conditioned on wrongness), and on SD-QA
 --- where wrong answers are short --- the same probe selects wrongness
 identically and produces no fold. The mean is monotonic
 (1.65$\to$2.06\,s); kept-local P50 falls 1.52$\to$0.43\,s across tiers
@@ -616,7 +616,7 @@ would harvest the same gain.
 Figures~\ref{fig:app-dualview-full} (dual-view) on the full frozen
 pool, and the complete external-family figure set
 (Appendix~\ref{app:families}); the noise audit behind the
-$\pm$.02--.03 floor is Figure~\ref{fig:app-noise}.
+$\pm$0.02--0.03 floor is Figure~\ref{fig:app-noise}.
 
 \begin{figure}[h]
   \centering
@@ -631,7 +631,7 @@ $\pm$.02--.03 floor is Figure~\ref{fig:app-noise}.
   \includegraphics[width=.85\linewidth]{noise_audit}
   \caption{Replication-noise audit: same query, same audio, re-run
   across arms. Kept-local verdicts flip 2.3--18.8\% by pool; repeated
-  escalation 0.7--10.6\%; implied paired SE .009--.028.}
+  escalation 0.7--10.6\%; implied paired SE 0.009--0.028.}
   \label{fig:app-noise}
 \end{figure}
 
@@ -640,12 +640,12 @@ $\pm$.02--.03 floor is Figure~\ref{fig:app-noise}.
 
 \begin{figure}[h]
   \centering
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_pareto}\end{minipage}\\[2pt]
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{swebq_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{swebq_pareto}\end{minipage}\\[2pt]
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sdqa_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sdqa_pareto}\end{minipage}
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{striviaqa_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{swebq_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{swebq_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sdqa_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sdqa_pareto}\end{minipage}
   \caption{Speech TriviaQA, Speech Web Questions, SD-QA: dual-view
   (left) and accuracy--latency (right).}
   \label{fig:app-fam1}
@@ -653,12 +653,12 @@ $\pm$.02--.03 floor is Figure~\ref{fig:app-noise}.
 
 \begin{figure}[h]
   \centering
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sllama_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sllama_pareto}\end{minipage}\\[2pt]
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sreason_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{sreason_pareto}\end{minipage}\\[2pt]
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{valpaca_dualview}\end{minipage}\hfill
-  \begin{minipage}{.49\linewidth}\includegraphics[width=\linewidth]{valpaca_pareto}\end{minipage}
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sllama_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sllama_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sreason_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{sreason_pareto}\end{minipage}\\[2pt]
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{valpaca_dualview}\end{minipage}\hfill
+  \begin{minipage}{0.49\linewidth}\includegraphics[width=\linewidth]{valpaca_pareto}\end{minipage}
   \caption{Llama Questions, Reasoning QA (zh), VoiceBench AlpacaEval:
   dual-view (left) and accuracy--latency (right).}
   \label{fig:app-fam2}

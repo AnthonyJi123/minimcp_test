@@ -29,10 +29,10 @@ official anchors on-scale.
 \caption{Main transfer results: methods $\times$ five public speech
 QA benchmarks (TriviaQA/WebQ/Llama Q.\ judged by OAB official, $n$ =
 250; SD-QA/Reasoning zh reference-anchored, $n$ = 200/202). Top:
-live deployed loop, heard accuracy ($\pm$.02--.03 replication
-floor). Middle: gold-inject view at a matched 30\% budget
+live deployed loop, heard accuracy in \% ($\pm$2--3 point
+replication floor). Middle: gold-inject view at a matched 30\% budget
 (Appendix~\ref{app:fixedthr}). $\Delta$ = average gain over
-always-local. AlpacaEval (VoiceBench 1--5, scale-incompatible) is
+always-local (points). AlpacaEval (VoiceBench 1--5, scale-incompatible) is
 reported in the text: 3.99$\to$4.35, no gain over random.}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
@@ -40,38 +40,38 @@ reported in the text: 3.99$\to$4.35, no gain over random.}
 & TriviaQA & WebQ & Llama Q. & SD-QA & Reason.\ zh & avg & $\Delta$ \\
 \midrule
 \multicolumn{8}{l}{\emph{live heard view (deployed loop)}} \\
-always-local          & .664 & .570 & .840 & .510 & .590 & .635 & --- \\
-\;+ gate @15\%        & .732 & .628 & .904 & .600 & .653 & .703 & +.068 \\
-\;+ gate @30\%        & .800 & .680 & .904 & .720 & .713 & .763 & +.128 \\
-\;\textbf{+ gate @50\%} & \textbf{.860} & \textbf{.732} & \textbf{.948} & \textbf{.795} & \textbf{.772} & \textbf{.821} & \textbf{+.186} \\
-always-expert (ceiling) & .968 & .864 & .928 & .930 & .871 & .912 & +.277 \\
+always-local          & 66.4 & 57.2 & 84.0 & 51.5 & 58.9 & 63.6 & --- \\
+\;+ gate @15\%        & 73.2 & 62.8 & 90.4 & 60.0 & 65.3 & 70.3 & +6.7 \\
+\;+ gate @30\%        & 80.0 & 68.0 & 90.4 & 72.0 & 71.3 & 76.3 & +12.7 \\
+\;\textbf{+ gate @50\%} & \textbf{86.0} & \textbf{73.2} & \textbf{94.8} & \textbf{79.5} & \textbf{77.2} & \textbf{82.1} & \textbf{+18.5} \\
+always-expert (ceiling) & 96.8 & 86.4 & 92.8 & 93.0 & 87.1 & 91.2 & +27.6 \\
 \midrule
 \multicolumn{8}{l}{\emph{gold-inject view, 30\% budget}} \\
-random reference      & .755 & .657 & .864 & .639 & .674 & .718 & +.083 \\
-\textbf{gate}         & \textbf{.836} & \textbf{.700} & \textbf{.912} & \textbf{.745} & \textbf{.728} & \textbf{.784} & \textbf{+.149} \\
-benefit oracle        & .964 & .868 & .948 & .815 & .891 & .897 & +.262 \\
+random reference      & 75.5 & 65.7 & 86.4 & 63.9 & 67.4 & 71.8 & +8.2 \\
+\textbf{gate}         & \textbf{83.6} & \textbf{70.0} & \textbf{91.2} & \textbf{74.5} & \textbf{72.8} & \textbf{78.4} & \textbf{+14.8} \\
+benefit oracle        & 96.4 & 86.8 & 94.8 & 81.5 & 89.1 & 89.7 & +26.1 \\
 \midrule
-probe AUC (frozen)    & .789 & .785 & .806 & .792 & .683 & .771 & --- \\
-official offline      & .755 & .702 & ---  & ---  & ---  & ---  & --- \\
+probe AUC (frozen)    & 0.789 & 0.785 & 0.806 & 0.792 & 0.683 & 0.771 & --- \\
+official offline      & 75.5 & 70.2 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{The frozen gate improves all five QA benchmarks}
 (Table~\ref{tab:transfer}), monotonically in budget.
-On Speech TriviaQA the 9B system reaches \textbf{.860 live}
---- against its own official offline .755 and .629 for Qwen3-Omni-30B
+On Speech TriviaQA the 9B system reaches \textbf{86.0\% live}
+--- against its own official offline 75.5\% and 62.9\% for Qwen3-Omni-30B
 \citep{qwen3omni2025} at $3.3\times$ the parameters: selective cloud
 escalation outperforms larger standalone backbones. The cleanest
 evidence that the
 signal is difficulty rather than surface is cross-lingual: an
 English-only calibration expansion moved \emph{Chinese} Reasoning QA
-from AUC .621 to .683, the largest per-pool gain. On Llama Questions
+from AUC 0.621 to 0.683, the largest per-pool gain. On Llama Questions
 --- single-type, so no shortcut to exploit --- \textbf{selective
 escalation matches the expert at half the expert calls}: the probe's
-split is decisive (kept-local .976 vs.\ escalated .696, $z{=}6.46$),
+split is decisive (kept-local 97.6\% vs.\ escalated 69.6\%, $z{=}6.46$),
 the expert's whole advantage lands where the probe sends it
-(.696$\to$.888, $p{<}.0001$), and always-escalate buys nothing
+(69.6\%$\to$88.8\%, $p{<}.0001$), and always-escalate buys nothing
 measurable over selective; matched-rate precision reaches 95\% of the
 base-rate cap (Appendix~\ref{app:transferdetail}).
 
@@ -80,11 +80,11 @@ random --- open-ended instruction following has no ``missing fact''
 event for a retrieval-failure detector to read.
 \textbf{Web Questions and SD-QA are flat} under the deployed-probe
 refit: on Web Questions strict alias-based labels decouple ``wrong''
-from ``uncertain'' (even the gold-text ceiling is .864), and the
+from ``uncertain'' (even the gold-text ceiling is 86.4\%), and the
 failures the gate ranks highest are ones the expert misses too
-(expert-fixable share .66 at the 15\% cut vs.\ .75 pool-wide). The external
-channel cost is small (heard-vs-gold gap .035--.056 at aggressive vs.\
-.175 internally), and SD-QA's escalated subset converts at .82--.84 on
+(expert-fixable share 66\% at the 15\% cut vs.\ 75\% pool-wide). The external
+channel cost is small (heard-vs-gold gap 3.5--5.6 points at aggressive vs.\
+17.5 internally), and SD-QA's escalated subset converts at 82--84\% on
 real dialectal speech. Routing can also \emph{reduce} tail latency,
 replacing slow wrong local decodes with short expert round-trips
 (Reasoning QA P90 13.3$\to$10.9\,s; Appendix~\ref{app:transferdetail}).

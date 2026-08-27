@@ -22,8 +22,8 @@ calibration / 240 test): \emph{trap} = SimpleQA \citep{wei2024simpleqa}
 + MATH-500 \citep{cobbe2021gsm8k,hendrycks2021math,lightman2024lets};
 public benchmarks only, no LLM-generated queries. Adequacy labels come
 from an LLM judge \citep{zheng2023judging} with structured outputs,
-blind to the gate and validated by a stronger re-judge (agreement .962
-text / .945 audio; every headline number moves $\le$.010 under the
+blind to the gate and validated by a stronger re-judge (agreement 96.2\%
+text / 94.5\% audio; every headline number moves $\le$1 point under the
 stronger labels); the escalation expert is \texttt{gpt-5.5} at low
 reasoning effort. The audio arm renders the same frozen pool to speech
 (single-voice TTS, content unchanged --- only modality varies),

@@ -39,8 +39,8 @@ unchanged.
   \textbf{(3)} Easy queries stay local; hard ones escalate to a cloud
   expert. \textbf{(4)} The \emph{same talker speaks} the expert's
   answer in one continuous session, improving live spoken sessions
-  (.422$\to$.633) and, frozen, public speech benchmarks (Speech
-  TriviaQA .664$\to$.860).}
+  (42.2\%$\to$63.3\%) and, frozen, public speech benchmarks (Speech
+  TriviaQA 66.4\%$\to$86.0\%).}
   \label{fig:hero}
 \end{figure}
 
@@ -55,20 +55,20 @@ signal, read it in time, show it matters:
 \begin{enumerate}
 \item \textbf{Representation: duplex fine-tuning makes the late-layer
   readouts brittle; a mid-network signal survives.} The conventional
-  final-layer probe looks strong in distribution (AUC .82) but is
+  final-layer probe looks strong in distribution (AUC 0.82) but is
   mostly a query-type shortcut: under leave-one-pool-out transfer it
-  \emph{inverts} on held-out math (.93$\to$.37). The damage is specific
+  \emph{inverts} on held-out math (0.93$\to$0.37). The damage is specific
   to the late-layer last-token position on text input --- absent in raw
   backbones and non-duplex fine-tunes --- consistent with late-layer
   specialization for duplex turn control. Mid-network (L22 of 36) the
-  same linear read transfers at .93, and the mid-network optimum
+  same linear read transfers at 0.93, and the mid-network optimum
   generalizes to a second, architecturally disjoint duplex family
   (hybrid-Mamba NemotronLabs-VoiceChat-11B).
 \item \textbf{Modality: the mid-layer signal transfers text
   $\to$ speech in end-to-end models.} A probe calibrated on cheap text
-  data reads speech-input hidden states at .86; the control that
+  data reads speech-input hidden states at 0.86; the control that
   isolates the mechanism is Freeze-Omni, an adapter on frozen identical
-  weights, where cross-modal transfer is dead ($\le$.60). Verbalized
+  weights, where cross-modal transfer is dead ($\le$0.60). Verbalized
   self-assessment shows the mirror-image failure --- it collapses on
   audio input --- so the mid-layer probe is the one readout that
   survives both modalities. The transfer holds on real human
@@ -77,13 +77,13 @@ signal, read it in time, show it matters:
   and works live, in and out of distribution.} The L22 read costs
   20\,ms (text) / 45\,ms (audio) against time-to-first-token of
   36/68\,ms; in the streaming loop an end-of-turn read reaches AUC
-  .887 in $\sim$30\,ms, half a second before first audible
+  0.887 in $\sim$30\,ms, half a second before first audible
   speech. Run live end-to-end --- expert consulted
   mid-conversation, answer injected, talker speaks it --- heard
-  accuracy climbs .422$\to$.633 at 57\% escalation, and the frozen
+  accuracy climbs 42.2\%$\to$63.3\% at 57\% escalation, and the frozen
   gate transfers to six public speech benchmarks with label-free
-  thresholds, lifting Speech TriviaQA to .860 against the model's
-  official offline .755.
+  thresholds, lifting Speech TriviaQA to 86.0\% against the model's
+  official offline 75.5\%.
 \end{enumerate}
 
 Extended analyses and controls are in the appendix.
