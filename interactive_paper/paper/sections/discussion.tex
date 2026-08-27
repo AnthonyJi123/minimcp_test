@@ -30,9 +30,10 @@ concurrent-with-generation reads open.
 \label{sec:conclusion}
 
 Duplex-trained speech models carry a competence signal their standard
-readouts miss: a mid-network linear read that survives the readout damage,
-transfers from text calibration to speech, and lands tens of
-milliseconds before the first output token. Deployed live, it turns a
+readouts miss: a mid-network linear read that survives the readout
+damage, transfers from text calibration to speech, and lands half a
+second before the first audible word. Deployed live, it turns a
 9B talker into a system that knows when to hand off; frozen, it lifts
-public speech benchmarks past models three times its size. Reading the
-right layer makes real-time escalation possible.
+public speech benchmarks past models three times its size. The signal
+was never gone --- only misread; one band earlier, it arrives in time
+to act.

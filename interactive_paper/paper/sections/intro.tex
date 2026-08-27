@@ -11,10 +11,12 @@ the duplex setting imposes two constraints that existing routing work
 does not meet: the decision must come \emph{before the first output
 token} (once the model starts speaking, a wrong answer is already on the
 air), and the session --- audio context, voice, cache --- must stay with
-the local model, which will speak the expert's answer itself.
+the local model, which will speak the expert's answer itself. The
+question is not whether one can build a router; it is whether the
+small model knows it will fail \emph{early enough to do anything
+about it}.
 
-This paper asks whether the small model already contains the signal this
-decision needs. We study MiniCPM-o~4.5 \citep{openbmb2026minicpmo}, a 9B
+To answer it, we study MiniCPM-o~4.5 \citep{openbmb2026minicpmo}, a 9B
 omni/duplex fine-tune of Qwen3-8B, against matched-pair controls
 spanning raw backbones, streaming-omni, audio-only, and frozen-adapter
 fine-tunes, and evaluate every standard zero-shot competence readout ---
@@ -47,8 +49,8 @@ fitted component is a logistic regression on stored hidden states,
 calibrated once on text. That minimalism is the point: competing
 signals read the wrong place (late layers), arrive too late
 (post-answer verification), or must be trained in (think tokens); the
-mid-layer read survives all three. Three findings, in increasing
-order of system-level consequence:
+mid-layer read survives all three. Three findings --- find the
+signal, read it in time, show it matters:
 
 \begin{enumerate}
 \item \textbf{Representation: duplex fine-tuning makes the late-layer
@@ -75,7 +77,8 @@ order of system-level consequence:
   and works live, in and out of distribution.} The L22 read costs
   20\,ms (text) / 45\,ms (audio) against time-to-first-token of
   36/68\,ms; in the streaming loop an end-of-turn read reaches AUC
-  .887 in $\sim$30\,ms. Run live end-to-end --- expert consulted
+  .887 in $\sim$30\,ms, half a second before first audible
+  speech. Run live end-to-end --- expert consulted
   mid-conversation, answer injected, talker speaks it --- heard
   accuracy climbs .422$\to$.633 at 57\% escalation, and the frozen
   gate transfers to six public speech benchmarks with label-free
@@ -83,6 +86,4 @@ order of system-level consequence:
   official offline .755.
 \end{enumerate}
 
-Extended analyses --- readout-damage controls, router baselines,
-escalation-channel diagnostics, latency mechanics --- are in the
-appendix.
+Extended analyses and controls are in the appendix.
