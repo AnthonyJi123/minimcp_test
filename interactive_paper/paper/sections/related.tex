@@ -8,15 +8,25 @@ GLM-4-Voice \citep{zeng2024glm4voice}, single-LLM native full-duplex
 \citep{bayling2026duplex} --- streaming omni models
 \citep{xu2025qwen25omni,openbmb2026minicpmo}, frozen-backbone adapters
 \citep{wang2024freezeomni}, and audio fine-tunes
-\citep{chu2024qwen2audio}. A parallel line adds explicit turn-taking
-control: FlexDuo \citep{liao2025flexduo}, MinMo \citep{chen2025minmo},
-and Freeze-Omni's state heads decide \emph{when the local model should
-speak}, at 120--250\,ms cadences that show a live loop tolerates far
-more decision latency than our $\sim$30\,ms read
+\citep{chu2024qwen2audio}. Inside these models the standard control
+interface for turn-taking is a policy \emph{trained into the
+generator}: a neural-FSM scheme has the LLM emit explicit
+listen/speak transition tokens \citep{wang2024fsm}; duplex
+time-slicing learns an idle token that keeps the model silent
+\citep{zhang2024duplex}; SyncLLM aligns the two speech streams with
+synchronization tokens \citep{veluri2024syncllm}; LSLM halts
+generation on a detected-interruption token \citep{ma2024lslm}; VITA
+and SALMONN-omni emit state tokens around the speak/listen decision
+\citep{fu2024vita,yu2024salmonnomni}. A neighboring line moves the
+same decision into small classifier heads --- FlexDuo
+\citep{liao2025flexduo}, MinMo \citep{chen2025minmo}, Freeze-Omni's
+state heads --- at 120--250\,ms cadences that show a live loop
+tolerates far more decision latency than our $\sim$30\,ms read
 \citep[cf.][]{sync2026turntaking,chrono2026thinking}.
-Our gate decides the orthogonal question --- \emph{whether the local
-model should be the one answering} --- and the head-based controllers'
-shared choice of a last-layer readout is exactly the point our results
+All of these decide \emph{when the local model should speak}; our
+gate decides the orthogonal question --- \emph{whether the local
+model should be the one answering} --- and their shared choice of a
+trained last-layer readout is exactly the intervention our results
 show duplex fine-tuning damages.
 
 \paragraph{Does the model know what it knows?}
@@ -73,10 +83,15 @@ beats the model's own trained think token at matched budget
 and early exit \citep{schuster2022confident} decide inside one model.
 
 \paragraph{The gap.}
-Duplex work decides when to speak; routing work decides which model
---- from the query surface, after a first answer, or via tokens
-trained into the weights; uncertainty work asks whether the model is
-confident, almost always offline and in text. No prior work we know
-of asks whether a full-duplex speech model \emph{already} exposes a
-pre-answer, modality-robust, internal competence signal early enough
-to drive a live small-to-large handoff while preserving the session.
+The prior work factors cleanly along two axes --- \{text-based,
+full-duplex\} $\times$ \{policy trained in as special tokens, probe
+read out of frozen internals\}. Three cells are dense: text models
+both train routing tokens and read probes; duplex models train their
+control policies in as tokens (or heads). The fourth cell is empty:
+no prior work we know of reads a \emph{frozen} full-duplex model's
+internal state for a pre-answer, modality-robust competence signal
+--- and fills it at the moment our results say token-training cannot
+be trusted there, because fine-tuning the talker is what damages the
+readout the trained policies sit on. That empty cell is this paper:
+a probe early enough to drive a live small-to-large handoff while
+preserving the session.

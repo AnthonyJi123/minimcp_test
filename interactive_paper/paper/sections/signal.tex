@@ -6,49 +6,31 @@ the shortcut}
 \label{sec:audit}
 
 Table~\ref{tab:signals} compares the candidate signals on
-MiniCPM-o~4.5. In distribution the final-layer probe reaches 0.822 ---
-but that number is mostly a \emph{query-type} shortcut: the same hidden
-state classifies a query's source pool at 95.8\%, a pool-identity
-oracle alone reaches AUC 0.715, and appending true pool labels to the
-probe adds nothing (0.822$\to$0.821). The decisive test is
-leave-one-pool-out (LOPO) transfer, which we treat as the primary
-metric throughout: held-out math \emph{inverts} to 0.372, and the mean
-escalation score on a 100\%-fail trap pool is 0.232. An external
-query-surface router makes the same point from the other side: under
-identical labels a TF-IDF router reaches only OOF AUC 0.669 (below the
-pool oracle), collapses to 0.38--0.57 under LOPO, and $100\times$ the
-data on a public routing benchmark buys back only 0.04 of AUC
-(Appendix~\ref{app:router}). Instance-level competence information
-lives in the model's internal state, not on the query surface.
+MiniCPM-o~4.5. In distribution the final-layer probe looks healthy at
+AUC 0.822 --- but that number is mostly a \emph{query-type} shortcut.
+The same hidden state all but names which pool a query came from, a
+pool-identity oracle alone recovers most of the probe's
+in-distribution margin, and appending true pool labels to the probe's
+features changes nothing, because the label is already in the
+representation. The decisive test is therefore leave-one-pool-out
+(LOPO) transfer, which we treat as the primary metric throughout. Under
+LOPO the readout does not merely weaken: on held-out math it
+\emph{inverts}, to AUC 0.372, and it scores a trap pool the model fails
+100\% of the time at 0.232 --- ranking the queries it is certain to get
+wrong as the safest to keep local. An external query-surface router fails the same way from the other
+side --- never clearing the pool oracle in distribution, collapsing
+under LOPO, barely moving with two orders of magnitude more data:
+instance-level competence lives in the model's state, not on the query
+surface (Appendices~\ref{app:signal},~\ref{app:router}).
 
-Verbalized self-assessment transfers differently: \emph{pre-answer}
-$\ptrue$ catches the trap pool the probe misses (escalation score 0.945
-vs.\ the probe's 0.232) --- but timing is essential: asked \emph{after}
-drafting, the model endorses its own confident-wrong answer (0.360).
-Post-draft $\ptrue$ is the strongest single signal (0.899) but requires
-paying for a full draft, which a voice deadline cannot afford.
+Verbalized self-assessment transfers differently. Asked \emph{before}
+answering, $\ptrue$ catches exactly the trap pool the probe misses,
+scoring it 0.945. But timing is everything: asked \emph{after}
+drafting, the model endorses its own confident-wrong answer and the
+signal inverts. Post-draft $\ptrue$ is the strongest single readout in
+distribution, at 0.899, and also the one a voice deadline cannot
+afford --- it bills a full draft before the gate can fire.
 
-\begin{table}[t]
-\centering\footnotesize
-\caption{Signals on MiniCPM-o 4.5, judged failure labels. In-dist =
-calibration-split AUC (probes 5-fold out-of-fold); LOPO math =
-leave-one-pool-out AUC on held-out math; audio = the same readout under
-speech input (final/mid-layer probe: audio-input LOPO math / text-only
-calibration read on audio states). Full per-signal detail:
-Appendix~\ref{app:signal}.}
-\label{tab:signals}
-\begin{tabular}{lccc}
-\toprule
-signal & in-dist & LOPO math & audio input \\
-\midrule
-max entropy@4 & 0.696 & $\approx$chance on raw backbones & --- \\
-$\ptrue$-pre & 0.807 & trap 0.945 (probe: 0.232) & \textbf{collapses} \\
-$\ptrue$-post (full draft) & \textbf{0.899} & --- & degrades \\
-final-layer probe & 0.822 & \textbf{0.372} (inverts) & 0.936 (intact) \\
-mid-layer (L22) probe & 0.866 & \textbf{0.931} & \textbf{0.855} (text-calibrated) \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \subsection{The damage is duplex-specific; the signal survives
 mid-network}
@@ -65,11 +47,31 @@ localizes it (Figure~\ref{fig:layersweep}): the collapse is specific to
 survive at the same depth but 0.13--0.15 below the mid-layer peak
 (LOPO math $\approx$0.80 here, 0.674 on MiniCPM-o~2.6), and
 mid-network the last-token read recovers to \textbf{0.931 at L22},
-near the raw backbone. This is the position a
-streaming head must re-purpose to encode turn-control state, and the
-pattern is consistent with late-layer specialization for duplex turn
-control overwriting the readout while the underlying information
-survives. The mid-network optimum is not a MiniCPM quirk: on
+near the raw backbone.
+
+\emph{What breaks at the output.} The natural reading --- that duplex
+training re-purposes the last position for turn-control state --- is
+half right at best, and we tested it rather than asserting it
+(Appendix~\ref{app:mech}). Four candidate mechanisms fail: the cliff
+does not move when the model is prefilled in speak mode, the inverting
+direction is orthogonal to the model's own audio-vs-text axis, source
+pools stay equally decodable at every depth in both the duplex model
+and its backbone, and once features are standardized the duplex
+model's representational drift from that backbone does not localize
+late at all. What does separate them is how the probe's read is
+\emph{carried} (Figure~\ref{fig:mech}): through mid-network the
+transferable signal is distributed across directions, and over the
+final layers of both duplex models --- but neither raw backbone ---
+that distributed component decays and inverts, on MiniCPM-o~4.5 while
+the read concentrates into a handful of dominant directions. Duplex
+tuning does not delete the competence signal; it stops delivering it
+to the output position the standard readout uses. Direct tests of the
+turn-control reading sharpen this without overturning it: the duplex
+output layer alone stays biased toward emitting control tokens, yet
+the inverting direction aligns with neither the control vocabulary
+nor an explicit listen/speak axis, so which duplex objective causes
+the loss remains open. The mid-network optimum is not a
+MiniCPM quirk: on
 NemotronLabs-VoiceChat-11B --- a hybrid-Mamba duplex model,
 architecturally disjoint --- the same recipe peaks mid-band at L30--34
 of 56 and transfers to the external pools at AUC 0.70--0.79 with a
@@ -77,7 +79,7 @@ quarter of the calibration data (Appendix~\ref{app:nvda}).
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=.88\linewidth]{layer_sweep}
+  \includegraphics[width=.72\linewidth]{layer_sweep}
   \caption{The core representational result: LOPO math AUC by layer and
   position. On the duplex model the standard (final-layer, last-token)
   read inverts on text input while mid-network layers hold $\ge$0.9; raw

@@ -32,6 +32,39 @@ GLM4-9B-chat & raw & --- & backbone diversity \\
 \section{Extended signal and readout analyses}
 \label{app:signal}
 
+\begin{table}[h]
+\centering\footnotesize
+\caption{Signals on MiniCPM-o 4.5, judged failure labels. In-dist =
+calibration-split AUC (probes 5-fold out-of-fold); LOPO math =
+leave-one-pool-out AUC on held-out math; audio = the same readout under
+speech input (final/mid-layer probe: audio-input LOPO math / text-only
+calibration read on audio states). Full per-signal detail:
+Appendix~\ref{app:signal}.}
+\label{tab:signals}
+\begin{tabular}{lccc}
+\toprule
+signal & in-dist & LOPO math & audio input \\
+\midrule
+max entropy@4 & 0.696 & $\approx$chance on raw backbones & --- \\
+$\ptrue$-pre & 0.807 & trap 0.945 (probe: 0.232) & \textbf{collapses} \\
+$\ptrue$-post (full draft) & \textbf{0.899} & --- & degrades \\
+final-layer probe & 0.822 & \textbf{0.372} (inverts) & 0.936 (intact) \\
+mid-layer (L22) probe & 0.866 & \textbf{0.931} & \textbf{0.855} (text-calibrated) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The in-distribution shortcut, quantified.} The numbers
+behind \S\ref{sec:audit}'s claim that the final-layer probe's
+in-distribution AUC of 0.822 is mostly pool identity: a linear read of
+the same hidden state classifies a query's source pool at 95.8\%
+accuracy; a pool-identity oracle alone reaches AUC 0.715; and
+appending true pool labels to the probe's features moves it
+0.822$\to$0.821. In-distribution area over random is statistically on
+par between the gate and the pool oracle (Appendix~\ref{app:router});
+the two separate only under LOPO, where the probe inverts to 0.372 and
+the oracle is undefined.
+
 \paragraph{ROC curves.} Figure~\ref{fig:roc} shows the calibration-split
 ROC for the signals of Table~\ref{tab:signals}.
 
@@ -200,7 +233,8 @@ answers the heard transcript and is judged directly, so the
 relay-back channel is excluded --- including the measured relay
 outcomes where they exist shifts tier points by $\le$0.032).
 \textbf{Selective escalation beats matched-rate random on all five
-pools} (permutation $p\le0.0003$; Table~\ref{tab:nvda-remix},
+pools} (permutation $p\le0.0004$ at the 30\% and 50\% budgets,
+$p<0.03$ at 15\%; Table~\ref{tab:nvda-remix},
 Figure~\ref{fig:nvda-remix}) --- including Web Questions, SD-QA and
 AlpacaEval, the three pools that are flat or negative on MiniCPM
 (\S\ref{sec:transfer-neg}). Selectivity is nearly unchanged (AUC
@@ -216,19 +250,31 @@ properties of the pool $\times$ backbone pairing, not of the signal.
 \centering\footnotesize
 \setlength{\tabcolsep}{4.5pt}
 \caption{The frozen-recipe NVDA probe re-mixed at fixed escalation
-rates, official judge per pool. AlpacaEval rows are VoiceBench 1--5
-scores; others accuracy. rnd@50 = matched-rate random expectation;
-all five selective-vs-random gaps hold at $p\le0.0003$ (permutation).}
+rates, official judge per pool, each against its own matched-rate
+random reference (same measured outcomes, escalation set drawn at
+random; identical at 0\% and 100\% by construction). AlpacaEval rows
+are VoiceBench 1--5 scores; others accuracy. Every pool clears random
+at all three budgets: $p\le0.0004$ at 30\% and 50\%, $p<0.03$ at 15\%
+(20k permutations, \texttt{scripts/18\_nvda\_random\_check.py}).}
 \label{tab:nvda-remix}
-\begin{tabular}{llccccccc}
+\begin{tabular}{llcccccc}
 \toprule
-pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & 100\% & rnd@50 \\
+pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & 100\% \\
 \midrule
-Speech TriviaQA      & OAB  & 247 & 0.356 & 0.498 & 0.615 & 0.741 & 0.955 & 0.656 \\
-Speech Web Questions & OAB  & 250 & 0.376 & 0.480 & 0.588 & 0.696 & 0.828 & 0.602 \\
-Llama Questions      & OAB  & 234 & 0.705 & 0.786 & 0.838 & 0.876 & 0.932 & 0.818 \\
-SD-QA                & ours & 200 & 0.310 & 0.425 & 0.545 & 0.675 & 0.890 & 0.600 \\
-AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 & 4.23 \\
+Speech TriviaQA      & OAB  & 247 & 0.356 & 0.498 & 0.615 & 0.741 & 0.955 \\
+\;matched random     &      &     &       & 0.446 & 0.536 & 0.656 &       \\
+\addlinespace
+Speech Web Questions & OAB  & 250 & 0.376 & 0.480 & 0.588 & 0.696 & 0.828 \\
+\;matched random     &      &     &       & 0.444 & 0.512 & 0.602 &       \\
+\addlinespace
+Llama Questions      & OAB  & 234 & 0.705 & 0.786 & 0.838 & 0.876 & 0.932 \\
+\;matched random     &      &     &       & 0.739 & 0.773 & 0.818 &       \\
+\addlinespace
+SD-QA                & ours & 200 & 0.310 & 0.425 & 0.545 & 0.675 & 0.890 \\
+\;matched random     &      &     &       & 0.397 & 0.484 & 0.600 &       \\
+\addlinespace
+AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 \\
+\;matched random     &      &     &       & 3.75 & 3.96 & 4.23 &       \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -239,8 +285,8 @@ AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 & 4.23 \\
   \caption{Re-mix curves for the frozen-recipe NVDA probe: selective
   (top-$r$ by probe score) vs.\ matched-rate random on the five
   transfer pools, official judge per pool. Every pool separates,
-  including the three that are flat on MiniCPM (all five pools
-  $p\le 0.0003$, permutation).}
+  including the three that are flat on MiniCPM (all five pools,
+  $p\le0.0004$ at 30/50\% and $p<0.03$ at 15\%, permutation).}
   \label{fig:nvda-remix}
 \end{figure}
 
@@ -260,6 +306,138 @@ AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 & 4.23 \\
   mid-network; (b) frozen-recipe transfer lands in the deployed-probe
   AUC band.}
   \label{fig:nvda}
+\end{figure}
+
+\section{What breaks at the output: mechanism audit}
+\label{app:mech}
+
+\S\ref{sec:duplex} reports \emph{that} the final-layer last-token read
+inverts. This section reports what we could and could not establish
+about \emph{why}. Everything below uses the Phase-5d all-layer prefill
+dumps (every decoder layer, last-token and mean-pooled, same 600
+queries) and the identical probe protocol as the layer sweep:
+calibration split, $L_2$ logistic regression, LOPO trained on the four
+non-math pools and scored on held-out math. The reproduction check
+recovers the published L22 and final-layer numbers to $\le$0.012
+(\texttt{scripts/14--17\_*.py}).
+
+\paragraph{Four mechanisms ruled out.} Table~\ref{tab:mech} lists them.
+(i) \emph{Speak mode.} Prefilling the same text queries under the
+TTS/speak-mode template leaves the cliff exactly where it was
+(final-layer LOPO math 0.362 vs.\ 0.366 plain), so the readout is not
+being displaced by a prepare-to-speak state. (ii) \emph{Modality axis.}
+The mean audio-minus-text direction at the final layer is orthogonal
+to both the inverting final-layer probe and the transferring L22 probe
+(cosine 0.013 and 0.027; chance is $1/\sqrt{4096}=0.016$), so the
+cliff is not the audio/text split that \S\ref{sec:xmodal} measures.
+(iii) \emph{More shortcut available late.} Source-pool identity is
+linearly decodable at 0.88--0.96 at \emph{every} depth, in the duplex
+model and its raw backbone alike --- the query-type shortcut of
+\S\ref{sec:audit} is not something the late layers add; it is
+what remains once the competence signal stops being readable.
+(iv) \emph{Wholesale representational drift.} Raw linear CKA between
+the duplex model and its backbone appears to collapse late
+(0.80$\to$0.47), but transformer residual streams carry a few
+massive-activation coordinates that dominate the Gram matrix; with
+per-feature standardization the same comparison is nearly flat
+(0.82$\to$0.78) and does not localize the cliff. Projecting out the
+massive-activation axes, or the pool-mean directions, rescues nothing
+(0.35--0.40 at every $k\le20$, against a random-direction control of
+0.37).
+
+\begin{table}[h]
+\centering\footnotesize
+\caption{Mechanism candidates for the final-layer inversion. Final-layer
+LOPO hard-math AUC on MiniCPM-o~4.5 unless noted; 0.366 is the
+unmodified baseline and 0.931 the L22 read.}
+\label{tab:mech}
+\begin{tabular}{llc}
+\toprule
+candidate & test & verdict \\
+\midrule
+prepare-to-speak state & speak-mode template prefill & 0.362, no change \\
+modality (audio vs.\ text) axis & cosine with the probe direction & 0.013 $\approx$ chance \\
+late layers encode more pool identity & pool decoding by depth & 0.88--0.96 at all depths \\
+representation rewritten late & standardized CKA vs.\ backbone & 0.82$\to$0.78, flat \\
+massive-activation coordinates & project out top-$k$ such axes & 0.35--0.40, no rescue \\
+query-type directions & project out pool-mean directions & 0.34--0.45, no rescue \\
+\midrule
+\textbf{delivery to the output position} & \textbf{residual component of the read} & \textbf{0.93$\to$0.27 (Fig.~\ref{fig:mech})} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{What does separate the models.} Figure~\ref{fig:mech}
+measures the probe rather than operating on the model. For the probe
+trained at each depth on the four non-math pools, we split its
+held-out score into the part carried by that layer's five dominant
+principal directions (estimated from training rows only) and the
+residual, $s = w^\top P x + w^\top (I-P) x$. The residual component is
+the distributed read, and it is the one that transfers: it holds
+0.85--0.93 through mid-network on MiniCPM-o~4.5 and then decays to
+\textbf{0.27} at the output, with the same decay on MiniCPM-o~2.6
+(0.81$\to$0.52) and \emph{no} decay on either raw backbone (Qwen3-8B
+0.86, Qwen2.5-7B 0.71 at their final layers) or on the omni-streaming
+control (Qwen2.5-Omni holds 0.75 to its output with a flat variance
+share) --- the decay tracks duplex fine-tuning specifically, not
+streaming or audio fine-tuning in general. On MiniCPM-o~4.5 the
+score also concentrates: the dominant subspace carries 39\% of the
+held-out score variance at the final layer against $\le$0.18 at every
+earlier depth and 0.05 for its backbone; on MiniCPM-o~2.6 this
+concentration is present but weak (0.16 vs.\ 0.14 for its backbone),
+so we report it as a property of the stronger duplex model, not a
+general law.
+
+\paragraph{Direct turn-control tests.} Two experiments target the
+turn-control story head-on rather than by exclusion
+(\texttt{modal\_interp.py}, \texttt{scripts/19\_*.py}). \emph{Control-token
+logit lens:} applying each model's own final norm and unembedding to
+the stored per-layer states, the probability mass on the trained-in
+control vocabulary (added/special tokens) \emph{rises} over
+MiniCPM-o~4.5's last layers (log-mass $-23.8$ at L32 to $-11.8$ at the
+output) while the raw backbone's falls by fifteen log-units over the
+same span --- the duplex output layer, uniquely, stays ready to emit
+control tokens. But the fine-grained prediction fails: the inverting
+probe direction is no more aligned with the control tokens' unembedding
+rows than with random vocabulary rows (max $|\cos|$ 0.069 vs.\ 0.068),
+and per-query control mass correlates with the probe score at only
+$r{=}0.18$. \emph{Listen/speak intervention:} re-prefilling 60
+calibration queries with a still-listening vs.\ answer-now suffix moves
+the final-layer state substantially in \emph{both} models (relative
+displacement 0.27 duplex, 0.59 raw --- cue text is just prompt
+semantics), and the cue direction is orthogonal to the inverting probe
+($|\cos|{=}0.019$, chance $0.016$), shifting its score by only
+$+0.23$\,sd (and the deployed L22 read by $+0.08$\,sd). Together: the
+duplex output layer is measurably control-biased in its output
+distribution, but the inversion is not carried by control-token
+directions or by an explicit listen/speak axis --- the simple
+takeover story fails its own direct tests.
+
+\paragraph{What we do not claim.} Destructive tests do not settle the
+mechanism. Removing the top five principal directions from the final
+layer does raise LOPO math from 0.378 to 0.758 --- but the identical
+operation costs the raw backbone 0.90$\to$0.14 and costs the intact
+L22 read 0.931$\to$0.760, so it is a damaging intervention that
+happens to help a broken readout, not evidence of a duplex-added
+subspace. We therefore state the finding at the level the evidence
+supports: duplex fine-tuning does not erase the competence signal, it
+stops delivering it in distributed form to the final last-token
+position, and the layer where delivery fails is also the one whose
+output distribution stays control-biased. Attributing the loss to a
+specific duplex objective needs training-time access we do not have;
+the practical consequence --- read mid-network --- does not depend on
+the attribution.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{lastlayer_mech}
+  \caption{Non-destructive decomposition of the probe's held-out score
+  at every depth. \textbf{Left:} share of score variance carried by the
+  layer's five dominant directions. \textbf{Right:} transfer AUC of the
+  residual (distributed) component --- intact to the output on both raw
+  backbones and on the omni-streaming control, decaying to inversion
+  over the final layers of both duplex models.}
+  \label{fig:mech}
 \end{figure}
 
 \section{Query-surface router audit}
@@ -314,6 +492,16 @@ variants: Figure~\ref{fig:tradeoffptrue}.
 
 \section{Gate timing details}
 \label{app:gatedetail}
+
+\paragraph{Against the model's own thinking mode.}
+\label{sec:thinking}
+MiniCPM-o~4.5 ships a built-in reasoning mode --- self-escalation in
+place. Gated-cloud escalation dominates all-THINK on both accuracy and
+latency at every escalation rate (gated-cloud@33\%: 78.7\% at mean 6.5\,s
+vs.\ all-THINK 63.7\% at 22.4\,s; Table~\ref{tab:policy}). The reason is mechanistic: the gate flags knowledge and trap failures,
+which extra compute cannot fix --- so external escalation is necessary,
+not merely better.
+
 
 \begin{table}[h]
 \centering\footnotesize
@@ -377,14 +565,29 @@ protocol must cover.
 \section{Live-loop details}
 \label{app:livedetail}
 
+\paragraph{What the signal detects.}
+The pre-answer probe is specifically a \emph{retrieval-failure}
+detector, strongest on missing-knowledge and long-tail-trap failures
+where the empty lookup is observable in the model's state. Execution
+failures (stuck mid-derivation) surface in \emph{decode-time} signals
+instead, and metacognitive failures --- false-premise questions, where
+no failure event occurs at all --- are invisible to every signal we
+tested, query-surface routers included (fire rate 18\% vs.\ trap's
+90\%; Appendix~\ref{app:livedetail}), which motivates a decode-time
+check behind the pre-answer gate.
+
+
 \begin{figure}[h]
   \centering
   \includegraphics[width=.65\linewidth]{fair_dualview}
   \caption{Live dual-view tradeoff ($n{=}218$ speakable subset). Blue:
   honest heard accuracy of the live system (paired-bootstrap
-  CIs). Green: the channel-controlled counterfactual (same sessions,
-  escalated rows re-scored with gold-text expert answers) with its
-  paired random reference (dashed). The view-to-view gap is the
+  CIs). Green: the channel-controlled counterfactual --- same sessions,
+  escalated rows re-scored with gold-text expert answers. Each view is
+  plotted against \emph{its own} matched-rate random reference (faint
+  dashed, same floor, each view's own 100\% endpoint): selection beats
+  random within both views at every arm, by 0.072--0.095 heard and
+  0.054--0.084 gold. The vertical view-to-view gap is the
   speech-channel price; the floor-to-floor gap to offline operation is
   the audio + streaming-answer tax.}
   \label{fig:dualview}
@@ -600,6 +803,63 @@ Caveat: the interleave goes through the public streaming API ---
 turn-role headers enter mid-generation and the carrier text is forced
 --- so this measures the concurrent \emph{state}, not the official
 duplex serving format.
+
+\paragraph{The full loop in the concurrent regime.} With the
+in-regime gate (thresholds = label-free quantiles of each pool's own
+concurrent never-arm scores), the complete escalation loop --- carrier
+speaking, target audio interleaved, EOT read mid-generation, stall $\to$
+expert $\to$ relay --- was re-run end to end on all seven pools
+(Table~\ref{tab:conclive}). The mechanism reproduces: heard accuracy
+rises monotonically in budget on every pool, realized rates track
+nominal (10--51\%), and \emph{selective escalation beats
+always-escalate} on the internal pool (66.2 vs.\ 61.7\%; speakable
+subset 71.1 vs.\ 66.5\%) and on Llama Questions (86.4 vs.\ 85.6\%,
+our judge) --- the turn-based signature result carries over. On the
+speakable subset the concurrent loop reaches
+\textbf{44.5$\to$71.1\%} at 63\% escalation (turn-based reference
+42.2$\to$63.3\% at 57\%). Floors move by pool --- the regime cost
+story: Llama $\approx$ unchanged, TriviaQA $-$16, Reasoning zh $-$18
+(the English carrier hurts the zh pool most), WebQ $+$4.8 under the
+official judge (within the $\pm$2--3 replication floor; the larger
+our-judge shift is alias-matching style sensitivity). AlpacaEval
+reverses its turn-based honest-negative: 4.36$\to$4.60 (1--5 scale,
+always 4.76). Two honest notes: the in-regime probe, calibrated on
+360 internal rows only, transfers externally at AUC .57--.67 against
+the full-scale turn-based probe's .68--.81 --- a calibration-\emph{scale}
+gap, not a signal gap (internally, where calibration matches the
+distribution, it reads .857 vs.\ the turn-based .879) --- and the
+internal conservative threshold under-fired (2.5\% realized vs.\ 15.8
+nominal; the top calib quantile did not transfer, balanced and
+aggressive did). Latency holds: EOT read p50 23\,ms, canned-stall
+onset 27--34\,ms, local first audio p50 .655\,s (vs.\ .552 turn-based
+--- the price of the longer concurrent context).
+
+\begin{table}[h]
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{The full escalation loop in the concurrent regime, all
+pools, judge-matched to Table~\ref{tab:transfer} (OAB official for
+TriviaQA/WebQ/Llama; ours for SD-QA/Reasoning/internal; VoiceBench
+1--5 for AlpacaEval). Gate = in-regime probe (360-row calibration),
+per-pool label-free quantile thresholds. Accuracies in \%; AUC =
+in-regime probe vs.\ never-arm failure, decimals.}
+\label{tab:conclive}
+\begin{tabular}{lcccccc}
+\toprule
+pool & never & @15\% & @30\% & @50\% & always & AUC \\
+\midrule
+TriviaQA & 50.4 & 54.0 & 64.0 & 71.6 & 91.6 & 0.636 \\
+WebQ & 61.6 & 65.2 & 68.8 & 71.2 & 81.6 & 0.636 \\
+Llama Q. & 81.6 & 83.2 & 84.8 & 90.8 & 91.2 & 0.672 \\
+SD-QA & 49.5 & 55.5 & 60.5 & 70.5 & 89.5 & 0.636 \\
+Reason.\ zh & 40.6 & 48.5 & 58.4 & 64.4 & 80.7 & 0.570 \\
+\midrule
+internal (240) & 40.4 & 40.0 & 52.1 & 66.2 & 61.7 & --- \\
+internal speakable (218) & 44.5 & 43.6 & 56.0 & \textbf{71.1} & 66.5 & 0.857 \\
+AlpacaEval (1--5) & 4.36 & 4.45 & 4.53 & 4.60 & 4.76 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{A serendipitous recovery behavior.}
 An accidental run surfaced one bonus behavior worth reporting: when a

@@ -1,11 +1,11 @@
 \begin{abstract}
 Full-duplex speech models answer in real time with a small on-device
-backbone, yet many queries exceed its competence. Routing hard
-queries to a large cloud model sounds solved --- until one asks
-\emph{when} the decision must be made: before the first output token,
-or the wrong answer is already on the air. We ask whether the model's
-own hidden state carries that warning early enough, and find that the
-obvious readout is exactly what duplex fine-tuning corrupts:
+backbone, yet many queries exceed its competence. Routing to a large
+cloud model sounds solved --- until one asks \emph{when} the decision
+must be made: before the first output token, or the wrong answer is
+already on the air. We ask whether the model's own hidden state carries
+that warning early enough, and find that the obvious readout is exactly
+what duplex fine-tuning corrupts:
 final-layer probes collapse under distribution shift on text input
 (leave-one-pool-out math AUC 0.93$\to$0.37), consistent with late-layer
 specialization for duplex turn control, while verbalized
@@ -19,6 +19,6 @@ live end-to-end in a turn-based loop, the gated system climbs from
 dominated by the transcription uplink rather than the gate; frozen,
 the same gate improves five of six public speech benchmarks, lifting
 Speech TriviaQA to 86.0\% live against the model's official offline
-75.5\%. Duplex training breaks the obvious competence readout; reading
-one band earlier, before speech commits, is enough to escalate live.
+75.5\%. Reading one band earlier, before speech commits, is enough to
+escalate live.
 \end{abstract}

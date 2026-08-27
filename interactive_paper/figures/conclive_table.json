@@ -1,0 +1,250 @@
+{
+  "striviaqa": {
+    "judge": "oab_ok",
+    "tiers": {
+      "never": {
+        "n": 250,
+        "esc": 0.0,
+        "acc": 0.504
+      },
+      "conservative": {
+        "n": 250,
+        "esc": 0.108,
+        "acc": 0.54
+      },
+      "balanced": {
+        "n": 250,
+        "esc": 0.308,
+        "acc": 0.64
+      },
+      "aggressive": {
+        "n": 250,
+        "esc": 0.468,
+        "acc": 0.716
+      },
+      "always": {
+        "n": 250,
+        "esc": 1.0,
+        "acc": 0.916
+      }
+    },
+    "auc_in_regime": 0.636
+  },
+  "swebq": {
+    "judge": "oab_ok",
+    "tiers": {
+      "never": {
+        "n": 250,
+        "esc": 0.0,
+        "acc": 0.616
+      },
+      "conservative": {
+        "n": 250,
+        "esc": 0.156,
+        "acc": 0.652
+      },
+      "balanced": {
+        "n": 250,
+        "esc": 0.304,
+        "acc": 0.688
+      },
+      "aggressive": {
+        "n": 250,
+        "esc": 0.488,
+        "acc": 0.712
+      },
+      "always": {
+        "n": 250,
+        "esc": 1.0,
+        "acc": 0.816
+      }
+    },
+    "auc_in_regime": 0.636
+  },
+  "sllama": {
+    "judge": "oab_ok",
+    "tiers": {
+      "never": {
+        "n": 250,
+        "esc": 0.0,
+        "acc": 0.816
+      },
+      "conservative": {
+        "n": 250,
+        "esc": 0.148,
+        "acc": 0.832
+      },
+      "balanced": {
+        "n": 250,
+        "esc": 0.292,
+        "acc": 0.848
+      },
+      "aggressive": {
+        "n": 250,
+        "esc": 0.512,
+        "acc": 0.908
+      },
+      "always": {
+        "n": 250,
+        "esc": 1.0,
+        "acc": 0.912
+      }
+    },
+    "auc_in_regime": 0.672
+  },
+  "sdqa": {
+    "judge": "heard_ok",
+    "tiers": {
+      "never": {
+        "n": 200,
+        "esc": 0.0,
+        "acc": 0.495
+      },
+      "conservative": {
+        "n": 200,
+        "esc": 0.15,
+        "acc": 0.555
+      },
+      "balanced": {
+        "n": 200,
+        "esc": 0.295,
+        "acc": 0.605
+      },
+      "aggressive": {
+        "n": 200,
+        "esc": 0.505,
+        "acc": 0.705
+      },
+      "always": {
+        "n": 200,
+        "esc": 1.0,
+        "acc": 0.895
+      }
+    },
+    "auc_in_regime": 0.636
+  },
+  "sreason": {
+    "judge": "heard_ok",
+    "tiers": {
+      "never": {
+        "n": 202,
+        "esc": 0.0,
+        "acc": 0.406
+      },
+      "conservative": {
+        "n": 202,
+        "esc": 0.153,
+        "acc": 0.485
+      },
+      "balanced": {
+        "n": 202,
+        "esc": 0.302,
+        "acc": 0.584
+      },
+      "aggressive": {
+        "n": 202,
+        "esc": 0.45,
+        "acc": 0.644
+      },
+      "always": {
+        "n": 202,
+        "esc": 1.0,
+        "acc": 0.807
+      }
+    },
+    "auc_in_regime": 0.57
+  },
+  "frozen": {
+    "judge": "heard_ok",
+    "tiers": {
+      "never": {
+        "n": 240,
+        "esc": 0.0,
+        "acc": 0.404
+      },
+      "conservative": {
+        "n": 240,
+        "esc": 0.025,
+        "acc": 0.4
+      },
+      "balanced": {
+        "n": 240,
+        "esc": 0.362,
+        "acc": 0.521
+      },
+      "aggressive": {
+        "n": 240,
+        "esc": 0.662,
+        "acc": 0.662
+      },
+      "always": {
+        "n": 240,
+        "esc": 1.0,
+        "acc": 0.617
+      }
+    },
+    "auc_in_regime": 0.87
+  },
+  "valpaca": {
+    "judge": "VB 1-5",
+    "tiers": {
+      "never": {
+        "n": 199,
+        "esc": 0.0,
+        "acc": 4.357
+      },
+      "conservative": {
+        "n": 199,
+        "esc": 0.101,
+        "acc": 4.452
+      },
+      "balanced": {
+        "n": 199,
+        "esc": 0.307,
+        "acc": 4.528
+      },
+      "aggressive": {
+        "n": 199,
+        "esc": 0.477,
+        "acc": 4.598
+      },
+      "always": {
+        "n": 199,
+        "esc": 1.0,
+        "acc": 4.759
+      }
+    },
+    "auc_in_regime": null
+  },
+  "frozen_speakable": {
+    "judge": "heard_ok",
+    "tiers": {
+      "never": {
+        "n": 218,
+        "esc": 0.0,
+        "acc": 0.445
+      },
+      "conservative": {
+        "n": 218,
+        "esc": 0.023,
+        "acc": 0.436
+      },
+      "balanced": {
+        "n": 218,
+        "esc": 0.312,
+        "acc": 0.56
+      },
+      "aggressive": {
+        "n": 218,
+        "esc": 0.628,
+        "acc": 0.711
+      },
+      "always": {
+        "n": 218,
+        "esc": 1.0,
+        "acc": 0.665
+      }
+    },
+    "auc_in_regime": 0.857
+  }
+}

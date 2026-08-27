@@ -188,6 +188,40 @@
   main text already exceeded the 8-page target by $\sim$0.8\,pp
   before these edits (user build 8-27 01:52 also shows refs on p9).
   Needs a $\sim$1-page trim decision before upload.}
+\item \todonote{P2 --- 8-27 advisor pass: related.tex gained the
+  full-duplex $\times$ special-token cell (wang2024fsm,
+  zhang2024duplex, veluri2024syncllm, ma2024lslm, fu2024vita,
+  yu2025salmonnomni) + explicit 2$\times$2 gap framing. Cross-check
+  citation list against BrownCat's Feishu duplex list before
+  camera-ready; swap in DuplexPO-style entries if the list has
+  better exemplars.}
+\item \todonote{P2 --- 8-27 mechanism audit (8aw) LANDED:
+  \S\ref{sec:duplex} no longer asserts turn-control specialization ---
+  the speak-mode, modality-axis, pool-identity and drift candidates are
+  all ruled out in \ref{app:mech}, and the surviving statement is the
+  delivery/distributed-read one. UPDATE same day (8ax): the two direct
+  tests RAN (control-token logit lens + listen/speak intervention,
+  \texttt{modal\_interp.py}): output layer is control-biased (log-mass
+  rises to $-11.8$ while backbone falls to $-38.5$) but the inverting
+  direction aligns with neither control unembeddings (cos .069 $=$
+  random .068) nor the cue axis (cos .019 $\approx$ chance) --- simple
+  takeover story fails its own direct tests; appendix says so. If a
+  reviewer pushes on mechanism, that is the honest answer.}
+\item \todonote{8at DONE 2026-08-27 --- the FULL loop in the
+  concurrent regime, all 7 pools (36 arms): monotone gains everywhere,
+  selective beats always-escalate on internal (66.2 vs 61.7) and
+  Llama Q.; speakable 44.5$\to$71.1\%; in-regime probe AUC .857
+  internal / .57--.67 external (calibration-scale gap, 360 rows);
+  latency holds (EOT 23ms, stall onset 27--34ms, local first audio
+  .655s). Landed: app:duplexval concurrent paragraph + tab:conclive,
+  live.tex pointer, Limitations. Page rebalance: tab:signals,
+  tab:policy, the THINK paragraph and ``What the signal detects''
+  moved to the appendix; Conclusion is now a paragraph of the
+  Discussion. Main text ends p8, refs p9.
+  Known gaps for camera-ready: full-scale (2310-row) in-regime
+  recalibration; Nemotron under interleave (SATURDAY nice-to-have,
+  after P3 --- its NeMo stack is cacheless per-frame so overlap can be
+  constructed offline); official duplex serving format.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29

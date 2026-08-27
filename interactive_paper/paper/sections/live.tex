@@ -47,20 +47,20 @@ re-scored with gold-text expert answers reach 92.2\%. The remaining gap to the
 channel-controlled counterfactual (escalated rows re-scored with
 gold-text expert answers) is dominated by \emph{transcription-uplink}
 errors, not gate failure: the channel costs +2.3/+6.9/+12.8 points across
-tiers, and in the channel-controlled view the gate clears its paired
-random reference at every arm. Live arm accuracies on this pool carry
+tiers, and against the matched-rate random reference \emph{internal to
+each view} the gate wins at every arm --- in the deployed heard view by
+7.2--9.5 points, in the channel-controlled view by 5.4--8.4
+(Figure~\ref{fig:dualview}). Live arm accuracies on this pool carry
 a replication-noise floor of $\pm$2--3 points, so no claim here rests on
 a sub-3-point live delta. Full tables (both views, both pools), latency profiles, uplink
 diagnostics, and two boundary query classes (false-premise,
-real-time) are in Appendix~\ref{app:livedetail}. A talker-on replay
-(237/239 turns barge-in-seeded) leaves the frozen probe intact: AUC
-0.871/0.856 vs.\ 0.866 headless (Appendix~\ref{app:duplexval}). A
-TTS-on re-run of the balanced arm puts first \emph{audible}
-audio at p50 0.55\,s / p99 0.64\,s after end of turn on local
-answers and 22--29\,ms on escalated ones --- the canned stall
-starts speaking while the expert call is in flight. First audio is
-not the answer: expert \emph{content} becomes audible at p50 6.4\,s
-/ p95 26 / p99 34 (the round-trip is 85--88\% of escalated wall
-time); the stall fully covers 25/84 of those waits, leaving dead
-air of p50 2.5\,s / p95 22.4 (Appendix~\ref{app:livedetail}).
+real-time) are in Appendix~\ref{app:livedetail}. A talker-on replay leaves the frozen probe intact (AUC 0.871/0.856
+vs.\ 0.866 headless); TTS-on, first audible audio lands p50 0.55\,s
+on local turns and 22--29\,ms on escalated ones (the canned stall),
+expert content at p50 6.4\,s with the stall covering the head of the
+wait (Appendix~\ref{app:duplexval}, ~\ref{app:livedetail}).
+Re-run end to end in the \emph{concurrent} regime (audio interleaved
+while the talker speaks, in-regime gate) the loop reproduces: monotone
+gains on all seven pools, speakable 44.5$\to$71.1\%, selective still
+beating always-escalate (Table~\ref{tab:conclive}).
 
