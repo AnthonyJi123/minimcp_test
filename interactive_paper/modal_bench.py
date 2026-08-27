@@ -732,7 +732,7 @@ def run_transcribe(bench: str = "striviaqa", workers: int = 2,
 def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
                shard: list = None, shard_id: int = -1,
                art_path: str = "", suffix: str = "",
-               sys_suffix: str = "") -> list:
+               sys_suffix: str = "", tts: int = 0) -> list:
     """The gated live loop on any registered pool (POOLS). art_path
     selects the gate artifact (default = the v1 global-threshold one);
     suffix namespaces the trace files (e.g. '_v2'). sys_suffix appends
@@ -761,9 +761,14 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
     model = AutoModel.from_pretrained(
         MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
-        init_vision=False, init_audio=True, init_tts=False,
+        init_vision=False, init_audio=True, init_tts=bool(tts),
     ).eval().cuda()
     tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
+    if tts:
+        model.init_tts(model_dir=f"{MODEL_DIR}/assets/token2wav")
+        ref, _ = librosa.load(f"{MODEL_DIR}/assets/system_ref_audio.wav",
+                              sr=16000, mono=True)
+        model.init_token2wav_cache(ref)
     art = json.load(open(art_path or GATE_ART))
     probe = gate_mod.Probe(art["w"], art["b"])
     thr = {"never": 1e9, "always": -1e9}.get(tier) or \
@@ -812,6 +817,26 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
             parts.append(str(res))
         return "".join(parts).strip()
 
+    def gen_speak(t_ref, **kw):
+        """streaming_generate with the talker head on (demo_app
+        _gen_speak semantics): returns (text, ms from t_ref to the first
+        PCM chunk, total 24 kHz samples)."""
+        kw.setdefault("max_new_tokens", 512)
+        res = call_def(model.streaming_generate, tokenizer=tok,
+                       temperature=0.1, generate_audio=True,
+                       use_tts_template=True, **kw)
+        texts, first_ms, n_samp = [], None, 0
+        for item in res:
+            wf, txt = (item if isinstance(item, tuple)
+                       else (None, getattr(item, "text", None)))
+            if wf is not None:
+                if first_ms is None:
+                    first_ms = int((time.time() - t_ref) * 1000)
+                n_samp += len(wf.float().cpu().numpy().reshape(-1))
+            if isinstance(txt, str):
+                texts.append(txt)
+        return "".join(texts).strip(), first_ms, n_samp
+
     holder = {}
     # v3 (8z) multi-position read: rolling last-K tail across forwards
     # (streaming assistant prefill is 1-token forwards) + running mean
@@ -847,12 +872,32 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
                 parts.append(st3["sum"] / max(1, st3["cnt"]))
         return float(probe.score(torch.cat(parts).numpy()))
 
+    stall_pcm_s = None
+    if tts:
+        # canned stall in the talker's own voice, teacher-forced once
+        # (deployment plays this buffer the moment the gate fires)
+        call_def(model.reset_session, reset_token2wav_cache=False)
+        sys0 = call_def(model.get_sys_prompt, mode="omni", language="en")
+        call_def(model.streaming_prefill, session_id="s1", msgs=[sys0],
+                 tokenizer=tok)
+        call_def(model.streaming_prefill, session_id="s1",
+                 msgs=[{"role": "user",
+                        "content": [np.zeros(16000, dtype="float32")]}],
+                 tokenizer=tok, is_last_chunk=True)
+        _, s_first, s_samp = gen_speak(time.time(), session_id="s1",
+                                       teacher_forcing=True,
+                                       teacher_forcing_text=STALL,
+                                       max_new_tokens=64)
+        stall_pcm_s = round(s_samp / 24000, 2)
+        print(f">>> canned stall: {stall_pcm_s}s "
+              f"(first chunk {s_first} ms)", flush=True)
+
     traces = []
     for qi, q in enumerate(queries):
         au, _ = librosa.load(f"{_audio_dir(bench)}/{q['id']}.wav", sr=16000,
                              mono=True)
         chunks = [au[i:i + 16000] for i in range(0, len(au), 16000)]
-        model.reset_session()
+        call_def(model.reset_session, reset_token2wav_cache=False)
         sys_msg = call_def(model.get_sys_prompt, mode="omni", language="en")
         if sys_suffix:
             c = sys_msg.get("content")
@@ -899,7 +944,12 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
                "reference_answer": q.get("reference_answer"),
                "query": q["query"], "transcript": transcript[q["id"]]}
         if not fired:
-            ans = gen_text(session_id="s1")
+            if tts:
+                ans, fa_ms, n_samp = gen_speak(t_eot, session_id="s1")
+                row.update(first_audio_ms=fa_ms,
+                           spoken_s=round(n_samp / 24000, 2))
+            else:
+                ans = gen_text(session_id="s1")
             row.update(mode="local", answer=ans,
                        answer_ms=int((time.time() - t_eot) * 1000))
         else:
@@ -928,7 +978,14 @@ def bench_live(bench: str, tier: str = "balanced", limit: int = 0,
                             [RELAY_TMPL.format(
                                 ans=expert.get("answer", ""))]}],
                      tokenizer=tok, is_last_chunk=True)
-            relay = gen_text(session_id="s1")
+            if tts:
+                relay, r_fa, r_samp = gen_speak(t_expert, session_id="s1")
+                row.update(first_audio_ms=int((t_stall - t_eot) * 1000),
+                           stall_pcm_s=stall_pcm_s,
+                           relay_first_audio_ms=r_fa,
+                           spoken_s=round(r_samp / 24000, 2))
+            else:
+                relay = gen_text(session_id="s1")
             row.update(mode="escalated", relay=relay,
                        expert_answer=expert.get("answer", ""),
                        expert_latency_s=round(
@@ -960,7 +1017,7 @@ def _read_bench_gen(bench: str) -> list:
 @gen_app.local_entrypoint()
 def run_live(bench: str = "striviaqa", tier: str = "balanced",
              workers: int = 3, limit: int = 0, art_path: str = "",
-             suffix: str = ""):
+             suffix: str = "", tts: int = 0):
     """workers=3 keeps worst-case expert concurrency at 3 (probation cap).
     v2 re-run: --art-path /data/gate_v2_{bench}.json --suffix _v2"""
     qs = _read_bench_gen.remote(bench)
@@ -975,7 +1032,7 @@ def run_live(bench: str = "striviaqa", tier: str = "balanced",
           f"{workers} workers, art={art_path or 'v1'}")
     done = list(bench_live.starmap(
         [(bench, tier, 0, shards[i], i if not limit else -1, art_path,
-          suffix) for i in range(workers)]))
+          suffix, "", tts) for i in range(workers)]))
     print(f">>> tier {tier} complete: {sum(len(d) for d in done)} traces")
 
 
