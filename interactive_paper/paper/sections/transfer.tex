@@ -25,40 +25,45 @@ official anchors on-scale.
 
 \begin{table}[t]
 \centering\footnotesize
-\setlength{\tabcolsep}{3.2pt}
-\caption{Main transfer results: the frozen gate on six public speech
-benchmarks. Left: live heard accuracy at realized escalation
-0--50\% ($\pm$.02--.03 floor); ceiling = \textsc{gpt-5.5} on gold
-text; official = the model's reported offline score. Right:
-gold-inject view, matched 30\% budget --- random / gate / benefit
-oracle (Appendix~\ref{app:fixedthr}). Judges in parentheses.}
+\setlength{\tabcolsep}{4pt}
+\caption{Main transfer results: methods $\times$ five public speech
+QA benchmarks (TriviaQA/WebQ/Llama Q.\ judged by OAB official, $n$ =
+250; SD-QA/Reasoning zh reference-anchored, $n$ = 200/202). Top:
+live deployed loop, heard accuracy ($\pm$.02--.03 replication
+floor). Middle: gold-inject view at a matched 30\% budget
+(Appendix~\ref{app:fixedthr}). $\Delta$ = average gain over
+always-local. AlpacaEval (VoiceBench 1--5, scale-incompatible) is
+reported in the text: 3.99$\to$4.35, no gain over random.}
 \label{tab:transfer}
-\begin{tabular}{lrccccccc ccc}
+\begin{tabular}{lccccccc}
 \toprule
-& & & \multicolumn{4}{c}{live heard, by tier} & & &
-\multicolumn{3}{c}{gold-inject @30\%} \\
-\cmidrule(lr){4-7}\cmidrule(lr){10-12}
-pool & $n$ & official & 0\% & 15\% & 30\% & 50\% & ceiling & AUC
-& rand & gate & oracle \\
+& TriviaQA & WebQ & Llama Q. & SD-QA & Reason.\ zh & avg & $\Delta$ \\
 \midrule
-TriviaQA (OAB)      & 250 & .755 & .664 & .732 & .800 & \textbf{.860} & .968 & .789 & .755 & \textbf{.836} & .964 \\
-Web Questions (OAB) & 250 & .702 & .57  & .628 & .680 & \textbf{.732} & .864 & .785 & .657 & \textbf{.700} & .868 \\
-Llama Q. (OAB)      & 250 & ---  & .84  & .904 & .904 & \textbf{.948} & .928 & .806 & .864 & \textbf{.912} & .948 \\
-SD-QA (ours)        & 200 & ---  & .51  & .600 & .720 & \textbf{.795} & .930 & .792 & .639 & \textbf{.745} & .815 \\
-Reasoning zh (ours) & 202 & ---  & .59  & .653 & .713 & \textbf{.772} & .871 & .683 & .674 & \textbf{.728} & .891 \\
-AlpacaEval (VB 1--5) & 199 & 4.8 & 3.99 & 3.96 & 4.23 & 4.35 & 4.96 & --- & --- & --- & --- \\
+\multicolumn{8}{l}{\emph{live heard view (deployed loop)}} \\
+always-local          & .664 & .570 & .840 & .510 & .590 & .635 & --- \\
+\;+ gate @15\%        & .732 & .628 & .904 & .600 & .653 & .703 & +.068 \\
+\;+ gate @30\%        & .800 & .680 & .904 & .720 & .713 & .763 & +.128 \\
+\;\textbf{+ gate @50\%} & \textbf{.860} & \textbf{.732} & \textbf{.948} & \textbf{.795} & \textbf{.772} & \textbf{.821} & \textbf{+.186} \\
+always-expert (ceiling) & .968 & .864 & .928 & .930 & .871 & .912 & +.277 \\
+\midrule
+\multicolumn{8}{l}{\emph{gold-inject view, 30\% budget}} \\
+random reference      & .755 & .657 & .864 & .639 & .674 & .718 & +.083 \\
+\textbf{gate}         & \textbf{.836} & \textbf{.700} & \textbf{.912} & \textbf{.745} & \textbf{.728} & \textbf{.784} & \textbf{+.149} \\
+benefit oracle        & .964 & .868 & .948 & .815 & .891 & .897 & +.262 \\
+\midrule
+probe AUC (frozen)    & .789 & .785 & .806 & .792 & .683 & .771 & --- \\
+official offline      & .755 & .702 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{The frozen gate improves all five QA benchmarks}
-(Table~\ref{tab:transfer}): thresholds fire at sane rates, every curve
-rises monotonically, and 50\% escalation lifts the floor +.11--.29.
+(Table~\ref{tab:transfer}), monotonically in budget.
 On Speech TriviaQA the 9B system reaches \textbf{.860 live}
 --- against its own official offline .755 and .629 for Qwen3-Omni-30B
 \citep{qwen3omni2025} at $3.3\times$ the parameters: selective cloud
-escalation outperforms larger standalone backbones. AUC transfers at
-.68--.81 against .879 internally, and the cleanest evidence that the
+escalation outperforms larger standalone backbones. The cleanest
+evidence that the
 signal is difficulty rather than surface is cross-lingual: an
 English-only calibration expansion moved \emph{Chinese} Reasoning QA
 from AUC .621 to .683, the largest per-pool gain. On Llama Questions
