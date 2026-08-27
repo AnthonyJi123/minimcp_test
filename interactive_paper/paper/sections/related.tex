@@ -32,33 +32,37 @@ amortize it into a hidden-state probe --- the closest signal to ours,
 but read post-hoc on text-only half-duplex models. Multimodal
 uncertainty fusion \citep{umui2026} asks a downstream question; we ask
 \emph{where} in a duplex model a modality-robust read survives at all.
-Our contribution is a controlled account of when the standard readouts
-break under duplex fine-tuning --- and where the surviving signal sits.
 
 \paragraph{Selective escalation and routing.}
 FrugalGPT \citep{chen2023frugalgpt}, HybridLLM \citep{ding2024hybrid},
-RouteLLM \citep{ong2024routellm}, and confidence-based cascade serving
-\citep{hybridserve2025} route from query-side features or preference
-data; RouterBench \citep{hu2024routerbench} and LLMRouterBench
-\citep{llmrouterbench2026} standardize evaluation and report that many
-routers barely beat simple baselines. AutoMix
-\citep{aggarwal2024automix} is the closest system design --- a small
-model assesses its own answer and escalates --- but the decision is
-\emph{post-answer} self-verification; a voice deadline requires
-\emph{pre-answer}. Both routing assumptions (query-side features; the
-large model answers the user directly) fail in full-duplex voice,
-where the session lives in the small model. Learning-to-defer
-\citep{madras2018predict}, early exit \citep{schuster2022confident},
-speculative decoding \citep{leviathan2023fast}, and test-time compute
-\citep{guo2025deepseekr1} make related decisions inside one model; our
-audit quantifies the query-side ceiling directly
-(\S\ref{sec:audit}).
+RouteLLM \citep{ong2024routellm}, and confidence-based cascades
+\citep{hybridserve2025,hu2024routerbench,llmrouterbench2026} route
+from query-side features or preference data; AutoMix
+\citep{aggarwal2024automix} escalates by \emph{post-answer}
+self-verification, which a voice deadline forbids. Both assumptions
+--- query-side features, and the large model answering the user
+directly --- fail in full-duplex voice, where the session lives in
+the small model (query-side ceiling quantified in \S\ref{sec:audit}).
+A second family trains the decision \emph{into the weights} as
+control tokens: pause and thought tokens
+\citep{goyal2024pause,zelikman2024quietstar}, fused think/no-think
+modes \citep{yang2025qwen3,guo2025deepseekr1}, and the built-in think
+gate MiniCPM-o~4.5 itself ships \citep{openbmb2026minicpmo}. These
+decide \emph{more compute}, not \emph{which model}, require
+fine-tuning the talker, and bake the policy into the checkpoint ---
+changing budget or expert means retraining. Our gate is the pluggable
+complement: a logistic read over a frozen checkpoint, refit from
+stored activations in minutes, transferring across modality and
+model family (\S\ref{sec:transfer}), and it beats the model's own
+trained think gate at matched budget (Table~\ref{tab:policy}).
+Learning-to-defer \citep{madras2018predict} and early exit
+\citep{schuster2022confident} decide inside one model.
 
 \paragraph{The gap.}
-Duplex work decides when to speak; routing work decides which model,
-from the query surface or after a first answer; uncertainty work asks
-whether the model is confident, almost always in text and offline. No
-prior work we know of asks whether a full-duplex speech model exposes a
-\emph{pre-answer, modality-robust, internal} competence signal early
-enough to drive a live small-to-large handoff while preserving the
-session --- the regime this paper measures end-to-end.
+Duplex work decides when to speak; routing work decides which model
+--- from the query surface, after a first answer, or via tokens
+trained into the weights; uncertainty work asks whether the model is
+confident, almost always offline and in text. No prior work we know
+of asks whether a full-duplex speech model \emph{already} exposes a
+pre-answer, modality-robust, internal competence signal early enough
+to drive a live small-to-large handoff while preserving the session.

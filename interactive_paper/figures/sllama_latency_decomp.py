@@ -39,34 +39,14 @@ for a in ARMS:
     esc50.append(e["total_ms"].median() / 1000 if len(e) else np.nan)
     esc_n.append(len(e))
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.6, 4.2))
-for ax in (ax1, ax2):
-    ax.grid(color=GRID, lw=.7, zorder=0)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    ax.tick_params(labelsize=8)
+fig, ax2 = plt.subplots(figsize=(6.4, 4.0))
+ax2.grid(color=GRID, lw=.7, zorder=0)
+for s in ("top", "right"):
+    ax2.spines[s].set_visible(False)
+ax2.tick_params(labelsize=8)
 
-# left: the fold is a median artifact — the mean is monotonic
-ax1.plot(p50, acc, "-o", ms=6, color=BLUE, lw=1.7, zorder=4)
-ax1.plot(mean, acc, "--s", ms=5.5, color=BLUE, lw=1.2, alpha=.45, zorder=3)
-for j, a in enumerate(ARMS):
-    dy = 8 if a == "never" else -13
-    ax1.annotate(f"{a} ({esc_rate[j]:.0%})", (p50[j], acc[j]),
-                 xytext=(5, dy), textcoords="offset points",
-                 fontsize=7.5, color=BLUE)
-ax1.annotate("P50 (deployed figure)", (p50[3], acc[3]), xytext=(8, 4),
-             textcoords="offset points", fontsize=8, color=BLUE)
-ax1.annotate("mean — monotonic", (mean[1], acc[1]), xytext=(-2, -16),
-             textcoords="offset points", fontsize=8, color=BLUE,
-             alpha=.65, ha="center")
-ax1.set_xlabel("total response latency (s)", fontsize=9)
-ax1.set_xlim(1.05, 2.25)
-ax1.set_ylabel("heard accuracy (OAB judge)", fontsize=9)
-ax1.set_title("The left-fold lives only in the median —\n"
-              "Llama Questions, same arms, two latency statistics",
-              fontsize=9.5, loc="left")
-
-# right: mixture decomposition per arm
+# mixture decomposition per arm (single panel per 2026-08-26 feedback;
+# the median-vs-mean fold fact lives in prose)
 x = np.arange(len(ARMS))
 ax2.plot(x, loc50, "-o", ms=6, color=BLUE, lw=1.5, zorder=4,
          label="kept-local rows, P50 decode")

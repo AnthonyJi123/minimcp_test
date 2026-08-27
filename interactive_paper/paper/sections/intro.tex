@@ -44,8 +44,11 @@ unchanged.
 
 Everything runs on a frozen checkpoint --- no fine-tuning; the only
 fitted component is a logistic regression on stored hidden states,
-calibrated once on text. Three findings, in increasing order of
-system-level consequence:
+calibrated once on text. That minimalism is the point: competing
+signals read the wrong place (late layers), arrive too late
+(post-answer verification), or must be trained in (think tokens); the
+mid-layer read survives all three. Three findings, in increasing
+order of system-level consequence:
 
 \begin{enumerate}
 \item \textbf{Representation: duplex fine-tuning makes the late-layer

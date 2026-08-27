@@ -593,11 +593,11 @@ the latency tail (P90 13.25$\to$10.94\,s) rather than fattening it.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=.85\linewidth]{sllama_latency_decomp}
-  \caption{Decomposition of the Llama Questions latency fold: the fold
-  exists only in the median (mean monotonic); kept-local P50 falls
-  1.52$\to$0.43\,s as the probe strips the slowest local decodes while
-  escalated rows pay a flat $\sim$3\,s round-trip.}
+  \includegraphics[width=.62\linewidth]{sllama_latency_decomp}
+  \caption{Mixture decomposition of Llama Questions latency per arm:
+  kept-local P50 falls 1.52$\to$0.43\,s as the probe strips the
+  slowest local decodes while escalated rows pay a flat $\sim$3\,s
+  expert round-trip; the arm median (dashed) is their mixture.}
   \label{fig:transfer-decomp}
 \end{figure}
 

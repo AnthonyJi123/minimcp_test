@@ -25,37 +25,40 @@ official anchors on-scale.
 
 \begin{table}[t]
 \centering\footnotesize
-\setlength{\tabcolsep}{4.5pt}
-\caption{The frozen gate on six public speech benchmarks (live loop;
-realized escalation 15/30/50\%). Judge: OAB / VB = official; ours =
-reference-anchored. Ceiling = \textsc{gpt-5.5} on gold text, same
-judge; official = MiniCPM-o 4.5's reported offline number. Live
-accuracies carry a $\pm$.02--.03 replication floor.}
+\setlength{\tabcolsep}{3.2pt}
+\caption{Main transfer results: the frozen gate on six public speech
+benchmarks. Left: live heard accuracy at realized escalation
+0--50\% ($\pm$.02--.03 floor); ceiling = \textsc{gpt-5.5} on gold
+text; official = the model's reported offline score. Right:
+gold-inject view, matched 30\% budget --- random / gate / benefit
+oracle (Appendix~\ref{app:fixedthr}). Judges in parentheses.}
 \label{tab:transfer}
-\begin{tabular}{llrccccccc}
+\begin{tabular}{lrccccccc ccc}
 \toprule
-& & & \multicolumn{4}{c}{escalation tier} & & & \\
-\cmidrule(lr){4-7}
-pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & ceiling & AUC & official \\
+& & & \multicolumn{4}{c}{live heard, by tier} & & &
+\multicolumn{3}{c}{gold-inject @30\%} \\
+\cmidrule(lr){4-7}\cmidrule(lr){10-12}
+pool & $n$ & official & 0\% & 15\% & 30\% & 50\% & ceiling & AUC
+& rand & gate & oracle \\
 \midrule
-Speech TriviaQA      & OAB  & 250 & .664 & .732 & .800 & \textbf{.860} & .968 & .789 & .755 \\
-Speech Web Questions & OAB  & 250 & .57  & .628 & .680 & .732 & .864 & .785 & .702 \\
-Llama Questions      & OAB  & 250 & .84  & .904 & .904 & .948 & .928 & .806 & --- \\
-SD-QA                & ours & 200 & .51  & .600 & .720 & .795 & .930 & .792 & --- \\
-Reasoning QA (zh)    & ours & 202 & .59  & .653 & .713 & .772 & .871 & .683 & --- \\
-AlpacaEval (1--5)    & VB   & 199 & 3.99 & 3.96 & 4.23 & 4.35 & 4.96 & --- & 4.8 \\
+TriviaQA (OAB)      & 250 & .755 & .664 & .732 & .800 & \textbf{.860} & .968 & .789 & .755 & \textbf{.836} & .964 \\
+Web Questions (OAB) & 250 & .702 & .57  & .628 & .680 & \textbf{.732} & .864 & .785 & .657 & \textbf{.700} & .868 \\
+Llama Q. (OAB)      & 250 & ---  & .84  & .904 & .904 & \textbf{.948} & .928 & .806 & .864 & \textbf{.912} & .948 \\
+SD-QA (ours)        & 200 & ---  & .51  & .600 & .720 & \textbf{.795} & .930 & .792 & .639 & \textbf{.745} & .815 \\
+Reasoning zh (ours) & 202 & ---  & .59  & .653 & .713 & \textbf{.772} & .871 & .683 & .674 & \textbf{.728} & .891 \\
+AlpacaEval (VB 1--5) & 199 & 4.8 & 3.99 & 3.96 & 4.23 & 4.35 & 4.96 & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{The frozen gate improves all five QA benchmarks}
 (Table~\ref{tab:transfer}): thresholds fire at sane rates, every curve
-rises monotonically, and 50\% escalation lifts the live floor by +.11
-to +.29. On Speech TriviaQA the 9B system reaches \textbf{.860 live}
+rises monotonically, and 50\% escalation lifts the floor +.11--.29.
+On Speech TriviaQA the 9B system reaches \textbf{.860 live}
 --- against its own official offline .755 and .629 for Qwen3-Omni-30B
 \citep{qwen3omni2025} at $3.3\times$ the parameters: selective cloud
-escalation outperforms larger standalone backbones. Transfer AUC holds a .68--.81 band on
-every pool against .879 internally, and the cleanest evidence that the
+escalation outperforms larger standalone backbones. AUC transfers at
+.68--.81 against .879 internally, and the cleanest evidence that the
 signal is difficulty rather than surface is cross-lingual: an
 English-only calibration expansion moved \emph{Chinese} Reasoning QA
 from AUC .621 to .683, the largest per-pool gain. On Llama Questions
