@@ -34,29 +34,43 @@ uncertainty fusion \citep{umui2026} asks a downstream question; we ask
 \emph{where} in a duplex model a modality-robust read survives at all.
 
 \paragraph{Selective escalation and routing.}
-FrugalGPT \citep{chen2023frugalgpt}, HybridLLM \citep{ding2024hybrid},
-RouteLLM \citep{ong2024routellm}, and confidence-based cascades
-\citep{hybridserve2025,hu2024routerbench,llmrouterbench2026} route
-from query-side features or preference data; AutoMix
+The classic routers are creatures of the turn-based, text-only
+setting: FrugalGPT \citep{chen2023frugalgpt}, HybridLLM
+\citep{ding2024hybrid}, RouteLLM \citep{ong2024routellm}, and
+confidence-based cascades
+\citep{hybridserve2025,hu2024routerbench,llmrouterbench2026} make one
+decision per complete typed query, from query-side features or
+preference data, before any model has answered; AutoMix
 \citep{aggarwal2024automix} escalates by \emph{post-answer}
 self-verification, which a voice deadline forbids. Both assumptions
 --- query-side features, and the large model answering the user
 directly --- fail in full-duplex voice, where the session lives in
 the small model (query-side ceiling quantified in \S\ref{sec:audit}).
-A second family trains the decision \emph{into the weights} as
-control tokens: pause and thought tokens
-\citep{goyal2024pause,zelikman2024quietstar}, fused think/no-think
-modes \citep{yang2025qwen3,guo2025deepseekr1}, and the built-in think
-gate MiniCPM-o~4.5 itself ships \citep{openbmb2026minicpmo}. These
-decide \emph{more compute}, not \emph{which model}, require
-fine-tuning the talker, and bake the policy into the checkpoint ---
-changing budget or expert means retraining. Our gate is the pluggable
-complement: a logistic read over a frozen checkpoint, refit from
-stored activations in minutes, transferring across modality and
-model family (\S\ref{sec:transfer}), and it beats the model's own
-trained think gate at matched budget (Table~\ref{tab:policy}).
-Learning-to-defer \citep{madras2018predict} and early exit
-\citep{schuster2022confident} decide inside one model.
+A second family trains the routing decision \emph{into the weights}
+as special tokens emitted during decoding: Toolformer
+\citep{schick2023toolformer} teaches the model to insert API-call
+tokens by self-supervised fine-tuning; Self-RAG
+\citep{asai2024selfrag} fine-tunes the full model on distilled critic
+labels so reflection tokens trigger retrieval and self-critique;
+Co-LLM \citep{shen2024collaborative} and CITER \citep{zheng2025citer}
+learn a per-token deferral decision to a larger model; pause and
+thought tokens \citep{goyal2024pause,zelikman2024quietstar}, fused
+think/no-think modes \citep{yang2025qwen3,guo2025deepseekr1}, and the
+built-in think gate MiniCPM-o~4.5 itself ships
+\citep{openbmb2026minicpmo} route \emph{compute} the same way. The
+design is uniform --- extend the vocabulary, then fine-tune the
+generator until the policy lives in the checkpoint --- and so is the
+cost: supervision must be constructed and the talker fine-tuned, the
+policy is frozen at training time (a new expert, budget, or threshold
+means retraining), and in a duplex model fine-tuning the talker is
+exactly the intervention \S\ref{sec:duplex} shows damages the
+last-layer readout. Our gate is the pluggable complement: a logistic
+read over a frozen checkpoint, refit from stored activations in
+minutes, its budget moved by a deployment-time threshold, transferring
+across modality and model family (\S\ref{sec:transfer}) --- and it
+beats the model's own trained think token at matched budget
+(Table~\ref{tab:policy}). Learning-to-defer \citep{madras2018predict}
+and early exit \citep{schuster2022confident} decide inside one model.
 
 \paragraph{The gap.}
 Duplex work decides when to speak; routing work decides which model
