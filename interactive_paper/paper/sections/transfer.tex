@@ -28,16 +28,16 @@ official anchors on-scale.
 \setlength{\tabcolsep}{3.5pt}
 \renewcommand{\arraystretch}{0.92}
 \caption{Main transfer results: methods $\times$ five public speech
-QA benchmarks (TriviaQA/WebQ/Llama Q.\ judged by OAB official, $n$ =
-250; SD-QA/Reasoning zh reference-anchored, $n$ = 200/202). Top:
-live deployed loop, heard accuracy in \% ($\pm$2--3 point
-replication floor). Middle: gold-inject view at a matched 30\% budget
-(Appendix~\ref{app:fixedthr}). The second duplex family
-(NemotronLabs-VoiceChat-11B, same frozen recipe) is
-Table~\ref{tab:nvda2}. $\Delta$ = average gain over
-always-local (points). AlpacaEval (1--5 scale): 3.99$\to$4.35 gated,
-4.76 always-escalate, no gain over random on MiniCPM; the second
-family does gain (3.55$\to$4.46 vs.\ random 4.23).}
+QA benchmarks (TriviaQA/WebQ/Llama Q.\ OAB official judge, $n$ = 250;
+SD-QA/Reasoning zh reference-anchored, $n$ = 200/202); heard accuracy
+in \%, $\pm$2--3 point replication floor. Bottom: second duplex family
+(NemotronLabs-VoiceChat-11B, same frozen recipe, offline re-mix,
+official judges, Appendix~\ref{app:nvda}); English-only, so its avg
+spans four benchmarks over its own floor. Gold-inject view at matched
+budgets: Table~\ref{tab:oracle}. $\Delta$ = avg gain over always-local
+(points). AlpacaEval (1--5): 3.99$\to$4.35 gated, 4.76 always-escalate,
+no gain over random on MiniCPM; the second family does gain
+(3.55$\to$4.46 vs.\ random 4.23).}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
 \toprule
@@ -51,12 +51,15 @@ always-local          & 66.4 & 57.2 & 84.0 & 51.5 & 58.9 & 63.6 & --- \\
 always-escalate (measured) & 88.0 & 80.8 & 93.6 & 88.5 & 83.7 & 86.9 & +23.3 \\
 always-expert (gold-text ceiling) & 96.8 & 86.4 & 92.8 & 93.0 & 87.1 & 91.2 & +27.6 \\
 \midrule
-\multicolumn{8}{l}{\emph{gold-inject view, 30\% budget}} \\
-random reference      & 75.5 & 65.7 & 86.4 & 63.9 & 67.4 & 71.8 & +8.2 \\
-\textbf{gate}         & \textbf{83.6} & \textbf{70.0} & \textbf{91.2} & \textbf{74.5} & \textbf{72.8} & \textbf{78.4} & \textbf{+14.8} \\
-benefit oracle        & 96.4 & 86.8 & 94.8 & 81.5 & 89.1 & 89.7 & +26.1 \\
+\multicolumn{8}{l}{\emph{second family: NemotronLabs-VoiceChat-11B (offline re-mix, official judges)}} \\
+always-local          & 35.6 & 37.6 & 70.5 & 31.0 & --- & 43.7 & --- \\
+\;+ gate @15\%        & 49.8 & 48.0 & 78.6 & 42.5 & --- & 54.7 & +11.0 \\
+\;+ gate @30\%        & 61.5 & 58.8 & 83.8 & 54.5 & --- & 64.6 & +21.0 \\
+\;\textbf{+ gate @50\%} & \textbf{74.1} & \textbf{69.6} & \textbf{87.6} & \textbf{67.5} & --- & \textbf{74.7} & \textbf{+31.0} \\
+always-expert (ceiling) & 95.5 & 82.8 & 93.2 & 89.0 & --- & 90.1 & +46.4 \\
 \midrule
 probe AUC (frozen)    & 0.789 & 0.785 & 0.806 & 0.792 & 0.683 & 0.771 & --- \\
+probe AUC (2nd family) & 0.775 & 0.771 & 0.720 & 0.754 & --- & 0.755 & --- \\
 official offline      & 75.5 & 70.2 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}

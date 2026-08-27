@@ -4,14 +4,13 @@
 \paragraph{What the signal detects.}
 The pre-answer probe is specifically a \emph{retrieval-failure}
 detector, strongest on missing-knowledge and long-tail-trap failures
-where the empty lookup is an observable event in the model's state.
-Execution failures (getting stuck mid-derivation) surface in
-\emph{decode-time} signals instead, and metacognitive failures ---
-questions with false premises, where no failure event occurs in the
-model's experience --- are invisible to every signal we tested,
-query-surface routers included (fire rate 18\% vs.\ trap's 90\%;
-Appendix~\ref{app:livedetail}). This scope motivates a
-decode-time check behind the pre-answer gate.
+where the empty lookup is observable in the model's state. Execution
+failures (stuck mid-derivation) surface in \emph{decode-time} signals
+instead, and metacognitive failures --- false-premise questions, where
+no failure event occurs at all --- are invisible to every signal we
+tested, query-surface routers included (fire rate 18\% vs.\ trap's
+90\%; Appendix~\ref{app:livedetail}), which motivates a decode-time
+check behind the pre-answer gate.
 
 \paragraph{Limitations.}
 (i) One phrasing per $\ptrue$ variant. (ii) Real-speech
@@ -19,8 +18,8 @@ validation: scripted read speech, one dialect. (iii) Formula-symbolic content is
 scope for the audio arm (destroyed by any TTS render --- an input-side
 limit, distinct from the transcription uplink). (iv) The second-family
 replication covers mid-band readability and frozen-recipe transfer,
-not matched-pair attribution or the live loop. (v) Labels come from one judge family, bounded by a stronger re-judge
-(deltas $\le$1 point), without human labels. (vi) The live sweep is one
+not matched-pair attribution or the live loop. (v) Labels come from one judge family (stronger
+re-judge bounds deltas at $\le$1 point), without human labels. (vi) The live sweep is one
 session per query per tier ($\pm$2--3 point replication floor); under
 concurrent prefill the frozen read degrades (AUC .87$\to$.76); an
 in-regime refit recovers .82 --- calibration must follow the regime
@@ -31,10 +30,9 @@ untested.
 \label{sec:conclusion}
 
 Duplex-trained speech models carry a competence signal their standard
-readouts miss: a mid-network linear read that survives the readout
-damage, transfers from text calibration to speech, and lands half a
-second before the first audible word. Deployed live it turns a 9B
-talker into a system that knows when to hand off; frozen it lifts
-public speech benchmarks past models three times its size. The signal
-was never gone --- only misread; one band earlier, it arrives in time
-to act.
+readouts miss: a mid-network linear read that transfers from text
+calibration to speech and lands half a second before the first audible
+word. Deployed live it turns a 9B talker into a system that knows when
+to hand off; frozen it lifts public speech benchmarks past models three
+times its size. The signal was never gone --- only misread; one band
+earlier, it arrives in time to act.
