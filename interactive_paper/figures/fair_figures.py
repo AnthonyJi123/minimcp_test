@@ -156,9 +156,15 @@ plt.close(fig)
 # ---- Fig 2: escalation rate vs accuracy ----------------------------------
 fig, ax = plt.subplots(figsize=(6.4, 4.2))
 xr = np.array([0, 1])
-ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls="--", lw=1.0,
-        color=MUT, alpha=.8, zorder=2,
-        label="random escalation (pairs with the gold view)")
+# each view gets its OWN matched-rate random reference: same floor, but
+# the endpoint the view actually reaches at 100% escalation (gold ceiling
+# for the counterfactual, measured always-heard for the deployed loop).
+ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls=(0, (5, 3)),
+        lw=1.0, color=GREEN, alpha=.55, zorder=2,
+        label="random escalation, gold view")
+ax.plot(xr, [hm[0] + (hm[-1] - hm[0]) * r for r in xr], ls=(0, (5, 3)),
+        lw=1.0, color=BLUE, alpha=.55, zorder=2,
+        label="random escalation, heard view")
 ax.plot(1.0, ceil, marker="*", ms=11, color=GREEN, zorder=4)
 ax.text(.985, ceil + .015, f"always-escalate {ceil:.3f}", fontsize=7.5,
         color=MUT, ha="right")

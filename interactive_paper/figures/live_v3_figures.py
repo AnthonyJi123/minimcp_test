@@ -118,9 +118,14 @@ json.dump({"component": old_lat.get("component"), "probe": "v3",
 # ---- dual-view figure ----------------------------------------------------
 fig, ax = plt.subplots(figsize=(6.4, 4.2))
 xr = np.array([0, 1])
-ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls="--", lw=1.0,
-        color=MUT, alpha=.8, zorder=2,
-        label="random escalation (pairs with the gold view)")
+# one matched-rate random reference per view: same floor, each view's
+# own 100%-escalation endpoint (gold ceiling / measured always-heard).
+ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls=(0, (5, 3)),
+        lw=1.0, color=GREEN, alpha=.55, zorder=2,
+        label="random escalation, gold view")
+ax.plot(xr, [hm[0] + (hm[-1] - hm[0]) * r for r in xr], ls=(0, (5, 3)),
+        lw=1.0, color=BLUE, alpha=.55, zorder=2,
+        label="random escalation, heard view")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.2, alpha=.75, zorder=1)
 ax.text(.02, ceil + .012, f"always-escalate (gpt-5.5 on gold text) "
         f"{ceil:.3f}", fontsize=7.5, color=GREEN)

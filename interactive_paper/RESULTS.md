@@ -4311,3 +4311,83 @@ data/conc_thresholds.json; gate_conc_frozen.json (in-regime probe artifact).
 TODO Friday: in-regime probe AUC per pool (never scores x labels), speakable
 subset + CIs + gold-inject views, random references, the concurrent table
 (ADD, not replace), Nemotron scope sentence, page balance.
+
+### 8ax — the two direct turn-control tests (user-approved GPU runs, same day)
+
+`modal_interp.py` (self-contained; NB: containers mount only the entry file, so
+no `from modal_app import ...` — that cost the first attempt 2 h of silent
+retries). Analysis `scripts/19_turncontrol_tests.py` → `data/interp_turncontrol.json`.
+Also folded Qwen2.5-Omni into the reliance figure (residual holds .75 to output,
+var% flat .07 → patterns with the RAW models; decay is duplex-specific).
+
+**Control-token logit lens** (each model's own norm+lm_head over the stored
+per-layer states; control set = added/special vocab, o4.5 n=106, qwen3 n=26):
+
+| depth | o4.5 log-mass | qwen3-8B log-mass |
+|---|---:|---:|
+| L0 | −23.6 | −11.3 |
+| mid | −18.5 | −11.1 |
+| L32 | −23.8 | −23.5 |
+| **L35** | **−11.8 (rises)** | **−38.5 (falls)** |
+
+The duplex output layer uniquely stays "ready" to emit control tokens. BUT the
+fine-grained predictions fail: cos(w35, control unembeddings) max .069 vs random
+.068 (null); corr(control mass, w35 score) = +.18 (weak); argmax never lands on
+a control token.
+
+**Listen/speak prompt intervention** (60 calib queries × neutral/listen/speak
+suffix, both models, all-layer capture): cue direction moves the final layer of
+BOTH models (relative displacement duplex .27, raw .59 — cue text is just prompt
+semantics, raw moves MORE); cos(t, w35) = .019 ≈ chance .016; w35 score shift
+speak−listen = +0.23 sd (L22: +0.08 sd).
+
+**Verdict: the simple turn-control-takeover story fails its own direct tests.**
+What survives: the delivery failure (8aw) + the output layer being control-biased
+in its output distribution. Paper: app:mech "Direct turn-control tests" paragraph,
+signal.tex clause updated ("aligns with neither the control vocabulary nor an
+explicit listen/speak axis"), todo P2 updated. Cost: ~6 H100 container-minutes.
+
+### 8ay — BrownCat's Feishu duplex list folded in (2026-08-27)
+
+Two Feishu docs (Full Duplex Training / 训练过程) arrived as PDFs. Extracted the
+starred papers, verified every arXiv id + author list against arxiv.org before
+writing bib (the 6 entries I wrote from memory on 8-27 also all checked out;
+fixed 3 metadata errors: wang2024fsm is NeurIPS 2024 not preprint + author order,
+veluri EMNLP Main, salmonn-omni year 2025→2024).
+
+**Two papers we were missing that a reviewer would have caught:**
+
+1. **MoshiRAG** (Chien et al., ICML 2026, arXiv:2604.12928) — *the closest work*.
+   Compact full-duplex interface + selective retrieval to a stronger knowledge
+   source, no retraining, evaluated on OOD math. Differences we now state:
+   their trigger is the lag between speech onset and first content word, i.e.
+   read off the model's own **emerging output**; what arrives is **documents for
+   the small model**, not an answer from a larger one. Ours fires pre-output from
+   internal state.
+2. **DuplexOmni** (Huang et al., arXiv:2606.09186) — interaction layer + pluggable
+   thinking layer (Gemini-3.1-Flash-Lite in their experiments), routed by a
+   trained **[THINK] control token**. This is literally the special-token version
+   of our small→large handoff. Control-token vocabulary from their doc:
+   [THINK] / [CUT] / [WAIT] / [PEND N S] / overlap marker.
+
+Also added: **DuplexSLA** (2605.20755, third structured-action channel so tool
+calls emit without pausing speech), **FDB-v3** (2604.04847, cited in Limitations
+(v) as the harder setting our turn-based loop doesn't cover), **Ohashi et al.**
+(2606.11167, RL over interaction-level rewards).
+
+**Useful fact from doc 2 for our own framing:** the MiniCPM-o 4.5 report states
+its control flow predicts a **binary listen/speak token before generating
+content** (they chose it over Listen-TEXT because it decouples "whether to speak"
+from "what to say"). So the checkpoint we probe *itself* carries trained-in
+control tokens — related.tex now says this, which makes the probe-vs-token
+contrast concrete rather than abstract.
+
+Paper: related.tex duplex paragraph extended, new paragraph "Escalating out of a
+live duplex session", gap paragraph updated to acknowledge the two live-session
+escalators, discussion Limitations (v) added. 35 pp, refs still start p9 (31%
+into the page — main text did not regress).
+
+NOT done: no DuplexPO in the list (济森 mentioned it as an example, it isn't in
+these two docs). The list's other items (LayerSkip, Mixture-of-Depths,
+DuplexCascade, UAF, Kyutai blog) are about early-exit/cascade/front-end, not our
+axis — deliberately not cited.
