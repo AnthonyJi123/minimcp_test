@@ -1337,3 +1337,95 @@ def expert_usage(benches: str = "sreason,sllama,striviaqa"):
               f"{np.median(vis):.0f} | RTT P50={np.median(lats):.2f}s | "
               f"专家吞吐≈{np.median(t) / np.median(lats):.0f} tok/s",
               flush=True)
+
+
+@gen_app.function(image=util_st, volumes={DATA: gate_data}, secrets=[OPENAI],
+                  timeout=60 * 60, region=API_REGION)
+def always_append(bench: str = "frozen", suffix: str = "_v3"):
+    """8au: fold the measured tier=always shards into {bench}{suffix}
+    parquet + live json INCREMENTALLY — judge ONLY the new always rows,
+    never re-judge published arms (judge noise would perturb frozen
+    numbers). OAB pools additionally get oab_ok on the new rows."""
+    import asyncio
+    import glob as _glob
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    paths = sorted(_glob.glob(f"{_traces(bench, suffix)}.always.shard*"))
+    print(f">>> always shards: {paths}", flush=True)
+    rows = []
+    for p in paths:
+        rows += [json.loads(l) for l in open(p, encoding="utf-8")]
+    new = pd.DataFrame(rows).drop_duplicates(subset=["id", "tier"],
+                                             keep="last")
+    print(f">>> {len(new)} always rows", flush=True)
+
+    if bench == "valpaca":
+        heard = [{"id": f"{r['id']}|{r['tier']}", "query": r["query"],
+                  "answer": (r.get("relay") if r["mode"] == "escalated"
+                             else r.get("answer", ""))}
+                 for _, r in new.iterrows()]
+        scored = _score_many(heard)
+        smap = {r["id"]: r["score"] for r in scored}
+        key = [f"{r['id']}|{r['tier']}" for _, r in new.iterrows()]
+        new["score"] = [smap.get(k) for k in key]
+        pq = f"{DATA}/valpaca{suffix}_scored.parquet"
+        old = pd.read_parquet(pq)
+        df = pd.concat([old[old["tier"] != "always"], new],
+                       ignore_index=True)
+        df.to_parquet(pq)
+        ok = new[new["score"].notna()]
+        stats = {"n": int(len(ok)), "esc": 1.0,
+                 "score": float(ok["score"].mean())}
+        lj = f"{DATA}/valpaca{suffix}_live.json"
+        live = json.load(open(lj))
+        live["always"] = stats
+        json.dump(live, open(lj, "w"), indent=1)
+        gate_data.commit()
+        print(f">>> valpaca always: score {stats['score']:.2f} "
+              f"(n={stats['n']})", flush=True)
+        return
+
+    heard = [{"query": r["query"],
+              "reference_answer": r["reference_answer"],
+              "answer": (r.get("relay") if r["mode"] == "escalated"
+                         else r.get("answer", ""))}
+             for _, r in new.iterrows()]
+    labeled = asyncio.run(escalate.judge_many(heard, concurrency=8))
+    new["heard_ok"] = [1 - x["escalate_label"]
+                       if x["escalate_label"] is not None else None
+                       for x in labeled]
+    if bench in ("striviaqa", "swebq", "sllama"):
+        orows = [{"query": r["query"],
+                  "reference_answer": r["reference_answer"],
+                  "answer": (r.get("relay") if r["mode"] == "escalated"
+                             else r.get("answer", "")),
+                  "_k": f"{r['id']}|{r['tier']}"}
+                 for _, r in new.iterrows()]
+        oscored = _oab_judge(orows)
+        om = {r["_k"]: r["oab_ok"] for r in oscored}
+        new["oab_ok"] = [om.get(f"{r['id']}|{r['tier']}")
+                         for _, r in new.iterrows()]
+
+    pq = f"{DATA}/{bench}{suffix}_traces.parquet"
+    old = pd.read_parquet(pq)
+    df = pd.concat([old[old["tier"] != "always"], new], ignore_index=True)
+    df.to_parquet(pq)
+
+    ok = new[new["heard_ok"].notna()]
+    e = ok[ok["mode"] == "escalated"]
+    stats = {"n": int(len(ok)), "esc": float(len(e) / max(1, len(ok))),
+             "heard": float(ok["heard_ok"].mean()),
+             "heard_escalated": (float(e["heard_ok"].mean()) if len(e)
+                                 else None),
+             "heard_local": None}
+    lj = f"{DATA}/{bench}{suffix}_live.json"
+    live = json.load(open(lj))
+    live["tiers"]["always"] = stats
+    json.dump(live, open(lj, "w"), indent=1)
+    gate_data.commit()
+    msg = f">>> {bench} always: heard {stats['heard']:.3f} (n={stats['n']})"
+    if "oab_ok" in new:
+        msg += f" | oab {new['oab_ok'].dropna().mean():.3f}"
+    print(msg, flush=True)
