@@ -56,7 +56,10 @@ representation changed. Degradation is ordered raw $>$ omni-streaming
 $>$ duplex. Table~\ref{tab:sweep} gives the by-depth summary behind
 Figure~\ref{fig:layersweep}: the within-pair deficit at the best
 mid-layer is only $-0.03$ vs.\ $-0.59$ at the final layer; mean-pooled
-probes survive to the final layer on duplex models; duplex damage is
+probes survive to the final layer on duplex models (LOPO math
+$\approx$0.80 at L35 on o4.5, 0.674 at L27 on o2.6 --- 0.13--0.15
+below each model's mid-layer last-token peak, and uniformly weaker
+in-mix, $-$0.058 at L22); duplex damage is
 severe but local, omni-streaming damage mild but diffuse.
 
 \begin{table}[h]
@@ -157,6 +160,31 @@ LOPO robustness, which an in-mix test cannot show.
 \section{Second duplex family: NemotronLabs-VoiceChat-11B}
 \label{app:nvda}
 
+\begin{table}[h]
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Second duplex family (NemotronLabs-VoiceChat-11B): same
+frozen recipe, offline re-mix with measured \textsc{gpt-5.5}
+outcomes, official judges. The English-only model has no zh pool, so
+avg spans four benchmarks and $\Delta$ is over its own local floor.
+Accuracies in \%.}
+\label{tab:nvda2}
+\begin{tabular}{lccccccc}
+\toprule
+& TriviaQA & WebQ & Llama Q. & SD-QA & Reason.\ zh & avg & $\Delta$ \\
+\midrule
+always-local          & 35.6 & 37.6 & 70.5 & 31.0 & --- & 43.7 & --- \\
+\;+ gate @15\%        & 49.8 & 48.0 & 78.6 & 42.5 & --- & 54.7 & +11.0 \\
+\;+ gate @30\%        & 61.5 & 58.8 & 83.8 & 54.5 & --- & 64.6 & +21.0 \\
+\;\textbf{+ gate @50\%} & \textbf{74.1} & \textbf{69.6} & \textbf{87.6} & \textbf{67.5} & --- & \textbf{74.7} & \textbf{+31.0} \\
+always-expert (ceiling) & 95.5 & 82.8 & 93.2 & 89.0 & --- & 90.1 & +46.4 \\
+\midrule
+probe AUC (frozen recipe) & 0.775 & 0.771 & 0.720 & 0.754 & --- & 0.755 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
 The pre-registered prediction test: with the identical recipe (same
 audio, same judge, 600-query calibration), the layer sweep on this
 hybrid-Mamba duplex model (56 blocks: 27 Mamba-2 / 4 attention) peaks
@@ -195,7 +223,7 @@ answers the heard transcript and is judged directly, so the
 relay-back channel is excluded --- including the measured relay
 outcomes where they exist shifts tier points by $\le$0.032).
 \textbf{Selective escalation beats matched-rate random on all five
-pools} (permutation $p\le.0003$; Table~\ref{tab:nvda-remix},
+pools} (permutation $p\le0.0003$; Table~\ref{tab:nvda-remix},
 Figure~\ref{fig:nvda-remix}) --- including Web Questions, SD-QA and
 AlpacaEval, the three pools that are flat or negative on MiniCPM
 (\S\ref{sec:transfer-neg}). Selectivity is nearly unchanged (AUC
@@ -213,16 +241,16 @@ properties of the pool $\times$ backbone pairing, not of the signal.
 \caption{The frozen-recipe NVDA probe re-mixed at fixed escalation
 rates, official judge per pool. AlpacaEval rows are VoiceBench 1--5
 scores; others accuracy. rnd@50 = matched-rate random expectation;
-all five selective-vs-random gaps hold at $p\le.0003$ (permutation).}
+all five selective-vs-random gaps hold at $p\le0.0003$ (permutation).}
 \label{tab:nvda-remix}
 \begin{tabular}{llccccccc}
 \toprule
 pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & 100\% & rnd@50 \\
 \midrule
-Speech TriviaQA      & OAB  & 247 & .356 & .498 & .615 & .741 & .955 & .656 \\
-Speech Web Questions & OAB  & 250 & .376 & .480 & .588 & .696 & .828 & .602 \\
-Llama Questions      & OAB  & 234 & .705 & .786 & .838 & .876 & .932 & .818 \\
-SD-QA                & ours & 200 & .310 & .425 & .545 & .675 & .890 & .600 \\
+Speech TriviaQA      & OAB  & 247 & 0.356 & 0.498 & 0.615 & 0.741 & 0.955 & 0.656 \\
+Speech Web Questions & OAB  & 250 & 0.376 & 0.480 & 0.588 & 0.696 & 0.828 & 0.602 \\
+Llama Questions      & OAB  & 234 & 0.705 & 0.786 & 0.838 & 0.876 & 0.932 & 0.818 \\
+SD-QA                & ours & 200 & 0.310 & 0.425 & 0.545 & 0.675 & 0.890 & 0.600 \\
 AlpacaEval (1--5)    & VB   & 199 & 3.55 & 3.83 & 4.13 & 4.46 & 4.92 & 4.23 \\
 \bottomrule
 \end{tabular}
@@ -310,6 +338,38 @@ variants: Figure~\ref{fig:tradeoffptrue}.
 \section{Gate timing details}
 \label{app:gatedetail}
 
+\begin{table}[h]
+\centering\footnotesize
+\caption{Deployment policies, frozen test split ($n{=}240$); latencies
+measured.}
+\label{tab:policy}
+\begin{tabular}{lcccc}
+\toprule
+policy & acc (\%) & lat.\ mean (s) & P50 & P95 \\
+\midrule
+fast-only & 58.8 & 3.0 & 3.5 & 4.2 \\
+all-THINK (built-in) & 63.7 & 22.4 & 17.2 & 60.1 \\
+gated-think @33\% & 61.3 & 12.1 & 3.6 & 47.6 \\
+gated-cloud @15\% & 68.8 & 5.3 & 3.6 & 10.1 \\
+\textbf{gated-cloud @33\%} & \textbf{78.7} & \textbf{6.5} & 3.6 & 20.8 \\
+gated-cloud @50\% & 85.8 & 7.0 & 3.6 & 24.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Measurement protocol.} Gate latency is wall-clock from
+prefill start to the L22 score being available (truncated forward $+$
+probe dot product), CUDA-synchronized, one H100, 50 queries per
+modality, three warmup calls excluded, interleaved per query with the
+reference arms; P50/P95: gate 20/25\,ms text and 45/104\,ms audio
+vs.\ full-prefill TTFT 36/47 and 68/144\,ms. Network and expert-RPC
+initiation are excluded: the cloud call fires asynchronously at the
+gate, and its user-facing cost is reported as expert-content-audible
+latency in Appendix~\ref{app:livedetail}. Absolute prefill wall-times
+vary with call overhead across benches; the robust cross-bench
+statistic is the ratio --- the L22 state is ready at $\sim$57--61\%
+of prefill.
+
 Per-layer truncated-forward cost vs.\ quality
 (Figure~\ref{fig:fork}): the L22 hidden state is available at
 $\sim$57--61\% of prefill wall-time while L22 is simultaneously the
@@ -340,6 +400,19 @@ protocol must cover.
 \section{Live-loop details}
 \label{app:livedetail}
 
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.65\linewidth]{fair_dualview}
+  \caption{Live dual-view tradeoff ($n{=}218$ speakable subset). Blue:
+  honest heard accuracy of the live system (paired-bootstrap
+  CIs). Green: the channel-controlled counterfactual (same sessions,
+  escalated rows re-scored with gold-text expert answers) with its
+  paired random reference (dashed). The view-to-view gap is the
+  speech-channel price; the floor-to-floor gap to offline operation is
+  the audio + streaming-answer tax.}
+  \label{fig:dualview}
+\end{figure}
+
 \paragraph{Full live tables.} Table~\ref{tab:live} (both scoring views,
 speakable subset and full pool) and Table~\ref{tab:latency} (measured
 response latency). The conservative tier \emph{shortens} the P95 tail:
@@ -361,9 +434,11 @@ stall (3.2--4.1\,s of speech) plays the moment the gate fires, so
 the escalated path reaches first audio $25\times$ faster. Expert
 \emph{content} becomes audible at p50 6.4\,s / p95 26.0 / p99
 34.0 (cache-corrected expert round-trip $+$ first relay PCM, p50
-0.66\,s after the answer returns); the stall covers the head of that
-wait, and Table~\ref{tab:latency}'s completion profile bounds the
-tail.
+0.66\,s after the answer returns); per-turn dead air between stall
+end and expert content is p50 2.5\,s / p95 22.4 / p99 30.7, with
+25/84 escalated turns fully covered --- the stall covers the head of
+that wait, and Table~\ref{tab:latency}'s completion profile bounds
+the tail.
 
 \begin{table}[h]
 \centering\small
@@ -516,10 +591,47 @@ threshold makes the same fire/hold decision as the headless read on
 24--26\,ms at p50 (p95 $\le$30\,ms) in both arms, with the first
 audible answer chunk arriving $\ge$0.5\,s after the gate decision
 (p50 $\approx$0.58\,s), so the decision precedes any audible
-commitment. Scope: the loop keeps per-turn session control --- the mic
+commitment. Scope: this loop keeps per-turn session control --- the mic
 stays open while the talker speaks and interruptions seed the next
-read, but incoming audio is not prefilled \emph{during} generation;
-validating a probe read concurrent with generation remains open.
+read, but incoming audio is not prefilled \emph{during} generation.
+The concurrent regime is measured separately below.
+
+\paragraph{Concurrent prefill: interleaved listen/speak in one KV
+stream.} A third arm drives the streaming API in time division: while
+the talker is mid-answer, each 1\,s chunk of the target query is
+prefilled into the \emph{same} session between generation chunks, so
+the end-of-turn read fires while generation is still active (238/240
+queries, full interleave coverage). The carrier
+answer is teacher-forced: under sampling the duplex model reliably
+yields the turn --- it emits EOS within $\sim$2\,s of user audio
+appearing in its context, the trained turn-taking behavior surfacing
+under interleave. This is the one shift on the transfer ladder that
+breaks the frozen read: scores drift up (mean 0.48$\to$0.71; the
+frozen balanced threshold's fire rate jumps 37$\to$75\%), AUC drops
+0.869$\to$0.758 [0.693,\,0.816] (paired $\Delta$AUC $-$0.109
+[$-$0.158,\,$-$0.064]), and label-free requantiling recovers decision
+agreement only to 75\%. The information, however, survives in the
+state: refitting the \emph{same} 12288-d linear read on 360
+calibration queries collected in-regime reaches \textbf{0.818}
+[0.761,\,0.871] on the held-out 240 (calibration OOF 0.775) --- more
+than half the gap recovered at a quarter of the deployed probe's
+calibration scale. The mid-layer competence direction persists under
+concurrent listen/speak; unlike every earlier shift (modality,
+external pools, talker-on), calibration must follow the regime.
+Run-to-run replication of the concurrent read correlates at 0.895.
+Caveat: the interleave goes through the public streaming API ---
+turn-role headers enter mid-generation and the carrier text is forced
+--- so this measures the concurrent \emph{state}, not the official
+duplex serving format.
+
+\paragraph{A serendipitous recovery behavior.}
+An accidental run surfaced one bonus behavior worth reporting: when a
+long question contains a ${>}1.25$\,s internal pause, the endpointer
+fires early and the talker starts answering the fragment --- but the
+question's own continuation then triggers barge-in, and the remainder
+becomes the next turn, where the gate simply re-scores it. Early
+end-pointing thus degrades into an extra turn rather than a lost query
+--- the honest duplex-ish recovery available to a turn-based loop.
 
 \section{Fixed-threshold transfer and the expert-benefit oracle}
 \label{app:fixedthr}
@@ -590,19 +702,20 @@ fixed-$\tau$ accuracy minus a random reference at the \emph{same
 realized rate} (paired bootstrap over ids, $B{=}10^4$, seed 42). AUC
 columns re-score the same frozen scores against local failure and
 against expert benefit ($y{=}$ local wrong $\wedge$ expert right, base
-rate in the last column).}
+rate in the last column). Rates and accuracies in \%; AUC in
+decimals.}
 \label{tab:fixedthr}
 \begin{tabular}{lrrrrrcrrr}
 \toprule
 pool & $n$ & rate & local & acc & rand & $\Delta$ 95\% CI & AUC$_{\text{fail}}$ & AUC$_{\text{benefit}}$ & base \\
 \midrule
-Speech TriviaQA & 250 & 0.284 & 0.664 & 0.832 & 0.750 & $[+0.044,+0.121]$ & 0.796 & 0.782 & 0.308 \\
-Speech Web Questions & 250 & 0.360 & 0.568 & 0.720 & 0.675 & $[+0.008,+0.084]$ & 0.773 & 0.689 & 0.324 \\
-Llama Questions & 250 & 0.080 & 0.836 & 0.868 & 0.843 & $[+0.006,+0.046]$ & 0.830 & 0.813 & 0.112 \\
-SD-QA & 200 & 0.480 & 0.515 & 0.805 & 0.714 & $[+0.045,+0.136]$ & 0.800 & 0.765 & 0.435 \\
-Reasoning QA (zh) & 202 & 0.020 & 0.589 & 0.609 & 0.595 & $[-0.001,+0.035]$ & 0.679 & 0.634 & 0.302 \\
+Speech TriviaQA & 250 & 28.4 & 66.4 & 83.2 & 75.0 & $[+4.4,+12.1]$ & 0.796 & 0.782 & 30.8 \\
+Speech Web Questions & 250 & 36.0 & 56.8 & 72.0 & 67.5 & $[+0.8,+8.4]$ & 0.773 & 0.689 & 32.4 \\
+Llama Questions & 250 & 8.0 & 83.6 & 86.8 & 84.3 & $[+0.6,+4.6]$ & 0.830 & 0.813 & 11.2 \\
+SD-QA & 200 & 48.0 & 51.5 & 80.5 & 71.4 & $[+4.5,+13.6]$ & 0.800 & 0.765 & 43.5 \\
+Reasoning QA (zh) & 202 & 2.0 & 58.9 & 60.9 & 59.5 & $[-0.1,+3.5]$ & 0.679 & 0.634 & 30.2 \\
 \midrule
-internal frozen test & 240 & 0.350 & 0.383 & 0.654 & 0.570 & $[+0.038,+0.131]$ & 0.840 & 0.732 & 0.533 \\
+internal frozen test & 240 & 35.0 & 38.3 & 65.4 & 57.0 & $[+3.8,+13.1]$ & 0.840 & 0.732 & 53.3 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -613,7 +726,8 @@ internal frozen test & 240 & 0.350 & 0.383 & 0.654 & 0.570 & $[+0.038,+0.131]$ &
 \caption{Oracle frontier at matched escalation budgets (gold-inject
 view): random reference / deployed quantile gate / benefit oracle,
 which escalates the true $y{=}1$ cases first. The gate clears random
-everywhere; the oracle column is the remaining headroom.}
+everywhere; the oracle column is the remaining headroom. Accuracies
+in \%.}
 \label{tab:oracle}
 \begin{tabular}{lccccccccc}
 \toprule
@@ -621,13 +735,13 @@ everywhere; the oracle column is the remaining headroom.}
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
 pool & rand & gate & oracle & rand & gate & oracle & rand & gate & oracle \\
 \midrule
-Speech TriviaQA & 0.710 & 0.760 & 0.816 & 0.755 & 0.836 & 0.964 & 0.816 & 0.912 & 0.972 \\
-Speech Web Questions & 0.612 & 0.640 & 0.720 & 0.657 & 0.700 & 0.868 & 0.716 & 0.764 & 0.892 \\
-Llama Questions & 0.850 & 0.888 & 0.948 & 0.864 & 0.912 & 0.948 & 0.882 & 0.932 & 0.948 \\
-SD-QA & 0.577 & 0.635 & 0.665 & 0.639 & 0.745 & 0.815 & 0.723 & 0.820 & 0.950 \\
-Reasoning QA (zh) & 0.631 & 0.678 & 0.738 & 0.674 & 0.728 & 0.891 & 0.730 & 0.767 & 0.891 \\
+Speech TriviaQA & 71.0 & 76.0 & 81.6 & 75.5 & 83.6 & 96.4 & 81.6 & 91.2 & 97.2 \\
+Speech Web Questions & 61.2 & 64.0 & 72.0 & 65.7 & 70.0 & 86.8 & 71.6 & 76.4 & 89.2 \\
+Llama Questions & 85.0 & 88.8 & 94.8 & 86.4 & 91.2 & 94.8 & 88.2 & 93.2 & 94.8 \\
+SD-QA & 57.7 & 63.5 & 66.5 & 63.9 & 74.5 & 81.5 & 72.2 & 82.0 & 95.0 \\
+Reasoning QA (zh) & 63.1 & 67.8 & 73.8 & 67.4 & 72.8 & 89.1 & 73.0 & 76.7 & 89.1 \\
 \midrule
-internal frozen test & 0.463 & 0.492 & 0.533 & 0.543 & 0.608 & 0.683 & 0.650 & 0.742 & 0.883 \\
+internal frozen test & 46.3 & 49.2 & 53.3 & 54.3 & 60.8 & 68.3 & 65.0 & 74.2 & 88.3 \\
 \bottomrule
 \end{tabular}
 \end{table}

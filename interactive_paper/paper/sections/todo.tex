@@ -73,7 +73,25 @@
   token 0.4\,s'' but the plotted value is answer\_ms = \emph{full}
   answer decode; caption + figure title corrected and the figure
   regenerated.
-  (d) PARTIAL DONE 2026-08-26 (was SKIP): duplex-validation sweep ran
+  (d) DONE 2026-08-27 (was SKIP). 8as closed the last tier:
+  concurrent prefill --- target audio interleaved into the SAME KV
+  stream between generation chunks, EOT read fires while generation
+  is active (238/240). Frozen v3 probe degrades AUC 0.869$\to$0.758
+  (paired $\Delta$ $-$0.109 [$-$0.158,$-$0.064]) --- the ONE shift on
+  the ladder that breaks frozen transfer; label-free requantiling
+  recovers decisions only to 75\%. In-regime refit of the same
+  12288-d read on 360 concurrent calib rows recovers 0.818
+  [0.761,0.871] at quarter-scale data $\Rightarrow$ signal intact,
+  calibration must follow the regime. Landed: app:duplexval third
+  arm, Limitations (vi), intro clause. Harness
+  modal\_duplex\_concurrent.py; scripts 11/12; RESULTS 8as.
+  Page rebalance done same pass: Table 2 policy table, dualview
+  figure, second-family block and the serendipity paragraph moved to
+  the appendix; main text ends p8, refs p9. Scale unified
+  (accuracies/rates in \%, AUC in decimals).
+  Still open: official duplex serving format, full-scale (2310)
+  in-regime recalibration, human continuity study, second expert.
+  (d-earlier) 8aq duplex-validation sweep ran
   --- the frozen-pool 240 replayed through the DEPLOYED voice loop
   (talker on, spoken answers) in clean + overlap/barge-in arms via
   \_ws\_duplex.py against the live demo; frozen v4 probe, no refit:
@@ -127,6 +145,49 @@
   only misread''. NOT adopted: restructuring the three contributions,
   cutting appendix richness. Space paid by trimming the
   extended-analyses name-drop line.}
+\item \todonote{P0-R --- reviewer P0 pass (2026-08-27), five questions;
+  answers exist in-repo, story needs surfacing:
+  (1) why route pre-first-token: NOT a safety necessity (first token
+  $\to$ first audible $\approx$0.5\,s exists) --- it's that waiting
+  buys no AUC (measured: entropy@4 0.696, decode-hidden mean 0.776 vs
+  prefill read 0.828/0.887) and every ms of delay is dead air on the
+  escalated path (expert RTT = 85--88\% of escalated wall time).
+  Edit: one sentence in gate.tex reframing pre-token as
+  free-and-optimal, citing the measured decode-time rows.
+  (2) final-layer mean-pool WAS run: LOPO math o4.5 $\approx$0.80
+  (L35) / o2.6 0.674 vs mid last-token 0.931/0.822; in-dist uniformly
+  worse ($-$0.058 at L22). Edit: replace signal.tex ``are fine'' with
+  the numbers; claim = ``only uniformly robust readout'', not
+  ``mid-layer necessary''. Watch counter-q: audio-native final layer
+  is intact (0.936) --- answer = text side still inverts and
+  text$\to$audio calibration only transfers mid-band.
+  (3) label = local-wrong by design (expert-agnostic / pluggable);
+  measured benefit-AUC cost already in app:fixedthr (0.63--0.81;
+  internal 0.840$\to$0.732; WebQ mechanism paragraph). Edit: promote
+  2 sentences to main text. Optional if labels exist: benefit-trained
+  refit on stored EOT hiddens (CPU, minutes).
+  (4) 20/45\,ms = wall-clock prefill-start$\to$L22 score, truncated
+  forward + probe dot, CUDA-synced, H100, 50q, warmup excluded, P50
+  (P95 25/104); TTFT same bench. Excludes network/RPC --- async path,
+  reported separately. Edit: measurement-protocol sentence in
+  app:gatedetail + define in gate.tex.
+  (5) user-facing expert latency IS measured: stall onset p50 22\,ms,
+  stall 3.2--4.1\,s, expert content audible p50 6.4\,s/p95 26/p99 34,
+  dead air after stall p50 $\approx$2.3--3.2\,s, tail P90 $\approx$27\,s.
+  Edit: put content-audible numbers next to the 22\,ms claim in
+  live.tex main text so 25$\times$ can't be read as answer latency;
+  optional: exact dead-air p50/95/99 from frozen\_v3tts traces
+  (scripts/10\_tts\_latency.py extension, CPU).
+  STATUS 8-27: all five LANDED (gate.tex $\times$2, signal.tex,
+  live.tex, appendix $\times$3); dead air computed from the tts
+  traces --- p50 2.5\,s / p95 22.4 / p99 30.7, 25/84 turns fully
+  covered (scripts/10\_tts\_latency.py, dead-air block added).
+  Benefit-trained refit NOT run (only re-scoring exists).
+  $\Rightarrow$ WARNING page budget: same-engine (tectonic) check
+  puts References at p9@78\% BEFORE this pass and p10@6\% after ---
+  main text already exceeded the 8-page target by $\sim$0.8\,pp
+  before these edits (user build 8-27 01:52 also shows refs on p9).
+  Needs a $\sim$1-page trim decision before upload.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29

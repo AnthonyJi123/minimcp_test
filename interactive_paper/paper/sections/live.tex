@@ -58,18 +58,9 @@ real-time) are in Appendix~\ref{app:livedetail}. A talker-on replay
 TTS-on re-run of the balanced arm puts first \emph{audible}
 audio at p50 0.55\,s / p99 0.64\,s after end of turn on local
 answers and 22--29\,ms on escalated ones --- the canned stall
-starts speaking while the expert call is in flight
-(Appendix~\ref{app:livedetail}).
+starts speaking while the expert call is in flight. First audio is
+not the answer: expert \emph{content} becomes audible at p50 6.4\,s
+/ p95 26 / p99 34 (the round-trip is 85--88\% of escalated wall
+time); the stall fully covers 25/84 of those waits, leaving dead
+air of p50 2.5\,s / p95 22.4 (Appendix~\ref{app:livedetail}).
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=.8\linewidth]{fair_dualview}
-  \caption{Live dual-view tradeoff ($n{=}218$ speakable subset). Blue:
-  honest heard accuracy of the live system (paired-bootstrap
-  CIs). Green: the channel-controlled counterfactual (same sessions,
-  escalated rows re-scored with gold-text expert answers) with its
-  paired random reference (dashed). The view-to-view gap is the
-  speech-channel price; the floor-to-floor gap to offline operation is
-  the audio + streaming-answer tax.}
-  \label{fig:dualview}
-\end{figure}

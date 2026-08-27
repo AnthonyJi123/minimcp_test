@@ -3,13 +3,25 @@
 
 \paragraph{The decision exists before decoding starts.}
 The gate is one 4096-d dot product on a hidden state the forward pass
-already computes. Measured on H100, the L22 decision lands in
-\textbf{20\,ms (text) / 45\,ms (audio)} against time-to-first-token of
-36/68\,ms: $T_{\text{gate}} < T_{\text{first token}}$, far inside the
+already computes. Measured on H100 (wall-clock, prefill start to L22
+score, CUDA-synced; network excluded --- the cloud call fires
+asynchronously; protocol: Appendix~\ref{app:gatedetail}), the
+decision lands in
+\textbf{20\,ms (text) / 45\,ms (audio)} at P50 (P95 25/104) against
+same-bench time-to-first-token of 36/68\,ms:
+$T_{\text{gate}} < T_{\text{first token}}$, far inside the
 200--300\,ms turn-taking budget \citep{stivers2009universals}, and the
 cloud call can launch while the remaining $\sim$40\% of prefill and the
-whole decode still run ($\ptrue$-pre costs an extra prefill,
-$\ptrue$-post a full draft: 1.9/3.5\,s; per-layer cost curves in
+whole decode still run. Deciding pre-token is optimal, not merely
+feasible: first audible speech trails the first token by $\sim$0.5\,s
+(\S\ref{sec:live}), so one could wait out a few decoded tokens and
+cancel --- but decode-time readouts measure \emph{weaker}, not
+stronger (max entropy@4 0.696, Table~\ref{tab:signals}; mean-pooled
+early-decode hiddens 0.776 vs.\ 0.828 at the prompt position;
+$\ptrue$-pre an extra prefill, $\ptrue$-post a full 1.9/3.5\,s
+draft), and every waited millisecond delays the stall onset and the
+expert launch on a path where the expert round-trip is 85--88\% of
+escalated wall time (per-layer cost curves:
 Appendix~\ref{app:gatedetail}).
 
 \paragraph{Accuracy--cost tradeoff.}
@@ -22,6 +34,13 @@ In distribution the gate is statistically on par with a pool-oracle
 (type-only) router --- as the type-shortcut audit predicts --- so its
 case over type routing rests on transfer, where the type shortcut
 collapses (\S\ref{sec:audit}) and the mid-layer signal does not.
+The gate is fit to \emph{local failure}, not expert benefit ($y{=}1$
+iff local wrong \emph{and} expert right): a benefit label bakes the
+current expert's blind spots into a router meant to survive expert
+swaps; against the harder label the frozen scores stay usable out of
+distribution (AUC 0.63--0.81), a fifth to three fifths of the
+random-to-oracle span at matched budgets
+(Appendix~\ref{app:fixedthr}).
 
 \paragraph{Against the model's own thinking mode.}
 \label{sec:thinking}
@@ -33,21 +52,3 @@ mechanistic: the gate predominantly flags knowledge and trap failures,
 which extra compute cannot fix --- thinking helps math and hurts chat
 --- so external escalation is necessary, not merely better.
 
-\begin{table}[t]
-\centering\small
-\caption{Deployment policies, frozen test split ($n{=}240$); latencies
-measured.}
-\label{tab:policy}
-\begin{tabular}{lcccc}
-\toprule
-policy & acc (\%) & lat.\ mean (s) & P50 & P95 \\
-\midrule
-fast-only & 58.8 & 3.0 & 3.5 & 4.2 \\
-all-THINK (built-in) & 63.7 & 22.4 & 17.2 & 60.1 \\
-gated-think @33\% & 61.3 & 12.1 & 3.6 & 47.6 \\
-gated-cloud @15\% & 68.8 & 5.3 & 3.6 & 10.1 \\
-\textbf{gated-cloud @33\%} & \textbf{78.7} & \textbf{6.5} & 3.6 & 20.8 \\
-gated-cloud @50\% & 85.8 & 7.0 & 3.6 & 24.4 \\
-\bottomrule
-\end{tabular}
-\end{table}
