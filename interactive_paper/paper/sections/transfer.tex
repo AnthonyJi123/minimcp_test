@@ -38,8 +38,8 @@ accuracies carry a $\pm$.02--.03 replication floor.}
 \cmidrule(lr){4-7}
 pool & judge & $n$ & 0\% & 15\% & 30\% & 50\% & ceiling & AUC & official \\
 \midrule
-Speech TriviaQA      & OAB  & 250 & .664 & .732 & .800 & \textbf{.860} & .972 & .789 & .755 \\
-Speech Web Questions & OAB  & 250 & .57  & .628 & .680 & .732 & .844 & .785 & .702 \\
+Speech TriviaQA      & OAB  & 250 & .664 & .732 & .800 & \textbf{.860} & .968 & .789 & .755 \\
+Speech Web Questions & OAB  & 250 & .57  & .628 & .680 & .732 & .864 & .785 & .702 \\
 Llama Questions      & OAB  & 250 & .84  & .904 & .904 & .948 & .928 & .806 & --- \\
 SD-QA                & ours & 200 & .51  & .600 & .720 & .795 & .930 & .792 & --- \\
 Reasoning QA (zh)    & ours & 202 & .59  & .653 & .713 & .772 & .871 & .683 & --- \\
@@ -72,7 +72,7 @@ random --- open-ended instruction following has no ``missing fact''
 event for a retrieval-failure detector to read.
 \textbf{Web Questions and SD-QA are flat} under the deployed-probe
 refit: on Web Questions strict alias-based labels decouple ``wrong''
-from ``uncertain'' (even the gold-text ceiling is .844), and the
+from ``uncertain'' (even the gold-text ceiling is .864), and the
 failures the gate ranks highest are ones the expert misses too
 (expert-fixable share .66 at the 15\% cut vs.\ .75 pool-wide). The external
 channel cost is small (heard-vs-gold gap .035--.056 at aggressive vs.\

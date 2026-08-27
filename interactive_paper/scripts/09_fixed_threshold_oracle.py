@@ -7,7 +7,8 @@ cover 100% of ids, so any threshold is counterfactually evaluable. The heard vie
 only observes the ~50% of ids that some arm actually escalated, so a free-moving
 threshold is not evaluable there.
 
-Usage: ..\.venv_ip\Scripts\python.exe scripts\09_fixed_threshold_oracle.py
+Usage (from interactive_paper/): .venv_boot\Scripts\python.exe
+scripts\09_fixed_threshold_oracle.py  (.venv_ip lacks sklearn)
 """
 import json
 from pathlib import Path

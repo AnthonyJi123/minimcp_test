@@ -445,6 +445,12 @@ escalates 50\%, so the other half of each pool has no expert outcome on
 record, whereas the ceiling runs cover every id. Labels follow each
 pool's own judge (Table~\ref{tab:transfer}); the two judges disagree by
 up to 13 points on Web Questions, so they are never mixed within a row.
+AUC columns are recomputed from the deployed sweep's stored
+end-of-turn scores; they differ from Table~\ref{tab:transfer}'s AUC
+column --- captured in a separate scoring pass --- by up to .03
+externally and .04 on the internal pool (.840 here vs.\ .879 there):
+the passes render and prefill the audio independently, and the probe
+score carries render-to-render jitter.
 AlpacaEval is excluded --- it has no binary correctness label on either
 side, only a 1--5 score whose expert ceiling is degenerate (195/199 at
 5).
