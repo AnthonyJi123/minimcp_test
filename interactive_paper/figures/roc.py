@@ -16,7 +16,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_curve
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
-BLUE, GREEN, ORANGE, GRAY, INK = "#2a78d6", "#1e9e50", "#E4572E", "#9CA3AF", "#111827"
+BLUE, GREEN, ORANGE, GRAY, INK = "#2a78d6", "#1baf7a", "#eb6834", "#9CA3AF", "#111827"
 
 df = pd.read_parquet("../data/calib_features.parquet")
 pt = pd.concat([pd.read_parquet(f) for f in

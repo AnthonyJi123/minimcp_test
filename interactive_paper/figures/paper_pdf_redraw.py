@@ -313,3 +313,102 @@ if __name__ == "__main__":
     fig_receipt()
     fig_overlap()
     fig_teaser_v2()
+
+
+# ---------------------------------------------------- fair dualview (Fig 3)
+def fig_fair_dualview():
+    d = json.load(open("figures/fair_figures.json"))
+    arms = ["never", "conservative", "balanced", "aggressive"]
+    esc = np.array([d["arms"][a]["esc"] for a in arms]) * 100
+    heard = np.array([d["arms"][a]["heard"] for a in arms]) * 100
+    h_ci = np.array([d["arms"][a]["heard_ci"] for a in arms]) * 100
+    gold = np.array([d["arms"][a]["gold_inject"] for a in arms]) * 100
+    g_ci = np.array([d["arms"][a]["gold_inject_ci"] for a in arms]) * 100
+    always = d["always"] * 100
+
+    fig, ax = plt.subplots(figsize=(8, 5.2))
+    ax.plot([0, 100], [heard[0], always], color=MUT, lw=1.6,
+            ls=(0, (4, 3)), zorder=2,
+            label="random escalation (pairs with gold view)")
+    ax.errorbar(esc, gold, yerr=[gold - g_ci[:, 0], g_ci[:, 1] - gold],
+                fmt="--s", color=C3, lw=2.2, ms=9, capsize=5,
+                capthick=2, zorder=3,
+                label="gold-inject counterfactual (channel-controlled)")
+    ax.errorbar(esc, heard, yerr=[heard - h_ci[:, 0], h_ci[:, 1] - heard],
+                fmt="-o", color=C1, lw=2.6, ms=10, capsize=5, capthick=2,
+                zorder=4, label="heard accuracy (deployed live system)")
+    ax.plot([100], [always], marker="*", ms=20, color=C3, zorder=5)
+    ax.annotate(f"always-escalate {always:.1f}%", (100, always),
+                textcoords="offset points", xytext=(-8, 4), ha="right",
+                fontsize=12, color=MUT)
+    for a, x, y in zip(arms, esc, heard):
+        ax.annotate(a, (x, y), textcoords="offset points",
+                    xytext=(8, -16), fontsize=12, color=C1)
+    ax.set_xlim(-3, 104)
+    ax.set_xlabel("realized escalation rate (%)")
+    ax.set_ylabel(f"accuracy, speakable subset (%)  [n={d['n']}]")
+    ax.legend(loc="lower right", framealpha=0.95, borderpad=0.7)
+    fig.tight_layout()
+    save(fig, "fair_dualview")
+
+
+# ------------------------------------------------------ nvda re-mix (Fig 5)
+def fig_nvda_remix():
+    D = "data"
+    S = pd.read_parquet(f"{D}/nvda_scores.parquet")
+    EXP = pd.read_parquet(f"{D}/nvda_expert_outcomes.parquet")
+    POOLS = [("striviaqa", "Speech TriviaQA", "oab_ok", "OAB judge"),
+             ("swebq", "Speech Web Questions", "oab_ok", "OAB judge"),
+             ("sllama", "Llama Questions", "oab_ok", "OAB judge"),
+             ("sdqa", "SD-QA", "adequate", "our judge"),
+             ("valpaca", "AlpacaEval", None, "VoiceBench 1-5")]
+    RS = np.arange(0, 1.01, 0.05)
+    TIERS = (0.15, 0.30, 0.50)
+
+    fig, axes = plt.subplots(2, 3, figsize=(13.5, 7.6))
+    axes = axes.ravel()
+    for ax, (pool, title, loc_col, judge) in zip(axes, POOLS):
+        if pool == "valpaca":
+            sv = pd.read_parquet(f"{D}/nvda_scores_valpaca.parquet")
+            e = EXP[EXP.pool == "valpaca"].set_index("id")
+            dd = sv[["id", "score"]].copy()
+            dd["loc"] = sv["vb_score"].values
+            dd["exp"] = dd["id"].map(e["expert_score"]).astype(float)
+            scale = 1.0
+        else:
+            nv = pd.read_parquet(f"{D}/nvda_{pool}.parquet").set_index("id")
+            e = EXP[EXP.pool == pool].set_index("id")
+            dd = S[S.pool == pool][["id", "score"]].copy()
+            dd["loc"] = dd["id"].map(nv[loc_col]).astype(float)
+            dd["exp"] = dd["id"].map(e["expert_ok"]).astype(float)
+            scale = 100.0
+        dd = dd.dropna().sort_values("score", ascending=False) \
+            .reset_index(drop=True)
+        n = len(dd)
+        sel = np.array([np.concatenate(
+            [dd["exp"][:int(round(r * n))],
+             dd["loc"][int(round(r * n)):]]).mean() for r in RS]) * scale
+        rnd = np.array([(1 - r) * dd["loc"].mean() +
+                        r * dd["exp"].mean() for r in RS]) * scale
+        ax.plot(RS * 100, rnd, ls=(0, (4, 3)), color=MUT, lw=1.8,
+                label="matched-rate random")
+        ax.plot(RS * 100, sel, "-", color=C1, lw=2.6,
+                label="probe top-$r$ (selective)")
+        ax.plot(np.array(TIERS) * 100,
+                [sel[int(np.argmin(np.abs(RS - t)))] for t in TIERS],
+                "o", ms=9, color=C1)
+        ax.set_title(f"{title} ({judge}, n={n})", fontsize=14)
+        ax.set_xlabel("escalation rate (%)")
+        if pool == "valpaca":
+            ax.set_ylim(3.3, 5.05)
+            ax.set_ylabel("judge score (1–5)")
+        else:
+            ax.set_ylim(0, 100)
+            ax.set_ylabel("accuracy (%)")
+    h, l = axes[0].get_legend_handles_labels()
+    axes[5].axis("off")
+    axes[5].grid(False)
+    axes[5].legend(h, l, loc="center", fontsize=16, frameon=False,
+                   handlelength=3)
+    fig.tight_layout()
+    save(fig, "nvda_remix")

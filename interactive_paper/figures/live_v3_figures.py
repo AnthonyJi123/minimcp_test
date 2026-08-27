@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-BLUE, GREEN = "#2a78d6", "#1e9e50"
+BLUE, GREEN = "#2a78d6", "#1baf7a"
 INK, MUT, GRID = "#0b0b0b", "#52514e", "#e6e4de"
 ARMS = ("never", "conservative", "balanced", "aggressive")
 DATA = "../data"
