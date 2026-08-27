@@ -4013,3 +4013,38 @@ Remaining 200 (easy-chat 150 + trap 50) are Claude-generated → need the secret
 
 Pure helpers (`src/queries.py`) unit-tested locally: MCQ formatting, GSM8K
 reference extraction, and stratified 60/40 split (deterministic, seed 42) all pass.
+
+### 8ar — TTS-on balanced re-run: EOT→first-audible measured (~$4, 2026-08-26)
+
+P2(c) closure: the reviewer asked for time-to-first-audio; the v3 sweep was
+text-out (8aj's shortcut), so nothing was recomputable offline. `bench_live`
+gained a `tts` flag (default off, off-path byte-identical): init_tts +
+Token2wav (`system_ref_audio` voice cache, `reset_token2wav_cache=False`
+per turn — the 8aj gotchas), stall teacher-forced once into a canned buffer
+in the talker's own voice, both answer paths through a `gen_speak` port of
+demo_app's loop. Balanced arm re-run on the frozen 240 (4 workers, ~20 min
+wall, expert answers all cache hits).
+
+**Gate decision unchanged**: eot read p50 21 ms / p99 32 ms; the same
+84/240 queries fire (escalation-rate agreement with the text-out arm exact;
+<|tts_bos|> enters after the read, thresholds untouched).
+
+**EOT → first audible audio** (n=240):
+| path | p50 | p95 | p99 |
+|---|---:|---:|---:|
+| local answer (n=156) | .552 s | .599 | .644 |
+| escalated = canned stall onset (n=84) | .022 s | .028 | .029 |
+| pooled | .543 s | .597 | .639 |
+| escalated: expert CONTENT audible | 6.43 s | 26.0 | 34.0 |
+
+The headline inversion: **the escalated path reaches first audio 25×
+faster than the local path** — the canned stall (3.2–4.1 s of speech)
+plays the moment the gate fires, covering the head of the expert wait;
+relay first PCM lands p50 .66 s after the expert answer returns. Landed:
+live.tex (one sentence in the live-result paragraph) + app:livedetail
+("Time to first audible audio"). Artifacts:
+`data/frozen_v3tts_traces.jsonl.balanced.shard{0..3}` (+ smoke files),
+`scripts/10_tts_latency.py`. Caveats: single run per query (same ±.02–.03
+replication discipline as the sweep); spoken answers run long on math
+(spoken_s p95 146 s — the loop speaks the whole chain of thought, a
+separate UX problem, not a latency one).

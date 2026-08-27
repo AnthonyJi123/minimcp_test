@@ -59,15 +59,16 @@
   follow each pool's own judge (oab\_ok vs adequate --- they differ by
   13pp on Web Questions, never mix); AlpacaEval excluded, it has no
   binary label on either side.
-  (c) DROPPED --- EOT$\to$first-audible is NOT computable from any
-  existing log. The whole live sweep ran init\_tts=False /
-  generate\_audio=False (audio-in, text-out), so no vocoder onset was
-  ever produced, let alone timestamped; every time field is a duration,
-  not a wall clock. stall\_ms is stall-token \emph{prefill} (p50 23ms),
-  not speech onset --- do not pass it off as time-to-first-audio.
-  Real first-audio instrumentation exists only in demo\_app.py
-  (\_gen\_speak), which persists nothing. Would require re-running the
-  sweep with TTS on.
+  (c) DONE 2026-08-26 (was DROPPED, then re-run with TTS on):
+  bench\_live gained a tts flag (init\_tts + Token2wav, canned stall,
+  gen\_speak port of demo\_app); balanced arm re-run on the frozen 240
+  ($\sim$50\,min H100, expert cache hits). EOT$\to$first-audible:
+  local p50 .552s/p99 .644s, escalated (canned stall onset) p50
+  .022s/p99 .029s, expert-content p50 6.4s/p95 26.0/p99 34.0.
+  Same 84/240 fire as text-out; probe read unperturbed (p50 21ms).
+  Landed: live.tex sentence + app:livedetail paragraph. Traces
+  data/frozen\_v3tts\_traces.jsonl.balanced.shard0-3; analysis
+  scripts/10\_tts\_latency.py.
   Fixed en route: fig:timeline-live panel (c) was captioned ``first
   token 0.4\,s'' but the plotted value is answer\_ms = \emph{full}
   answer decode; caption + figure title corrected and the figure

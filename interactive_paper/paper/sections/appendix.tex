@@ -279,6 +279,23 @@ Figure~\ref{fig:pareto-latency} joins accuracy and latency;
 Figure~\ref{fig:timeline-live} replays three real sessions from
 recorded timers.
 
+\paragraph{Time to first audible audio.} The sweep above is
+text-out; a TTS-on re-run of the balanced arm (same 240 queries,
+talker head + vocoder on, stall pre-synthesized once in the talker's
+own voice) measures speech onset directly. The gate decision is
+unchanged --- the TTS token enters the context only after the
+end-of-turn read (read p50 21\,ms / p99 32\,ms), and the same
+84/240 queries fire. From gate decision to first audible audio:
+\textbf{local answers p50 .552\,s / p95 .599 / p99 .644};
+\textbf{escalated turns p50 .022\,s / p99 .029} --- the canned
+stall (3.2--4.1\,s of speech) plays the moment the gate fires, so
+the escalated path reaches first audio $25\times$ faster. Expert
+\emph{content} becomes audible at p50 6.4\,s / p95 26.0 / p99
+34.0 (cache-corrected expert round-trip $+$ first relay PCM, p50
+.66\,s after the answer returns); the stall covers the head of that
+wait, and Table~\ref{tab:latency}'s completion profile bounds the
+tail.
+
 \begin{table}[h]
 \centering\small
 \caption{Live streaming sweep, paired bootstrap 95\% CIs ($B{=}10^4$).
