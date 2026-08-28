@@ -179,13 +179,36 @@ alone gets neither (probe readout text-fragile, verbal readout
 audio-fragile; in both cases knowledge survives and a readout breaks,
 and in both cases the breakage is duplex-fine-tune-specific).
 
-\paragraph{The deployed probe.} The mechanistic probe is a
-single-position L22 read. The deployed probe adds two zero-latency
+\paragraph{The deployed probe, and which calibration each result
+uses.} The mechanistic probe is a single-position L22 read (4096-d),
+fit on the 360-query calibration split; every representational result
+(\S\ref{sec:signal}, Appendices~\ref{app:signal},~\ref{app:mech}) is
+this probe. The deployed probe adds two zero-latency
 pooled positions (an 8-token tail mean and the running user-audio
-mean), refit on a calibration mix widened to 2{,}310 public-benchmark
+mean; 12{,}288-d), refit on a calibration mix widened to 2{,}310 public-benchmark
 queries disjoint from every evaluation benchmark; a pre-registered
 guard held (frozen internal test AUC 0.860$\to$0.879) and feature
-selection never saw the externals. In the mid-layer band the in-mix
+selection never saw the externals. It drives the turn-based live loop
+(\S\ref{sec:live}), the frozen transfer results (\S\ref{sec:transfer}),
+and the talker-on replay --- frozen throughout, calibrated on text and
+speech-rendered internal data only. The one exception is the
+concurrent regime, where the frozen read degrades and the same
+12{,}288-d feature set is refit on 360 in-regime rows
+(Appendix~\ref{app:duplexval}); that quarter-scale calibration is why
+its external transfer is weaker, and it is the only number in the
+paper whose probe is fit inside the regime it is evaluated in.
+\emph{Selection history.} L22 and the three-position feature set were
+chosen on internal calibration-split cross-validation before any
+external benchmark was scored (the 8-position $\times$ layer sweep and
+the 19-configuration feature sweep are both calibration-only), and
+the internal frozen test split was the pre-registered guard. The
+external pools were then read once with the frozen artifact. Two
+honest exposures remain: the layer band was picked on internal
+LOPO rather than by nested selection inside each held-out pool, and
+the second duplex family's mid-band peak (L30--34 of 56) was located
+with its own sweep, so both layer choices are best read as
+\emph{confirmed on held-out pools}, not as untouched-holdout
+estimates. In the mid-layer band the in-mix
 tradeoff optimum is broad (L20--L30) and the mid-layer probe's
 in-distribution area advantage is modest --- its real advantage is
 LOPO robustness, which an in-mix test cannot show.
@@ -581,12 +604,12 @@ check behind the pre-answer gate.
   \centering
   \includegraphics[width=.65\linewidth]{fair_dualview}
   \caption{Live dual-view tradeoff ($n{=}218$ speakable subset). Blue:
-  honest heard accuracy of the live system (paired-bootstrap
-  CIs). Green: the channel-controlled counterfactual --- same sessions,
+  measured deployed-channel accuracy of the live system
+  (paired-bootstrap CIs). Green: the channel-controlled counterfactual --- same sessions,
   escalated rows re-scored with gold-text expert answers. Each view is
   plotted against \emph{its own} matched-rate random reference (faint
   dashed, same floor, each view's own 100\% endpoint): selection beats
-  random within both views at every arm, by 0.072--0.095 heard and
+  random within both views at every arm, by 0.072--0.095 deployed and
   0.054--0.084 gold. The vertical view-to-view gap is the
   speech-channel price; the floor-to-floor gap to offline operation is
   the audio + streaming-answer tax.}
@@ -630,7 +653,7 @@ $^{\dagger}$ CI lower bound at zero.}
 \label{tab:live}
 \begin{tabular}{lccccc}
 \toprule
-tier & esc & heard-acc & $\Delta$ vs.\ floor & gold-inject & channel cost \\
+tier & esc & deployed & $\Delta$ vs.\ floor & gold-inject & channel cost \\
 \midrule
 never & 0\%  & 0.422 [0.36,0.49] & --- & 0.422 & --- \\
 conservative  & 14\% & 0.528 [0.46,0.59] & +0.106$^{*}$ & 0.550 & +0.023$^{\dagger}$ \\
@@ -713,7 +736,7 @@ same-model gold-text control with an audio-capable expert shows the
 audio channel itself is lossless for speakable content: the leak is
 the talker's transcription, not the synthesis or the relay (relay
 drops: 5 cases of 108; corrupted transcripts dominate the escalated
-heard-failures, first-generation sweep).
+failures, first-generation sweep).
 
 \paragraph{Boundary query classes.} \emph{False premises}: the model
 fails substantially (0.63 text / 0.47 audio) and the expert would help
@@ -809,54 +832,87 @@ in-regime gate (thresholds = label-free quantiles of each pool's own
 concurrent never-arm scores), the complete escalation loop --- carrier
 speaking, target audio interleaved, EOT read mid-generation, stall $\to$
 expert $\to$ relay --- was re-run end to end on all seven pools
-(Table~\ref{tab:conclive}). The mechanism reproduces: heard accuracy
-rises monotonically in budget on every pool, realized rates track
-nominal (10--51\%), and \emph{selective escalation beats
-always-escalate} on the internal pool (66.2 vs.\ 61.7\%; speakable
-subset 71.1 vs.\ 66.5\%) and on Llama Questions (86.4 vs.\ 85.6\%,
-our judge) --- the turn-based signature result carries over. On the
-speakable subset the concurrent loop reaches
-\textbf{44.5$\to$71.1\%} at 63\% escalation (turn-based reference
-42.2$\to$63.3\% at 57\%). Floors move by pool --- the regime cost
+(Table~\ref{tab:conclive}). We report this sweep as
+\emph{exploratory}: one session per query per arm, an in-regime probe
+calibrated on 360 internal rows only, teacher-forced carrier (the
+caveat above). The loop's mechanics reproduce --- realized escalation
+rates track nominal on the external pools (10.8--51.2\%), and latency
+holds (EOT read p50 23\,ms, canned-stall onset 27--34\,ms, local
+first audio p50 .655\,s vs.\ .552 turn-based, the price of the longer
+concurrent context) --- and on the internal pool, where calibration
+matches the regime, so does \emph{selection}: accuracy climbs
+40.4$\to$52.1$\to$66.2\% (speakable
+\textbf{44.5$\to$56.0$\to$71.1\%}) over the balanced and aggressive
+tiers, clearing the matched-rate random remix of the same
+never/always outcomes ($p{=}.017$ and $5{\times}10^{-5}$; speakable
+$.009$ and $5{\times}10^{-5}$), and \emph{selective escalation beats
+always-escalate} (66.2 vs.\ 61.7\% at two thirds of the calls;
+speakable 71.1 vs.\ 66.5) --- the turn-based signature result
+carries over. The matched-random rows of Table~\ref{tab:conclive}
+bound any stronger reading, in three ways. (i) Gains are not monotone
+everywhere: the internal conservative tier under-fires (2.5\%
+realized vs.\ 15.8\% nominal --- the top calibration quantile did not
+transfer to the regime; balanced and aggressive did) and lands flat
+(40.4$\to$40.0, 44.5$\to$43.6, inside the $\pm$2--3 floor). (ii)
+Externally the 360-row in-regime probe separates from matched-rate
+random only in spots (Llama @50\%: 90.8 vs.\ 86.5,
+$p{=}3{\times}10^{-4}$; Reasoning zh @30/50\%: $p\le.0024$;
+AlpacaEval @15\%: $p{=}.031$); at the other external operating points
+the budget gains are what random escalation would buy --- consistent
+with this probe's external AUC of .57--.67 against the full-scale
+turn-based probe's .68--.81, a calibration-\emph{scale} gap
+(internally, where calibration matches the distribution, it reads
+.857 vs.\ the turn-based .879) whose fix --- full-scale in-regime
+recalibration --- is deferred work, not a new signal. (iii) On Llama
+Questions selective-vs-always is judge- and noise-sensitive (official
+judge 90.8 vs.\ 91.2; ours 86.4 vs.\ 85.6 --- both deltas inside the
+floor), so we claim that comparison only on the internal pool.
+Floors move by pool --- the regime cost
 story: Llama $\approx$ unchanged, TriviaQA $-$16, Reasoning zh $-$18
 (the English carrier hurts the zh pool most), WebQ $+$4.8 under the
 official judge (within the $\pm$2--3 replication floor; the larger
 our-judge shift is alias-matching style sensitivity). AlpacaEval
-reverses its turn-based honest-negative: 4.36$\to$4.60 (1--5 scale,
-always 4.76). Two honest notes: the in-regime probe, calibrated on
-360 internal rows only, transfers externally at AUC .57--.67 against
-the full-scale turn-based probe's .68--.81 --- a calibration-\emph{scale}
-gap, not a signal gap (internally, where calibration matches the
-distribution, it reads .857 vs.\ the turn-based .879) --- and the
-internal conservative threshold under-fired (2.5\% realized vs.\ 15.8
-nominal; the top calib quantile did not transfer, balanced and
-aggressive did). Latency holds: EOT read p50 23\,ms, canned-stall
-onset 27--34\,ms, local first audio p50 .655\,s (vs.\ .552 turn-based
---- the price of the longer concurrent context).
+rises 4.36$\to$4.60 (1--5 scale, always 4.76), but only its
+conservative tier clears matched random ($p{=}.031$; 4.40--4.55
+across tiers), so the turn-based honest-negative stands.
 
 \begin{table}[h]
 \centering\footnotesize
 \setlength{\tabcolsep}{4pt}
-\caption{The full escalation loop in the concurrent regime, all
-pools, judge-matched to Table~\ref{tab:transfer} (OAB official for
-TriviaQA/WebQ/Llama; ours for SD-QA/Reasoning/internal; VoiceBench
-1--5 for AlpacaEval). Gate = in-regime probe (360-row calibration),
-per-pool label-free quantile thresholds. Accuracies in \%; AUC =
-in-regime probe vs.\ never-arm failure, decimals.}
+\caption{The full escalation loop in the concurrent regime
+(\emph{exploratory}: one session per arm, 360-row in-regime
+calibration, teacher-forced carrier), all pools, judge-matched to
+Table~\ref{tab:transfer} (OAB official for TriviaQA/WebQ/Llama; ours
+for SD-QA/Reasoning/internal; VoiceBench 1--5 for AlpacaEval). Gate =
+in-regime probe, per-pool label-free quantile thresholds; tier columns
+are headed by each pool's \emph{realized} rate, and the \emph{rand}
+row under each pool is the matched-rate random remix of the same
+never/always outcomes (20k draws; $p$ = P(random $\ge$ gate), marked
+$^{*}p{<}.05$, $^{**}p{<}.01$). Accuracies in \%; AUC = in-regime
+probe vs.\ never-arm failure, decimals.
+Script: \texttt{scripts/20\_conclive\_random\_check.py}.}
 \label{tab:conclive}
 \begin{tabular}{lcccccc}
 \toprule
-pool & never & @15\% & @30\% & @50\% & always & AUC \\
+pool & never & cons. & bal. & aggr. & always & AUC \\
 \midrule
 TriviaQA & 50.4 & 54.0 & 64.0 & 71.6 & 91.6 & 0.636 \\
+\;\emph{rand} (10.8/30.8/46.8\%) & & 54.9 & 63.1 & 69.6 & & \\
 WebQ & 61.6 & 65.2 & 68.8 & 71.2 & 81.6 & 0.636 \\
-Llama Q. & 81.6 & 83.2 & 84.8 & 90.8 & 91.2 & 0.672 \\
+\;\emph{rand} (15.6/30.4/48.8\%) & & 64.7 & 67.7 & 71.4 & & \\
+Llama Q. & 81.6 & 83.2 & 84.8 & 90.8$^{**}$ & 91.2 & 0.672 \\
+\;\emph{rand} (14.8/29.2/51.2\%) & & 83.0 & 84.4 & 86.5 & & \\
 SD-QA & 49.5 & 55.5 & 60.5 & 70.5 & 89.5 & 0.636 \\
-Reason.\ zh & 40.6 & 48.5 & 58.4 & 64.4 & 80.7 & 0.570 \\
+\;\emph{rand} (15.0/29.5/50.5\%) & & 55.5 & 61.3 & 69.7 & & \\
+Reason.\ zh & 40.6 & 48.5 & 58.4$^{**}$ & 64.4$^{**}$ & 80.7 & 0.570 \\
+\;\emph{rand} (15.3/30.2/45.0\%) & & 46.8 & 52.7 & 58.7 & & \\
 \midrule
-internal (240) & 40.4 & 40.0 & 52.1 & 66.2 & 61.7 & --- \\
-internal speakable (218) & 44.5 & 43.6 & 56.0 & \textbf{71.1} & 66.5 & 0.857 \\
-AlpacaEval (1--5) & 4.36 & 4.45 & 4.53 & 4.60 & 4.76 & --- \\
+internal (240) & 40.4 & 40.0 & 52.1$^{*}$ & 66.2$^{**}$ & 61.7 & --- \\
+\;\emph{rand} (2.5/36.2/66.2\%) & & 41.0 & 48.1 & 54.5 & & \\
+internal speakable (218) & 44.5 & 43.6 & 56.0$^{**}$ & \textbf{71.1}$^{**}$ & 66.5 & 0.857 \\
+\;\emph{rand} (2.3/31.2/62.8\%) & & 45.0 & 51.4 & 58.3 & & \\
+AlpacaEval (1--5) & 4.36 & 4.45$^{*}$ & 4.53 & 4.60 & 4.76 & --- \\
+\;\emph{rand} (10.1/30.7/47.7\%) & & 4.40 & 4.48 & 4.55 & & \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -874,7 +930,7 @@ end-pointing thus degrades into an extra turn rather than a lost query
 \label{app:fixedthr}
 
 Both analyses below run in the \emph{gold-inject} view (escalated rows
-take the expert's answer to the gold text). The deployed heard view
+take the expert's answer to the gold text). The deployed-channel view
 cannot evaluate a freely moving threshold: the most permissive arm
 escalates 50\%, so the other half of each pool has no expert outcome on
 record, whereas the ceiling runs cover every id. Labels follow each

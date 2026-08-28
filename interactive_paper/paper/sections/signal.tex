@@ -49,9 +49,12 @@ survive at the same depth but 0.13--0.15 below the mid-layer peak
 mid-network the last-token read recovers to \textbf{0.931 at L22},
 near the raw backbone.
 
-\emph{What breaks at the output.} The natural reading --- that duplex
-training re-purposes the last position for turn-control state --- is
-half right at best, and we tested it rather than asserting it
+\emph{What breaks at the output.} \textbf{The mechanism is
+unresolved}: what we can state is that duplex checkpoints exhibit a
+late, distributed-read decay their backbones and non-duplex fine-tunes
+do not. The natural reading --- that duplex
+training re-purposes the last position for turn-control state --- we
+tested rather than asserted, and it fails its own direct tests
 (Appendix~\ref{app:mech}). Four candidate mechanisms fail: the cliff
 does not move when the model is prefilled in speak mode, the inverting
 direction is orthogonal to the model's own audio-vs-text axis, source
@@ -66,11 +69,12 @@ that distributed component decays and inverts, on MiniCPM-o~4.5 while
 the read concentrates into a handful of dominant directions. Duplex
 tuning does not delete the competence signal; it stops delivering it
 to the output position the standard readout uses. Direct tests of the
-turn-control reading sharpen this without overturning it: the duplex
-output layer alone stays biased toward emitting control tokens, yet
+turn-control reading do not support a takeover: the duplex
+output layer alone stays biased toward emitting control tokens, but
 the inverting direction aligns with neither the control vocabulary
-nor an explicit listen/speak axis, so which duplex objective causes
-the loss remains open. The mid-network optimum is not a
+nor an explicit listen/speak axis, so the decay is real and
+duplex-specific while its cause --- which objective, which mechanism
+--- remains open. The mid-network optimum is not a
 MiniCPM quirk: on
 NemotronLabs-VoiceChat-11B --- a hybrid-Mamba duplex model,
 architecturally disjoint --- the same recipe peaks mid-band at L30--34

@@ -2,8 +2,10 @@
 \label{sec:system}
 
 \paragraph{The decision exists before decoding starts.}
-The gate is one 4096-d dot product on a hidden state the forward pass
-already computes. Measured on H100 (wall-clock, prefill start to L22
+The gate is a linear read on L22 states the forward pass already
+computes --- a 4096-d dot product per position, over one position
+(mechanistic probe) or three (the deployed probe adds two running
+means at no added latency; Appendix~\ref{app:signal}). Measured on H100 (wall-clock, prefill start to L22
 score, CUDA-synced; network excluded --- the cloud call fires
 asynchronously; protocol: Appendix~\ref{app:gatedetail}), the
 decision lands in

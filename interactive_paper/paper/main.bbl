@@ -1,4 +1,4 @@
-\begin{thebibliography}{57}
+\begin{thebibliography}{73}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -66,11 +66,29 @@ Yiming Chen, Xianghu Yue, Chen Zhang, Xiaoxue Gao, Robby~T. Tan, and Haizhou
 \newblock {VoiceBench}: Benchmarking {LLM}-based voice assistants.
 \newblock \emph{arXiv preprint arXiv:2410.17196}, 2024.
 
+\bibitem[Chien et~al.(2026)Chien, Orsini, Kharitonov, Zeghidour, Livescu, and
+  D{\'e}fossez]{chien2026moshirag}
+Chung-Ming Chien, Manu Orsini, Eugene Kharitonov, Neil Zeghidour, Karen
+  Livescu, and Alexandre D{\'e}fossez.
+\newblock {MoshiRAG}: Asynchronous knowledge retrieval for full-duplex speech
+  language models.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2026.
+\newblock arXiv:2604.12928.
+
 \bibitem[Chu et~al.(2024)Chu, Xu, Yang, Wei, Wei, Guo,
   et~al.]{chu2024qwen2audio}
 Yunfei Chu, Jin Xu, Qian Yang, Haojie Wei, Xipin Wei, Zhifang Guo, et~al.
 \newblock {Qwen2-Audio} technical report.
 \newblock \emph{arXiv preprint arXiv:2407.10759}, 2024.
+
+\bibitem[Chuang et~al.(2024)Chuang, Qiu, Hsieh, Krishna, Kim, and
+  Glass]{chuang2024lookback}
+Yung-Sung Chuang, Linlu Qiu, Cheng-Yu Hsieh, Ranjay Krishna, Yoon Kim, and
+  James Glass.
+\newblock Lookback lens: Detecting and mitigating contextual hallucinations in
+  large language models using only attention maps.
+\newblock In \emph{Proceedings of the 2024 Conference on Empirical Methods in
+  Natural Language Processing}, 2024.
 
 \bibitem[Cobbe et~al.(2021)Cobbe, Kosaraju, Bavarian, Chen, Jun, Kaiser,
   et~al.]{cobbe2021gsm8k}
@@ -141,6 +159,11 @@ Sebastian Farquhar, Jannik Kossen, Lorenz Kuhn, and Yarin Gal.
   entropy.
 \newblock \emph{Nature}, 630:\penalty0 625--630, 2024.
 
+\bibitem[Fu et~al.(2024)Fu, Lin, Long, Shen, Dai, Zhao, et~al.]{fu2024vita}
+Chaoyou Fu, Haojia Lin, Zuwei Long, Yunhang Shen, Yuhang Dai, Meng Zhao, et~al.
+\newblock {VITA}: Towards open-source interactive omni multimodal {LLM}.
+\newblock \emph{arXiv preprint arXiv:2408.05211}, 2024.
+
 \bibitem[Goyal et~al.(2024)Goyal, Ji, Rawat, Menon, Kumar, and
   Nagarajan]{goyal2024pause}
 Sachin Goyal, Ziwei Ji, Ankit~Singh Rawat, Aditya~Krishna Menon, Sanjiv Kumar,
@@ -163,6 +186,14 @@ Qitian~Jason Hu, Jacob Bieker, Xiuyu Li, Nan Jiang, Benjamin Keigwin, Gaurav
   Ranganath, Kurt Keutzer, and Shriyash~Kaustubh Upadhyay.
 \newblock {RouterBench}: A benchmark for multi-{LLM} routing systems.
 \newblock \emph{arXiv preprint arXiv:2403.12031}, 2024.
+
+\bibitem[Huang et~al.(2026)Huang, Zhang, Yu, Shi, Ma, Xu, Gao, Hao, He, and
+  Liu]{huang2026duplexomni}
+Muye Huang, Lingling Zhang, Xingyu Yu, Lei Shi, Zhanyu Ma, Jun Xu, Jiuchong
+  Gao, Jinghua Hao, Renqing He, and Jun Liu.
+\newblock {DuplexOmni}: Real-time listening, seeing, thinking, and speaking for
+  full-duplex interaction.
+\newblock \emph{arXiv preprint arXiv:2606.09186}, 2026.
 
 \bibitem[Joshi et~al.(2017)Joshi, Choi, Weld, and
   Zettlemoyer]{joshi2017triviaqa}
@@ -237,11 +268,37 @@ Hunter Lightman, Vineet Kosaraju, Yura Burda, Harri Edwards, Bowen Baker, Teddy
   (ICLR)}, 2024.
 \newblock arXiv:2305.20050; source of the MATH-500 subset.
 
+\bibitem[Lin et~al.(2026)]{lin2026fdbv3}
+Guan-Ting Lin et~al.
+\newblock {Full-Duplex-Bench-v3}: Benchmarking tool use for full-duplex voice
+  agents under real-world disfluency.
+\newblock \emph{arXiv preprint arXiv:2604.04847}, 2026.
+\newblock TODO verify full author list.
+
 \bibitem[Lin et~al.(2022)Lin, Hilton, and Evans]{lin2022teaching}
 Stephanie Lin, Jacob Hilton, and Owain Evans.
 \newblock Teaching models to express their uncertainty in words.
 \newblock \emph{Transactions on Machine Learning Research}, 2022.
 \newblock arXiv:2205.14334.
+
+\bibitem[Lugoloobi and Russell(2025)]{lugoloobi2025difficulty}
+William Lugoloobi and Chris Russell.
+\newblock {LLM}s encode how difficult problems are.
+\newblock \emph{arXiv preprint arXiv:2510.18147}, 2025.
+
+\bibitem[Lugoloobi et~al.(2026)Lugoloobi, Foster, Bankes, and
+  Russell]{lugoloobi2026failures}
+William Lugoloobi, Thomas Foster, William Bankes, and Chris Russell.
+\newblock {LLM}s encode their failures: Predicting success from pre-generation
+  activations.
+\newblock \emph{arXiv preprint arXiv:2602.09924}, 2026.
+
+\bibitem[Ma et~al.(2024)Ma, Song, Du, Cong, Chen, Wang, Wang, and
+  Chen]{ma2024lslm}
+Ziyang Ma, Yakun Song, Chenpeng Du, Jian Cong, Zhuo Chen, Yuping Wang, Yuxuan
+  Wang, and Xie Chen.
+\newblock Language model can listen while speaking.
+\newblock \emph{arXiv preprint arXiv:2408.02622}, 2024.
 
 \bibitem[Madras et~al.(2018)Madras, Pitassi, and Zemel]{madras2018predict}
 David Madras, Toniann Pitassi, and Richard Zemel.
@@ -249,6 +306,15 @@ David Madras, Toniann Pitassi, and Richard Zemel.
   defer.
 \newblock In \emph{Advances in Neural Information Processing Systems
   (NeurIPS)}, 2018.
+
+\bibitem[Mahaut et~al.(2024)Mahaut, Aina, Czarnowska, Hardalov, Müller, and
+  Màrquez]{mahaut2024factual}
+Mat{\'e}o Mahaut, Laura Aina, Paula Czarnowska, Momchil Hardalov, Thomas
+  Müller, and Lluís Màrquez.
+\newblock Factual confidence of {LLM}s: on reliability and robustness of
+  current estimators.
+\newblock In \emph{Proceedings of the 62nd Annual Meeting of the Association
+  for Computational Linguistics}, 2024.
 
 \bibitem[Marks and Tegmark(2024)]{marks2024geometry}
 Samuel Marks and Max Tegmark.
@@ -278,6 +344,12 @@ Tu~Anh Nguyen, Eugene Kharitonov, Jade Copet, Yossi Adi, Wei-Ning Hsu, Ali
 \newblock \emph{Transactions of the Association for Computational Linguistics},
   2023.
 \newblock arXiv:2203.16502.
+
+\bibitem[Ohashi et~al.(2026)Ohashi, Zeghidour, D{\'e}fossez, and
+  Kharitonov]{ohashi2026interactivity}
+Atsumoto Ohashi, Neil Zeghidour, Alexandre D{\'e}fossez, and Eugene Kharitonov.
+\newblock Multi-faceted interactivity alignment in full-duplex speech models.
+\newblock \emph{arXiv preprint arXiv:2606.11167}, 2026.
 
 \bibitem[Ong et~al.(2024)Ong, Almahairi, Wu, Chiang, Wu, Gonzalez, Kadous, and
   Stoica]{ong2024routellm}
@@ -348,6 +420,22 @@ Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen Li, Carlos
 \newblock GitHub repository, 2023.
 \newblock zh split: shibing624/alpaca-zh.
 
+\bibitem[Varshney et~al.(2026)Varshney, Surla, Xu, Venkata~Krishnan, Jeblick,
+  Austin, Vaidya, and Onofrio]{varshney2026llmrouter}
+Tanay Varshney, Annie Surla, Michelle Xu, Gomathy Venkata~Krishnan, Maximilian
+  Jeblick, David Austin, Neal Vaidya, and Davide Onofrio.
+\newblock {LLM} router: Rethinking routing with prefill activations.
+\newblock \emph{arXiv preprint arXiv:2603.20895}, 2026.
+
+\bibitem[Veluri et~al.(2024)Veluri, Peloquin, Yu, Gong, and
+  Gollakota]{veluri2024syncllm}
+Bandhav Veluri, Benjamin~N. Peloquin, Bokai Yu, Hongyu Gong, and Shyamnath
+  Gollakota.
+\newblock Beyond turn-based interfaces: Synchronous {LLMs} as full-duplex
+  dialogue agents.
+\newblock In \emph{Proceedings of EMNLP (Main)}, 2024.
+\newblock arXiv:2409.15594.
+
 \bibitem[Vu et~al.(2023)Vu, Iyyer, Wang, Constant, Wei, Wei, Tar, Sung, Zhou,
   Le, and Luong]{vu2023freshllms}
 Tu~Vu, Mohit Iyyer, Xuezhi Wang, Noah Constant, Jerry Wei, Jason Wei, Chris
@@ -356,20 +444,28 @@ Tu~Vu, Mohit Iyyer, Xuezhi Wang, Noah Constant, Jerry Wei, Jason Wei, Chris
   augmentation.
 \newblock \emph{arXiv preprint arXiv:2310.03214}, 2023.
 
-\bibitem[Wang et~al.(2024{\natexlab{a}})Wang, Li, Fu, Xie, Li, Sun, and
+\bibitem[Wang et~al.(2024{\natexlab{a}})Wang, Lu, Tang, Yan, Xia, and
+  Xiong]{wang2024fsm}
+Peng Wang, Songshuo Lu, Yaohua Tang, Sijie Yan, Wei Xia, and Yuanjun Xiong.
+\newblock A full-duplex speech dialogue scheme based on large language models.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2024{\natexlab{a}}.
+\newblock arXiv:2405.19487.
+
+\bibitem[Wang et~al.(2024{\natexlab{b}})Wang, Li, Fu, Xie, Li, Sun, and
   Ma]{wang2024freezeomni}
 Xiong Wang, Yangze Li, Chaoyou Fu, Lei Xie, Ke~Li, Xing Sun, and Long Ma.
 \newblock {Freeze-Omni}: A smart and low latency speech-to-speech dialogue
   model with frozen {LLM}.
-\newblock \emph{arXiv preprint arXiv:2411.00774}, 2024{\natexlab{a}}.
+\newblock \emph{arXiv preprint arXiv:2411.00774}, 2024{\natexlab{b}}.
 
-\bibitem[Wang et~al.(2024{\natexlab{b}})Wang, Ma, Zhang, Ni,
+\bibitem[Wang et~al.(2024{\natexlab{c}})Wang, Ma, Zhang, Ni,
   et~al.]{wang2024mmlupro}
 Yubo Wang, Xueguang Ma, Ge~Zhang, Yuansheng Ni, et~al.
 \newblock {MMLU-Pro}: A more robust and challenging multi-task language
   understanding benchmark.
 \newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS),
-  Datasets and Benchmarks}, 2024{\natexlab{b}}.
+  Datasets and Benchmarks}, 2024{\natexlab{c}}.
 \newblock arXiv:2406.01574.
 
 \bibitem[Wei et~al.(2024)Wei, Karina, Chung, Jiao, Papay, Glaese, Schulman, and
@@ -414,6 +510,14 @@ An~Yang et~al.
 \newblock {Qwen3} technical report.
 \newblock \emph{arXiv preprint arXiv:2505.09388}, 2025.
 
+\bibitem[Yu et~al.(2024)Yu, Wang, Yang, Chen, Tian, Zhang, Sun, Lu, Wang, and
+  Zhang]{yu2024salmonnomni}
+Wenyi Yu, Siyin Wang, Xiaoyu Yang, Xianzhao Chen, Xiaohai Tian, Jun Zhang,
+  Guangzhi Sun, Lu~Lu, Yuxuan Wang, and Chao Zhang.
+\newblock {SALMONN-omni}: A codec-free {LLM} for full-duplex speech
+  understanding and generation.
+\newblock \emph{arXiv preprint arXiv:2411.18138}, 2024.
+
 \bibitem[Zelikman et~al.(2024)Zelikman, Harik, Shao, Jayasiri, Haber, and
   Goodman]{zelikman2024quietstar}
 Eric Zelikman, Georges Harik, Yijia Shao, Varuna Jayasiri, Nick Haber, and
@@ -430,12 +534,31 @@ Aohan Zeng, Zhengxiao Du, Mingdao Liu, Kedong Wang, Shengmin Jiang, Lei Zhao,
   chatbot.
 \newblock \emph{arXiv preprint arXiv:2412.02612}, 2024.
 
-\bibitem[Zhang et~al.(2026)Zhang, Martin, Jurayj, Murray, Van~Durme, and
-  Kriz]{umui2026}
+\bibitem[Zhang et~al.(2026{\natexlab{a}})Zhang, Martin, Jurayj, Murray,
+  Van~Durme, and Kriz]{umui2026}
 Dengjia Zhang, Alexander Martin, William Jurayj, Kenton Murray, Benjamin
   Van~Durme, and Reno Kriz.
 \newblock Unified multimodal uncertain inference.
-\newblock \emph{arXiv preprint arXiv:2604.08701}, 2026.
+\newblock \emph{arXiv preprint arXiv:2604.08701}, 2026{\natexlab{a}}.
+
+\bibitem[Zhang et~al.(2026{\natexlab{b}})Zhang, Chen, Wu, Li, Zhang, Zhang,
+  Liu, Lin, Peng, Liu, Chng, Yan, Wu, Huang, Yang, and
+  Tian]{zhang2026duplexsla}
+Haoyang Zhang, Jun Chen, Donghang Wu, Yuxin Li, Yuxin Zhang, Xiangyu~Tony
+  Zhang, Che Liu, Qingjian Lin, Yizhou Peng, Hexin Liu, Eng~Siong Chng, Chao
+  Yan, Boyong Wu, Yechang Huang, Xuerui Yang, and Fei Tian.
+\newblock {DuplexSLA}: A full-duplex spoken language model with synchronized
+  speech, language, and action.
+\newblock \emph{arXiv preprint arXiv:2605.20755}, 2026{\natexlab{b}}.
+
+\bibitem[Zhang et~al.(2024)Zhang, Chen, Hu, Han, Xu, Xu, Zhao, Sun, and
+  Liu]{zhang2024duplex}
+Xinrong Zhang, Yingfa Chen, Shengding Hu, Xu~Han, Zihang Xu, Yuanwei Xu, Weilin
+  Zhao, Maosong Sun, and Zhiyuan Liu.
+\newblock Beyond the turn-based game: Enabling real-time conversations with
+  duplex models.
+\newblock In \emph{Proceedings of EMNLP}, 2024.
+\newblock arXiv:2406.15718.
 
 \bibitem[Zheng et~al.(2023)Zheng, Chiang, Sheng, Zhuang, Wu, Zhuang, Lin, Li,
   Li, Xing, Zhang, Gonzalez, and Stoica]{zheng2023judging}

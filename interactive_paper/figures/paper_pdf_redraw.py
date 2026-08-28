@@ -337,7 +337,7 @@ def fig_fair_dualview():
                 label="gold-inject counterfactual (channel-controlled)")
     ax.errorbar(esc, heard, yerr=[heard - h_ci[:, 0], h_ci[:, 1] - heard],
                 fmt="-o", color=C1, lw=2.6, ms=10, capsize=5, capthick=2,
-                zorder=4, label="heard accuracy (deployed live system)")
+                zorder=4, label="deployed-channel accuracy (live system)")
     ax.plot([100], [always], marker="*", ms=20, color=C3, zorder=5)
     ax.annotate(f"always-escalate {always:.1f}%", (100, always),
                 textcoords="offset points", xytext=(-8, 4), ha="right",

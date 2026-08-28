@@ -124,7 +124,7 @@ ax1.annotate(f"at budget 50%: {a_fix:.3f}\n(vs .596 fired at 61% —\n"
              arrowprops=dict(arrowstyle="-", color=GREEN, lw=.9,
                              alpha=.6))
 ax1.set_xlabel("escalation rate", fontsize=9)
-ax1.set_ylabel("heard accuracy (our judge)", fontsize=9)
+ax1.set_ylabel("deployed-channel accuracy (our judge)", fontsize=9)
 ax1.set_title("Correcting an 11-point rate error moves accuracy by "
               "+.004\nfrozen pool (n=240), deployed channel — how big\n"
               "is our own replication noise?",

@@ -162,7 +162,7 @@ ax.text(.62, a_over - .012,
         f"costing {a_fix - a_over:+.3f}", fontsize=7.5, color=MUT,
         va="top")
 ax.set_xlabel("escalation rate", fontsize=9)
-ax.set_ylabel("heard accuracy (our judge)", fontsize=9)
+ax.set_ylabel("deployed-channel accuracy (our judge)", fontsize=9)
 ax.set_title("The 8z-live regression was a threshold-calibration bug, "
              "not the probe\nfrozen pool (n=240): every point below is a "
              "MEASURED outcome, re-mixed", fontsize=9.5, loc="left")

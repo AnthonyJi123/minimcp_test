@@ -120,7 +120,7 @@ ax.errorbar(lat50, gm, yerr=[gm - ciB[0], ciB[1] - gm], fmt="--s", ms=5.5,
             label="gold-inject — counterfactual: expert answers the gold text")
 ax.errorbar(lat50, hm, yerr=[hm - ciA[0], ciA[1] - hm], fmt="-o", ms=6,
             color=BLUE, capsize=3, lw=1.7, zorder=4,
-            label="heard-acc — deployed: expert answers the talker's transcript")
+            label="deployed channel: expert answers the talker's transcript")
 for j, a in enumerate(ARMS):
     ax.annotate(f"{rates[j]:.0%}", (lat50[j], hm[j]), xytext=(2, -14),
                 textcoords="offset points", fontsize=8, color=BLUE)
@@ -164,7 +164,7 @@ ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls=(0, (5, 3)),
         label="random escalation, gold view")
 ax.plot(xr, [hm[0] + (hm[-1] - hm[0]) * r for r in xr], ls=(0, (5, 3)),
         lw=1.0, color=BLUE, alpha=.55, zorder=2,
-        label="random escalation, heard view")
+        label="random escalation, deployed view")
 ax.plot(1.0, ceil, marker="*", ms=11, color=GREEN, zorder=4)
 ax.text(.985, ceil + .015, f"always-escalate {ceil:.3f}", fontsize=7.5,
         color=MUT, ha="right")
@@ -173,7 +173,7 @@ ax.errorbar(rates, gm, yerr=[gm - ciB[0], ciB[1] - gm], fmt="--s", ms=5.5,
             label="gold-inject — counterfactual: expert answers the gold text")
 ax.errorbar(rates, hm, yerr=[hm - ciA[0], ciA[1] - hm], fmt="-o", ms=6,
             color=BLUE, capsize=3, lw=1.7, zorder=4,
-            label="heard-acc — deployed: expert answers the talker's transcript")
+            label="deployed channel: expert answers the talker's transcript")
 for j, a in enumerate(ARMS):
     ax.annotate(a, (rates[j], hm[j]), xytext=(4, -13),
                 textcoords="offset points", fontsize=7.5, color=BLUE)

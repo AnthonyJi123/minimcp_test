@@ -222,6 +222,46 @@
   recalibration; Nemotron under interleave (SATURDAY nice-to-have,
   after P3 --- its NeMo stack is cacheless per-frame so overlap can be
   constructed offline); official duplex serving format.}
+\item \todonote{P0/P1 reviewer round 3 (2026-08-27) --- LANDED.
+  P0: (1) tab:conclive fact-corrections --- non-monotone tiers named
+  (internal 40.4$\to$40.0, speakable 44.5$\to$43.6, the 2.5\%
+  under-fire), realized rates now head the tier columns instead of
+  nominal budgets, Llama selective-vs-always restricted to one judge
+  and marked inside the noise floor. (2) prior work --- SEP no longer
+  called post-hoc (it reads pre-generation too); added mahaut2024factual,
+  chuang2024lookback, lugoloobi2025difficulty/2026failures,
+  varshney2026llmrouter; the gap paragraph now says the novelty is
+  duplex-specific readout failure + text$\to$speech transfer + live
+  loop, not pre-generation probing per se. (3) terminology ---
+  ``heard accuracy'' $\to$ ``deployed-channel answer accuracy'' in
+  prose, in tab:live's column head, and in every figure axis/legend
+  (bench\_figures, fair\_figures, live\_v3\_figures, noise\_audit,
+  rate\_curve regenerated from stored traces, numbers unchanged ---
+  fair 0.422/0.528/0.592/0.633 reproduces exactly); the concurrent arm is described as
+  teacher-forced interleave, explicitly NOT the official free-running
+  duplex serving path.
+  P1: (1) NEW scripts/20\_conclive\_random\_check.py --- matched-rate
+  random remix from the measured never/always outcomes, 20k
+  permutations + 10k bootstrap per arm, no model re-run;
+  figures/conclive\_random.json. Result: internal balanced/aggressive
+  clear random ($p{=}.017$ / $5{\times}10^{-5}$; speakable .009 /
+  $5{\times}10^{-5}$), externally only Llama@50\% ($3{\times}10^{-4}$),
+  Reasoning zh@30/50 ($\le$.0024) and AlpacaEval@15 (.031) --- the
+  concurrent sweep is now labeled \emph{exploratory} in the appendix,
+  live.tex and Limitations (iv). (2) gate description unified: 4096-d
+  per position, deployed probe = 3 positions (12,288-d); new
+  app:signal paragraph states which calibration (360 / 2,310 / 360
+  in-regime) drives which result. (3) test-selection disclosed
+  (Limitations (v) + app:signal ``selection history''); no untouched
+  holdout added --- see below. (4) mechanism unified: abstract, intro
+  contribution 1 and signal.tex now say ``duplex checkpoints exhibit a
+  late distributed-read decay; mechanism unresolved''.
+  NOT done, deliberately: nested-holdout re-selection of L22 (would
+  need a re-run of the layer sweep per external pool; disclosed
+  instead), and full-scale 2,310-row in-regime recalibration.
+  Page cost: References moved from doc-line 332 to 349 ($\approx$0.35
+  page); main text still overflows onto p9 --- the trim decision
+  flagged in P0-R is still open.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29

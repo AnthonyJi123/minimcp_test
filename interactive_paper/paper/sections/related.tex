@@ -44,11 +44,15 @@ uncertainty \citep{lin2022teaching}, and truthfulness probes on hidden
 states \citep{azaria2023internal,burns2023discovering,marks2024geometry}
 established that correctness is readable internally; intermediate
 layers carry more of it than the output distribution
-\citep{orgad2024llms}. Semantic entropy
+\citep{orgad2024llms}; across estimator families, trained hidden-state
+probes measure as the most reliable factual-confidence signal
+\citep{mahaut2024factual}, and attention-map probes detect contextual
+hallucination during decoding \citep{chuang2024lookback}. Semantic entropy
 \citep{kuhn2023semantic,farquhar2024detecting} needs multiple sampled
 generations; Semantic Entropy Probes \citep{kossen2024semantic}
-amortize it into a hidden-state probe --- the closest signal to ours,
-but read post-hoc on text-only half-duplex models. Multimodal
+amortize it into a hidden-state probe that reads either before
+generation or post-hoc --- the closest signal to ours, but on
+text-only half-duplex models. Multimodal
 uncertainty fusion \citep{umui2026} asks a downstream question; we ask
 \emph{where} in a duplex model a modality-robust read survives at all.
 
@@ -61,10 +65,14 @@ confidence-based cascades
 decision per complete typed query, from query-side features or
 preference data, before any model has answered; AutoMix
 \citep{aggarwal2024automix} escalates by \emph{post-answer}
-self-verification, which a voice deadline forbids. Both assumptions
---- query-side features, and the large model answering the user
-directly --- fail in full-duplex voice, where the session lives in
-the small model (query-side ceiling quantified in \S\ref{sec:audit}).
+self-verification, which a voice deadline forbids. A newer line reads
+the local model's \emph{pre-generation} activations instead ---
+prefill-activation routing \citep{varshney2026llmrouter}, linear
+success probes on frozen states
+\citep{lugoloobi2025difficulty,lugoloobi2026failures} --- still over a
+complete typed query, with the large model answering directly. Both
+assumptions fail in full-duplex voice, where the session lives in the
+small model (query-side ceiling quantified in \S\ref{sec:audit}).
 A second family trains the routing decision \emph{into the weights}
 as special tokens emitted during decoding: Toolformer
 \citep{schick2023toolformer} teaches the model to insert API-call
@@ -108,16 +116,17 @@ a frozen checkpoint's internal state, with no talker fine-tuning and a
 budget moved by a deployment-time threshold.
 
 \paragraph{The gap.}
-The prior work factors cleanly along two axes --- \{text-based,
-full-duplex\} $\times$ \{policy trained in as special tokens, probe
-read out of frozen internals\}. Three cells are dense: text models
-both train routing tokens and read probes; duplex models train their
-control policies in as tokens (or heads), including the two systems
-above that escalate out of a live session. The fourth cell is empty:
-no prior work we know of reads a \emph{frozen} full-duplex model's
-internal state for a pre-answer, modality-robust competence signal
---- and it is empty at exactly the point our results say
-token-training is least safe, since fine-tuning the talker is what
-damages the readout those trained policies sit on. That empty cell is
-this paper: a probe early enough to drive a live small-to-large
-handoff while preserving the session.
+The prior work factors along two axes --- \{text-based, full-duplex\}
+$\times$ \{policy trained in as special tokens, probe read out of
+frozen internals\} --- and three cells are dense: text models both
+train routing tokens and read probes; duplex models train their
+control policies in as tokens or heads, the two systems above
+included. The fourth is empty --- no prior work we know of reads a
+\emph{frozen} full-duplex model's internal state for a pre-answer,
+modality-robust competence signal --- and empty at exactly the point
+our results say token-training is least safe. What is new is
+therefore not the pre-generation probe, which text-only routing
+already reads, but three duplex-specific results: duplex fine-tuning
+damages exactly that standard readout, the surviving mid-layer read
+transfers text$\to$speech in end-to-end models, and it holds inside a
+live escalation loop.

@@ -29,7 +29,7 @@ official anchors on-scale.
 \renewcommand{\arraystretch}{0.92}
 \caption{Main transfer results: methods $\times$ five public speech
 QA benchmarks (TriviaQA/WebQ/Llama Q.\ OAB official judge, $n$ = 250;
-SD-QA/Reasoning zh reference-anchored, $n$ = 200/202); heard accuracy
+SD-QA/Reasoning zh reference-anchored, $n$ = 200/202); deployed-channel answer accuracy
 in \%, $\pm$2--3 point replication floor. Bottom: second duplex family
 (NemotronLabs-VoiceChat-11B, same frozen recipe, offline re-mix,
 official judges, Appendix~\ref{app:nvda}); English-only, so its avg
@@ -45,7 +45,7 @@ no gain over random on MiniCPM; the second family does gain
 \toprule
 & TriviaQA & WebQ & Llama Q. & SD-QA & Reason.\ zh & avg & $\Delta$ \\
 \midrule
-\multicolumn{8}{l}{\emph{live heard view (deployed loop)}} \\
+\multicolumn{8}{l}{\emph{live deployed-channel view (measured loop)}} \\
 always-local          & 66.4 & 57.2 & 84.0 & 51.5 & 58.9 & 63.6 & --- \\
 \;+ gate @15\%        & 73.2 & 62.8 & 90.4 & 60.0 & 65.3 & 70.3 & +6.7 \\
 \;+ gate @30\%        & 80.0 & 68.0 & 90.4 & 72.0 & 71.3 & 76.3 & +12.7 \\

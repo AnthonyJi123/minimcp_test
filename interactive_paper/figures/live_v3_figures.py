@@ -125,7 +125,7 @@ ax.plot(xr, [hm[0] + (ceil - hm[0]) * r for r in xr], ls=(0, (5, 3)),
         label="random escalation, gold view")
 ax.plot(xr, [hm[0] + (hm[-1] - hm[0]) * r for r in xr], ls=(0, (5, 3)),
         lw=1.0, color=BLUE, alpha=.55, zorder=2,
-        label="random escalation, heard view")
+        label="random escalation, deployed view")
 ax.axhline(ceil, color=GREEN, ls=":", lw=1.2, alpha=.75, zorder=1)
 ax.text(.02, ceil + .012, f"always-escalate (gpt-5.5 on gold text) "
         f"{ceil:.3f}", fontsize=7.5, color=GREEN)
@@ -134,7 +134,7 @@ ax.errorbar(rates, gm, yerr=[gm - ciB[0], ciB[1] - gm], fmt="--s", ms=5.5,
             label="gold-inject — counterfactual: expert answers the gold text")
 ax.errorbar(rates, hm, yerr=[hm - ciA[0], ciA[1] - hm], fmt="-o", ms=6,
             color=BLUE, capsize=3, lw=1.7, zorder=4,
-            label="heard-acc — deployed: expert answers the talker's transcript")
+            label="deployed channel: expert answers the talker's transcript")
 for j, a in enumerate(ARMS):
     ax.annotate(f"{a}\n{rates[j]:.0%}", (rates[j], hm[j]), xytext=(5, -20),
                 textcoords="offset points", fontsize=7.5, color=BLUE)

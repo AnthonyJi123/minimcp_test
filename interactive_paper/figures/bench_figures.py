@@ -187,7 +187,7 @@ for bench, spec in BENCHES.items():
                       "gold text")
     ax.errorbar(rates, hm, yerr=[hm - ciA[0], ciA[1] - hm], fmt="-o",
                 ms=6, color=BLUE, capsize=3, lw=1.7, zorder=4,
-                label="heard-acc — deployed" + (f" (probe {VER[1:]})" if VER else
+                label="deployed channel" + (f" (probe {VER[1:]})" if VER else
                                                 " (frozen thresholds)"))
     for j, a in enumerate(ARMS):
         ax.annotate(a, (rates[j], hm[j]), xytext=(5, -13),
@@ -197,7 +197,7 @@ for bench, spec in BENCHES.items():
               if col == "oab_ok" else "our reference-anchored judge")
            if VER else
            "gate + thresholds frozen from the 600-query calibration pool")
-    style(ax, "realized escalation rate", "heard accuracy",
+    style(ax, "realized escalation rate", "deployed-channel answer accuracy",
           f"Accuracy vs escalation rate — {spec['title']}\n{sub}")
     ax.set_xlim(-.03, 1.03)
     refs = [v for _, v in spec.get("others", [])] + \
@@ -231,7 +231,7 @@ for bench, spec in BENCHES.items():
     # no per-segment exchange labels: small escalation deltas make the
     # P50s non-monotonic on the easy pools; the line itself tells it
     style(ax, "P50 total response latency, query end → answer text done "
-          "(s)", "heard accuracy",
+          "(s)", "deployed-channel answer accuracy",
           f"What latency buys — {spec['title']}\n(points = escalation "
           "arms, labelled by escalation rate)")
     ax.set_ylim(max(0, hm[0] - .12), min(1.0, ceil + .10))

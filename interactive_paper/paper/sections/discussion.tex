@@ -17,8 +17,15 @@ concurrent regime. (iii) Labels come from one judge family (a stronger
 re-judge bounds deltas at $\le$1 point), no human labels.
 (iv) One session per query per tier ($\pm$2--3 point floor); under
 concurrent prefill the frozen read degrades (AUC .87$\to$.76) and an
-in-regime refit recovers .82 --- calibration must follow the regime
-(Appendix~\ref{app:duplexval}). (v) Our live protocol is turn-based
+in-regime refit on 360 rows recovers .82 --- calibration must follow
+the regime; that concurrent loop is exploratory (teacher-forced
+carrier, quarter-scale calibration, random-clearance internal but
+spotty externally; Appendix~\ref{app:duplexval}).
+(v) Layer and features were chosen on internal calibration-split
+cross-validation and confirmed on held-out pools, not by nested
+selection inside each held-out pool (Appendix~\ref{app:signal}).
+(vi) The mechanism behind the late-layer decay is unresolved
+(Appendix~\ref{app:mech}). (vii) Our live protocol is turn-based
 end-of-turn escalation on scripted single-turn queries; the harder
 setting --- barge-in, disfluent self-correction, chained tool calls
 mid-utterance --- is what full-duplex agent benchmarks now target

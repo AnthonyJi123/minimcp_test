@@ -32,23 +32,24 @@ Conflicting-injection and framing controls: Appendix~\ref{app:livedetail}.
 
 \paragraph{The live result.}
 We ran 240 frozen test queries $\times$ four escalation tiers, each a
-complete turn-based spoken session, scored on \emph{heard accuracy} --- what a
-user would actually have heard. Headline numbers use a pre-registered
+complete turn-based spoken session, scored on \emph{deployed-channel
+answer accuracy}: correctness of the content the system delivers on
+its output channel. The sweeps are text-out (a TTS-on replay changes
+no gate decision, Appendix~\ref{app:livedetail}); figures abbreviate
+the metric as ``heard''. Headline numbers use a pre-registered
 input-side filter (21 formula-LaTeX ids + 1 broken recording removed;
 spoken formulas are destroyed by any TTS render before the system
-hears them). Heard accuracy climbs monotonically,
+hears them). Deployed-channel accuracy climbs monotonically,
 $\mathbf{42.2\% \to 52.8\% \to 59.2\% \to 63.3\%}$ at 0/14/31/57\% escalation,
 every tier's gain significant (paired bootstrap;
 Figure~\ref{fig:dualview}). A measured always-escalate arm closes the
 curve at 66.5\% (P50 4.2\,s): the last 43 points of escalation buy
 3.2 points, because past the gated tiers the binding constraint is the
-transcription-uplink channel, not selection --- the same sessions
-re-scored with gold-text expert answers reach 92.2\%. The remaining gap to the
-channel-controlled counterfactual (escalated rows re-scored with
-gold-text expert answers) is dominated by \emph{transcription-uplink}
-errors, not gate failure: the channel costs +2.3/+6.9/+12.8 points across
-tiers, and against the matched-rate random reference \emph{internal to
-each view} the gate wins at every arm --- in the deployed heard view by
+\emph{transcription-uplink} channel, not selection: the same sessions
+re-scored with gold-text expert answers reach 92.2\%, and the channel
+costs +2.3/+6.9/+12.8 points against that counterfactual across
+tiers. Against the matched-rate random reference \emph{internal to
+each view} the gate wins at every arm --- in the deployed view by
 7.2--9.5 points, in the channel-controlled view by 5.4--8.4
 (Figure~\ref{fig:dualview}). Live arm accuracies on this pool carry
 a replication-noise floor of $\pm$2--3 points, so no claim here rests on
@@ -59,8 +60,12 @@ vs.\ 0.866 headless); TTS-on, first audible audio lands p50 0.55\,s
 on local turns and 22--29\,ms on escalated ones (the canned stall),
 expert content at p50 6.4\,s with the stall covering the head of the
 wait (Appendix~\ref{app:duplexval}, ~\ref{app:livedetail}).
-Re-run end to end in the \emph{concurrent} regime (audio interleaved
-while the talker speaks, in-regime gate) the loop reproduces: monotone
-gains on all seven pools, speakable 44.5$\to$71.1\%, selective still
-beating always-escalate (Table~\ref{tab:conclive}).
+Re-run end to end in the \emph{concurrent} regime (target audio
+interleaved into the same KV stream mid-answer; carrier turn
+teacher-forced, not the official free-running serving path), the loop
+reproduces where calibration matches the regime: internally, speakable
+accuracy climbs 44.5$\to$71.1\%, clears matched-rate random from the
+balanced tier on ($p\le.009$) and beats always-escalate (66.5\%);
+externally the quarter-scale in-regime probe clears random only in
+spots (exploratory, Table~\ref{tab:conclive}).
 

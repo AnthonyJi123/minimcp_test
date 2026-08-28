@@ -4391,3 +4391,72 @@ NOT done: no DuplexPO in the list (济森 mentioned it as an example, it isn't i
 these two docs). The list's other items (LayerSkip, Mixture-of-Depths,
 DuplexCascade, UAF, Kyutai blog) are about early-exit/cascade/front-end, not our
 axis — deliberately not cited.
+
+---
+
+### 8az — reviewer round 3 (P0/P1): fact-corrections, matched-random for the concurrent table, scope discipline (CPU-only, $0, 2026-08-27)
+
+Feedback arrived as P0 ("不修不要提交") + P1 ("最可能改变录用结果"). Everything
+below is recomputed from **already-measured outcomes** — no model call, no GPU.
+
+**P1.1 — the one that mattered: matched-random for tab:conclive.**
+New `scripts/20_conclive_random_check.py` → `figures/conclive_random.json`.
+Per pool × gated tier, at that tier's **realized** escalation count k: 20k
+random id-subsets, remix = always-arm outcome on the subset / never-arm
+elsewhere (paired, same convention as 18_nvda_random_check.py), plus a 10k
+bootstrap CI on each measured arm.
+
+| pool | cons. | bal. | aggr. |
+|---|---|---|---|
+| TriviaQA | .85 | .32 | .15 |
+| WebQ | .40 | .25 | .60 |
+| Llama Q. | .50 | .43 | **3e-4** |
+| SD-QA | .57 | .72 | .38 |
+| Reason. zh | .14 | **9e-4** | **.0024** |
+| internal 240 | .98 | **.017** | **5e-5** |
+| internal speakable | 1.0 | **.009** | **5e-5** |
+| AlpacaEval | **.031** | .14 | .15 |
+
+Read honestly: **internally the concurrent gate is real** (balanced +4.0 /
+aggressive +11.8 points over matched random on the full pool; +4.6/+12.8
+speakable), **externally the 360-row in-regime probe mostly buys budget, not
+selection** — exactly what its .57–.67 external AUC predicted. The table's
+"realized rates track nominal, monotone gains everywhere" story was the part
+that didn't survive: two internal cells are flat (40.4→40.0, 44.5→43.6) because
+the conservative threshold under-fires at 2.5%.
+
+**P0 fixes.** (1) tab:conclive rebuilt: tier columns headed by realized rates,
+`rand` row + permutation stars under every pool, non-monotone cells named in
+prose, Llama selective-vs-always restricted to one judge and marked
+inside the ±2–3 floor (official 90.8 vs 91.2; ours 86.4 vs 85.6 — both noise).
+The whole sweep is now labeled **exploratory**. (2) prior work: SEP is *not*
+purely post-hoc (it probes before generation) — sentence corrected; added
+mahaut2024factual (probes = most reliable factual-confidence estimator),
+chuang2024lookback, lugoloobi2025difficulty/2026failures (pre-generation success
+probes), varshney2026llmrouter (prefill-activation routing). Novelty restated as
+duplex-specific readout failure + text→speech transfer + live/concurrent
+integration — *not* pre-generation probing per se. (3) terminology: prose says
+**deployed-channel answer accuracy** (sweeps are text-out; figures keep the
+"heard-acc" abbreviation and say so); the concurrent arm is called
+teacher-forced interleave, explicitly not the official free-running duplex
+serving path.
+
+**P1.2/1.3/1.4.** Gate description unified (4096-d *per position*; deployed
+probe = 3 positions = 12,288-d) and a new app:signal paragraph says which
+calibration drives which result (360 mechanistic / 2,310 deployed / 360
+in-regime concurrent — the only probe fit inside the regime it is scored in).
+Test-selection history disclosed (layer + feature choice on internal
+calibration-split CV, confirmed on held-out pools, **not** nested per-pool
+selection; internal frozen test = pre-registered guard, not an untouched
+holdout) — Limitations (v). Mechanism statement unified across
+abstract/intro/§5.2: *duplex checkpoints exhibit a late distributed-read decay;
+mechanism unresolved* — no more turn-control specialization anywhere.
+
+**Declined / deferred:** nested layer re-selection inside each held-out pool
+(needs a full re-sweep per pool; disclosed as a limitation instead) and
+full-scale 2,310-row in-regime recalibration (GPU, would likely close most of
+the external gap — the honest camera-ready item).
+
+**Page cost:** References moved doc-line 332 → 349 (~0.35 page) after clawing
+back ~13 lines by compressing live.tex/related.tex. Main text still runs onto
+p9; the trim decision flagged in P0-R remains open.

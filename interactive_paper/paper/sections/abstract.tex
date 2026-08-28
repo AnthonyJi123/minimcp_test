@@ -7,15 +7,16 @@ already on the air. We ask whether the model's own hidden state carries
 that warning early enough, and find that the obvious readout is exactly
 what duplex fine-tuning corrupts:
 final-layer probes collapse under distribution shift on text input
-(leave-one-pool-out math AUC 0.93$\to$0.37), consistent with late-layer
-specialization for duplex turn control, while verbalized
+(leave-one-pool-out math AUC 0.93$\to$0.37) --- a duplex-specific
+decay of the distributed late-layer read whose mechanism direct tests
+leave unresolved --- while verbalized
 self-assessment collapses on audio input. The signal is not gone ---
 it sits one layer band earlier. Mid-network, the same linear probe
 transfers at 0.93, reads speech input from text-only calibration at
 0.86, and an end-of-turn read in the streaming loop reaches AUC 0.887
 in $\sim$30\,ms --- half a second before the first audible word. Run
 live end-to-end in a turn-based loop, the gated system climbs from
-42.2\% to 63.3\% heard accuracy at 57\% escalation, the remaining gap
+42.2\% to 63.3\% deployed-channel answer accuracy at 57\% escalation, the remaining gap
 dominated by the transcription uplink rather than the gate; frozen,
 the same gate improves five of six public speech benchmarks, lifting
 Speech TriviaQA to 86.0\% live against the model's official offline

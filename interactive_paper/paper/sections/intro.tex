@@ -46,7 +46,8 @@ validations: Appendix~\ref{app:duplexval}.
 
 Everything runs on a frozen checkpoint --- no fine-tuning; the only
 fitted component is a logistic regression on stored hidden states,
-calibrated once on text. That minimalism is the point: competing
+fit once per deployment regime from stored activations (and text-only
+calibration transfers to speech input, \S\ref{sec:xmodal}). That minimalism is the point: competing
 signals read the wrong place (late layers), arrive too late
 (post-answer verification), or must be trained in (think tokens); the
 mid-layer read survives all three. Three findings --- find the
@@ -59,8 +60,9 @@ signal, read it in time, show it matters:
   mostly a query-type shortcut: under leave-one-pool-out transfer it
   \emph{inverts} on held-out math (0.93$\to$0.37). The damage is specific
   to the late-layer last-token position on text input --- absent in raw
-  backbones and non-duplex fine-tunes --- consistent with late-layer
-  specialization for duplex turn control. Mid-network (L22 of 36) the
+  backbones and non-duplex fine-tunes; direct tests rule out a simple
+  turn-control takeover, leaving a late decay of the distributed read
+  (mechanism open, Appendix~\ref{app:mech}). Mid-network (L22 of 36) the
   same linear read transfers at 0.93, and the mid-network optimum
   generalizes to a second, architecturally disjoint duplex family
   (hybrid-Mamba NemotronLabs-VoiceChat-11B).
@@ -79,8 +81,9 @@ signal, read it in time, show it matters:
   36/68\,ms; in the streaming loop an end-of-turn read reaches AUC
   0.887 in $\sim$30\,ms, half a second before first audible
   speech. Run live end-to-end --- expert consulted
-  mid-conversation, answer injected, talker speaks it --- heard
-  accuracy climbs 42.2\%$\to$63.3\% at 57\% escalation, and the frozen
+  mid-conversation, answer injected, talker speaks it ---
+  deployed-channel answer accuracy climbs 42.2\%$\to$63.3\% at 57\%
+  escalation, and the frozen
   gate transfers to six public speech benchmarks with label-free
   thresholds, lifting Speech TriviaQA to 86.0\% against the model's
   official offline 75.5\%.
