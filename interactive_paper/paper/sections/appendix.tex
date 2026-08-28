@@ -799,6 +799,71 @@ stays open while the talker speaks and interruptions seed the next
 read, but incoming audio is not prefilled \emph{during} generation.
 The concurrent regime is measured separately below.
 
+\paragraph{Floor control under escalation: barge-in vs.\ backchannel.}
+The demonstration loop's floor policy (speech over the talker ducks
+playback; a fast ASR pass returns the floor on backchannels or commits
+the interrupt) raises a distinct worry: did adding the gate change the
+talker's overlap behavior? A dedicated sweep injects overlap stimuli
+into the deployed loop at real-time pacing --- four classes: short
+backchannels (0.40--0.46\,s, the English+Chinese lexicon), long
+lexicon-only continuers (time-stretched to 1.33--2.08\,s, probing the
+sustained-speech commit rule), out-of-lexicon stop commands, and pool
+queries spoken over the answer --- in matched pairs with the gate on
+and off under an identical floor policy (non-firing queries, $n{=}40$
+per class per arm). The answer is exact orthogonality: all 160 pairs
+make the identical duck/resume/interrupt decision in both arms (every
+paired rate delta $0.000$ $[0.000,0.000]$; paired latency medians
+within 31\,ms), down to the single seeding failure, which occurs on
+the same query in both arms. By construction the gate reads once at
+end of turn and never enters the floor state machine; this measures
+it. The three phases that exist only under escalation --- the stall
+sentence, the expert wait, the relay speech --- are the actual new
+risk surface and behave (Table~\ref{tab:floor}): a genuine barge-in
+aborts the escalated turn and seeds the next turn 40/40, and short
+backchannels hold the floor at the same rate as during local answers.
+One asymmetry is disclosed: a false interrupt during the expert wait
+cancels the pending expert call, so the policy's fail-toward-interrupt
+bias is recoverable but not free there. That residual backchannel
+false-interrupt rate (0.40 short, 0.50 long; identical in both arms)
+is a property of the harness policy and is per-stimulus deterministic:
+non-lexical hums (``mm-hm'' and its Chinese counterpart) die by the
+ASR-empty fail-closed rule (16/16 each; worded tokens such as
+``okay'' 0/16), and continuers sustaining loud speech past the
+$\ge$1.2\,s commit rule die without any ASR check (20/20;
+pause-bearing variants 0/20). We keep the policy as deployed for
+measurement integrity and note both rules as the obvious fixes. For
+scope: the checkpoint's \emph{native} duplex profile, measured
+separately on Full-Duplex-Bench v1.0 \citep{lin2025fdb} (727 samples,
+official scripts), shows best-in-class pause handling (turn-over rate
+0.125/0.117 Candor/synthetic), competitive user-interruption response
+(0.915 at 0.90\,s), and \emph{zero} spontaneous backchannels --- the
+lexicon floor is a harness-level approximation added precisely because
+the talker head has no native backchannel behavior to preserve.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lccc}
+\toprule
+overlap injected during & backchannel holds floor & barge-in aborts &
+seeds next turn \\
+\midrule
+local answer (gate off) & 0.60 [0.45,\,0.75] & 40/40 & 39/40 \\
+local answer (gate on)  & 0.60 [0.45,\,0.75] & 40/40 & 39/40 \\
+stall sentence          & 0.63 [0.38,\,0.88] & 16/16 & 16/16 \\
+expert wait             & 0.60 [0.33,\,0.87] & 14/14 & 14/14 \\
+relay speech            & 0.55 [0.27,\,0.82] & 10/10 & 10/10 \\
+\bottomrule
+\end{tabular}
+\caption{Floor-control sweep over the deployed voice loop. Short
+backchannels (lexicon bursts) vs.\ genuine barge-ins (pool queries
+spoken over the talker), by the phase the overlap lands in; the last
+three phases exist only under escalation. Interrupt latency
+p50 1.39--1.42\,s from overlap onset in every phase; escalated-turn
+aborts discard the pending expert answer and the barge-in speech
+becomes the next turn.}
+\label{tab:floor}
+\end{table}
+
 \paragraph{Concurrent prefill: interleaved listen/speak in one KV
 stream.} A third arm drives the streaming API in time division: while
 the talker is mid-answer, each 1\,s chunk of the target query is

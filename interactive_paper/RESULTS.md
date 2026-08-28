@@ -4460,3 +4460,67 @@ the external gap — the honest camera-ready item).
 **Page cost:** References moved doc-line 332 → 349 (~0.35 page) after clawing
 back ~13 lines by compressing live.tex/related.tex. Main text still runs onto
 p9; the trim decision flagged in P0-R remains open.
+
+### 8ba — floor-control sweep: the gate does not touch barge-in vs backchannel ⭐ (user request, 2026-08-27, ~$14 GPU + ~$3 API)
+
+用户 8-27:"现在的模型只要 user 一开口就自动停止,这破坏了 full-duplex 对
+barge-in 和 backchannel 的区别——要一个实验证明 escalation 的提升没有破坏
+talker 的 full-duplex 能力。" Designed + ran the floor-control sweep the same
+night: `_ws_floor.py` (sweep/report) + `_floor_analyze.py`; 416 pairs against
+the deployed voice demo; data `gate-data:floor_sweep/floor.jsonl`.
+
+**Design.** Cell = phase × stimulus × arm. Phase `ans` = overlap injected
+while the talker speaks a local answer (non-firing queries, BOTH arms
+probe_on=0/1 — the paired orthogonality claim); phases `stall`/`wait`/`relay`
+exist only under escalation (firing queries, g1 only) and are the actual risk
+surface. Stimuli: `bcs` short backchannels (Okay/Yeah/Mm-hm/嗯/好的, 0.40–0.46 s),
+`bcl` long lexicon-only continuers (0.62× time-stretched to 1.33–2.08 s, probes
+the ≥1.2 s sustained-commit rule), `stop` out-of-lexicon commands, `bq` =
+frozen-pool query spoken over the talker. Injection at real-time pacing
+(0.128 s/frame) so client latencies are honest; one ws session per pair;
+40 pairs/cell (ans), 16 (escalated phases).
+
+**Claim A — orthogonality: exact.** All four ans-phase paired deltas (g1−g0)
+are +0.000 [0.000, 0.000], n=40 each — 160/160 pairs make the identical
+duck/resume/interrupt decision with and without the gate. Latency paired
+medians: duck ≤14 ms, resume ≤31 ms, interrupt ≤6 ms. The gate reads once at
+EOT and never touches the floor state machine; measured, not just asserted.
+
+**Claim B — escalated phases behave.** Barge-in aborts the escalated turn
+40/40 (stall 16, wait 14, relay 10) and seeds the next turn 40/40; interrupt
+latency p50 ≈1.39–1.40 s from overlap onset. Short backchannels keep the floor
+at .55–.63 across stall/wait/relay — statistically the same as the ans-phase
+rate (.60), i.e. the escalation phases add no new failure mode; a
+false-interrupt during `wait` does cancel the pending expert call (the cost of
+fail-toward-interrupt there).
+
+**Diagnosis — why "一开口就停": two deterministic mechanisms, both
+gate-independent.** Per-variant, per-stimulus deterministic: (1) non-lexical
+hums die by ASR-empty fail-closed — 'Mm-hm.'/'嗯。' 16/16 dead (empty
+transcript → not classified backchannel → interrupt), 'Okay.'/'Yeah.'/'好的。'
+0/16; (2) continuers with >1.4 s sustained loudness die by the no-ASR
+sustained-commit rule — 'Oh wow, right, right.' (1.83 s)/'嗯,好的,继续。'
+(2.08 s) 20/20 dead at int_med ≈1.52 s < stimulus end, pause-bearing 1.33–1.37 s
+variants 0/20. Aggregate false-interrupt: bcs 40%, bcl 50% — identical in both
+arms. So the user-felt "auto-stop" is the harness floor policy (its two
+fail-closed rules + the 12%-volume duck during the ~1.5 s resume round-trip),
+NOT the escalation gate.
+
+**Also relevant:** the July FDB run (repo root `fdb/RESULTS.md`, 2026-07-04)
+already measured the checkpoint's native duplex profile on Full-Duplex-Bench
+v1.0 (727 samples, official scripts): best-in-class pause handling (TOR
+.125/.117), user-interruption TOR .915 @0.90 s, and **zero native
+backchannels** — the lexicon floor policy exists precisely because the talker
+head has no backchannel behavior of its own to preserve.
+
+**Run hygiene (3 restarts before the clean run):** (i) pool TTS pauses >1.25 s
+trip the server VAD mid-query and the query tail then reads as a barge-in —
+39% contamination in launch 1; fixed by a VAD-faithful pause filter (frame RMS
++ stream noise vs 0.028, max internal silence <1.0 s) + a pre-injection
+early_eot guard; (ii) a stopped run's container committed the volume after
+`modal volume rm` and resurrected stale records — always confirm 0 containers
+before deleting; (iii) busy-retry needed on the thr probe hello. Final run:
+416/416, 0 errors, 0 early_eot, 3 no_fire, 3 no_duck.
+
+**Landed:** app:duplexval floor-control paragraph + table (appendix),
+todo P1 → DONE, refs.bib + lin2025fdb (FDB v1.0).

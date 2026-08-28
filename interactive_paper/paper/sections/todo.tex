@@ -262,6 +262,59 @@
   Page cost: References moved from doc-line 332 to 349 ($\approx$0.35
   page); main text still overflows onto p9 --- the trim decision
   flagged in P0-R is still open.}
+\item \todonote{P1 --- DONE 2026-08-27 same night (8ba, $\sim$\$17): the
+  floor-control sweep ran, 416 pairs, 0 errors. Headline: exact
+  orthogonality --- all 160 ans-phase pairs make the identical
+  duck/resume/interrupt decision gate-on vs gate-off (every paired
+  delta .000 [.000,.000], latency deltas $\le$31\,ms, even the one
+  seeding failure is the same query in both arms); barge-in aborts +
+  seeds 40/40 across stall/wait/relay; backchannel holds .55--.63 in
+  escalated phases = the .60 local rate. Diagnosis of the user-felt
+  ``stops when I speak'': two deterministic harness rules, both
+  gate-independent --- hums die by ASR-empty fail-closed (16/16),
+  $>$1.4\,s sustained continuers die by the no-ASR commit rule
+  (20/20); worded/pause-bearing variants 0/16, 0/20. Landed:
+  app:duplexval paragraph + tab:floor, refs lin2025fdb, RESULTS 8ba.
+  Run hygiene notes in RESULTS (VAD-faithful pause filter; volume-rm
+  vs live-container resurrection). NOT changed: the floor policy
+  itself (kept as deployed for measurement integrity; the two rule
+  fixes are camera-ready items). Original plan follows.}
+\item \todonote{P1-orig --- PLANNED 2026-08-27: floor-control sweep --- show
+  the escalation gate did not break the talker's barge-in vs.\
+  backchannel discrimination. Motivation (user observation): in the
+  live demo the talker effectively stops whenever the user speaks;
+  three mechanical causes in demo\_app.py's floor state machine, all
+  fail-toward-interrupt: (a) $\ge$1.2\,s sustained speech commits
+  without ASR, so any long continuer (``oh wow, interesting, go on'')
+  is killed; (b) the burst ASR check requires \emph{every} token in
+  the en+zh backchannel lexicon --- one OOV token commits; (c) ASR
+  error commits; and the resume path itself (duck to 12\% + 0.45\,s
+  silence + $\sim$1\,s ASR) is perceived as a stop. Design: same
+  stimuli through two arms with the identical floor policy ---
+  probe\_on=1 (deployed gate) vs.\ probe\_on=0 (pre-gate loop) ---
+  crossed with injection phase: local-answer speech (both arms) and
+  the three phases that exist \emph{only under escalation} and are
+  the real risk surface: stall sentence, expert-wait silence, relay
+  speech. Stimuli obey the public-pool rule: barge-in content =
+  frozen-pool TTS queries (paper convention); backchannels = the
+  demo's en+zh lexicon via the same TTS, stratified short ($<$1.2\,s)
+  vs.\ long ($>$1.2\,s, which stratum (a) necessarily fails today);
+  preferred additional arm: Full-Duplex-Bench v1.5 overlap tracks
+  (user interruption / user backchannel / talking-to-others /
+  background speech; automated metrics, code released --- adapt to
+  the ws loop). Metrics: backchannel floor-hold rate, false-interrupt
+  rate by stratum, duck$\to$resume latency; barge-in commit rate,
+  stop latency p50/p95 (speech onset $\to$ playback stop), next-turn
+  seeding accuracy; escalated-phase specifics: backchannel during
+  expert wait must NOT cancel the pending escalation, barge-in during
+  relay must abort the relay and seed the next turn. Claim shape:
+  paired gate-on vs.\ gate-off deltas inside the replication floor
+  (the gate reads once at EOT and never touches the floor state
+  machine, so orthogonality is the prediction, and the escalated-phase
+  cells are the new evidence); scope stays harness-level duplex as in
+  app:duplexval. Reuse \_ws\_barge.py (mic-shaped bursts, duck/resume/
+  interrupt event capture) + \_ws\_duplex.py orchestration +
+  \_duplex\_analyze.py; $\sim$40--60 overlap pairs per cell.}
 \item \todonote{P3 --- submission day (8-28): delete this section; final
   anonymization grep (names, rhe9527, modal URLs, gmail); decide
   public-repo $\to$ private; OpenReview form + upload (deadline 8-29
