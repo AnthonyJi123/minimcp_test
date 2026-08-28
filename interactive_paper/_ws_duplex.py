@@ -13,6 +13,12 @@ Arm 'overlap': easy warmup question first; while the talker SPEAKS the
 probe_on=0: the eot score is computed and logged per turn but nothing
 escalates (no expert RTT; pure gate-validity sweep).
 
+Arm 'escalate' (P2(c) latency stats): probe_on=1 at the given tier;
+fired turns run the real stall -> expert -> relay path and the client
+records EOT->stall-audio and EOT->relay-audio wall clocks; unfired
+turns record EOT->local-audio. This is the reviewer's
+time-to-first-audible table.
+
 Results append to /data/duplex_sweep/{arm}.jsonl (restartable: done ids
 are skipped on rerun).
 
@@ -33,13 +39,13 @@ img = (modal.Image.debian_slim(python_version="3.11")
                     "pandas", "pyarrow"))
 
 BASE = "https://rhe9527--gate-demo-voice.modal.run/62dc5cd9"
-URL = ("wss://rhe9527--gate-demo-voice.modal.run/62dc5cd9/ws"
-       "?tier=balanced&probe_on=0")
+WS = "wss://rhe9527--gate-demo-voice.modal.run/62dc5cd9/ws"
 OUT_DIR = "/data/duplex_sweep"
 
 
 @app.function(image=img, volumes={"/data": vol}, timeout=60 * 60 * 5)
-async def sweep(arm: str = "clean", limit: int = 0):
+async def sweep(arm: str = "clean", limit: int = 0,
+                tier: str = "balanced"):
     import asyncio
     import os
     import time as _time
@@ -50,7 +56,9 @@ async def sweep(arm: str = "clean", limit: int = 0):
     import pandas as pd
     import websockets
 
-    assert arm in ("clean", "overlap"), arm
+    assert arm in ("clean", "overlap", "escalate"), arm
+    probe_on = 1 if arm == "escalate" else 0
+    url = f"{WS}?tier={tier}&probe_on={probe_on}"
     os.makedirs(OUT_DIR, exist_ok=True)
     out_path = f"{OUT_DIR}/{arm}.jsonl"
     done = set()
@@ -114,11 +122,12 @@ async def sweep(arm: str = "clean", limit: int = 0):
 
     def reset_state(st):
         st.update(eots=[], turns=[], interrupts=[], resumes=[],
-                  err=None, audio=0, audio_mark=None)
+                  err=None, audio=0, audio_mark=None,
+                  audio_walls=[], phases=[])
 
     async def run_batch(batch, base_done):
         nonlocal n_written
-        async with websockets.connect(URL, max_size=None,
+        async with websockets.connect(url, max_size=None,
                                       open_timeout=120) as ws:
             hello = json.loads(await ws.recv())
             if hello.get("type") == "error":
@@ -135,8 +144,12 @@ async def sweep(arm: str = "clean", limit: int = 0):
                     t = m.get("type")
                     if t == "audio":
                         st["audio"] += 1
+                        st["audio_walls"].append(_time.time())
                         if st["audio_mark"] is None:
                             st["audio_mark"] = _time.time()
+                        continue
+                    if t == "phase":
+                        st["phases"].append((m.get("v"), _time.time()))
                         continue
                     if t == "eot":
                         st["eots"].append((m, _time.time()))

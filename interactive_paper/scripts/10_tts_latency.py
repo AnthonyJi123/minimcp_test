@@ -58,6 +58,20 @@ def main(paths):
     if stall:
         print(f"canned stall covers {stall[0]}s of the expert wait")
 
+    # dead air = gap between end of the canned stall and expert content
+    # becoming audible, per escalated turn (0 if the stall outlives the wait)
+    da = [max(0.0, (r["expert_latency_s"] + r["relay_first_audio_ms"] / 1000)
+              - (r["first_audio_ms"] / 1000 + r["stall_pcm_s"]))
+          for r in esc
+          if r.get("expert_latency_s") is not None
+          and r.get("relay_first_audio_ms") is not None
+          and r.get("first_audio_ms") is not None
+          and r.get("stall_pcm_s")]
+    if da:
+        covered = sum(1 for d in da if d == 0.0)
+        print(f"escal.:  dead air after stall (n={len(da)}, "
+              f"{covered} fully covered)  {pct(da)}")
+
     ans = [r["answer_ms"] / 1000 for r in loc if r.get("answer_ms")]
     if ans:
         print(f"\nreference: local completion (text decode)  {pct(ans)}")
