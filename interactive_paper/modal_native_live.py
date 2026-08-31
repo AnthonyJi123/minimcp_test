@@ -306,6 +306,63 @@ def live_shard(shard: list, tier: str, shard_id: int = -1) -> list:
     return [r["id"] for r in results]
 
 
+judge_img = (modal.Image.debian_slim(python_version="3.11")
+             .pip_install("openai", "pandas", "pyarrow")
+             .add_local_dir(os.path.join(_HERE, "src"), "/workspace/gate")
+             .add_local_file(_APP_PY, "/root/modal_app.py"))
+
+
+@app.function(image=judge_img, volumes={DATA: gate_data},
+              secrets=[OPENAI], timeout=60 * 60)
+def judge_live(tier: str):
+    """gpt-5.4-mini judge over the DELIVERED content of a live tier run
+    (relay text on fired turns, local answer otherwise) ->
+    /data/native_live/{tier}_judged.parquet."""
+    import asyncio
+    import glob as _glob
+    import sys
+
+    import pandas as pd
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    qs = {q["id"]: q for q in
+          (json.loads(x) for x in
+           open(f"{DATA}/queries.jsonl", encoding="utf-8") if x.strip())}
+    rows = {}
+    for p in sorted(_glob.glob(f"{OUT_DIR}/{tier}.jsonl.shard*")):
+        for ln in open(p, encoding="utf-8"):
+            if ln.strip():
+                r = json.loads(ln)
+                rows[r["id"]] = r
+    out_p = f"{OUT_DIR}/{tier}_judged.parquet"
+    old = (pd.read_parquet(out_p)
+           if os.path.exists(out_p) else pd.DataFrame(columns=["id"]))
+    have = set(old["id"])
+    todo = []
+    for r in rows.values():
+        if r["id"] in have or r["id"] not in qs:
+            continue
+        delivered = r["relay"] if r["fired"] else r["answer"]
+        todo.append({"id": r["id"], "query": qs[r["id"]]["query"],
+                     "reference_answer":
+                     qs[r["id"]].get("reference_answer"),
+                     "answer": delivered or "", "fired": r["fired"],
+                     "score": r["score"]})
+    print(f">>> judge_live[{tier}]: {len(todo)} to judge")
+    if todo:
+        judged = asyncio.run(escalate.judge_many(todo, concurrency=8))
+        new = pd.concat([old, pd.DataFrame(judged)], ignore_index=True)
+        new.to_parquet(out_p)
+        gate_data.commit()
+        ok = [r for r in judged if r["adequate"] is not None]
+        acc = sum(r["adequate"] for r in ok) / max(1, len(ok))
+        fr = sum(1 for r in ok if r["fired"]) / max(1, len(ok))
+        print(f">>> live[{tier}]: delivered acc {acc:.3f} "
+              f"(fire {fr:.2f}, n={len(ok)})")
+    return len(todo)
+
+
 @app.function(image=util_img, volumes={DATA: gate_data}, timeout=60 * 5)
 def _read_test(tier: str) -> list:
     import glob as _glob

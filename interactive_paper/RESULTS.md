@@ -4861,3 +4861,30 @@ Turn-based valpaca was a clean honest negative; native is "fire-rate
 suppressed with a weak aggressive-tier signal". Reported as-is —
 open-ended generation remains the method's boundary, the boundary just
 moved a little.
+
+## Phase 8bg — live native escalation: remix validated; the bottleneck moved to the relay channel (2026-09-01)
+
+Full live runs (modal_native_live.py, frozen test 240 x balanced +
+aggressive, real gpt-transcribe uplink of raw audio, real gpt-5.5 web,
+wait paced 1 chunk/s):
+
+- **balanced: delivered .504 @ 23% fire — remix predicted .492 @ 24%.
+  The offline remix arithmetic is validated end-to-end (+.012).**
+- aggressive: delivered .537 @ 45% vs remix .596 — the 6-point gap
+  decomposes entirely onto fired turns: live fired-acc .495 (agg) /
+  .589 (bal) vs the .667 cached-expert ceiling. The native RELAY
+  channel (text-unit steering) is the new lossy element — 89% of
+  relays needed the nudge retry, and the voiced relay drops/garbles
+  the expert content on a fraction of turns. Turn-based's bottleneck
+  was the transcription uplink; native's is the relay. (Uplink itself
+  is now clean: raw-audio gpt-transcribe, p50 0.9 s.)
+- Latency (real, expert-cache warm): ASR p50 0.8-0.9 s, expert p50
+  4.4-5.7 s, wait p50 5-6 chunks (p90 10-15). fire->relay-first-audio
+  p50 ~7-8 s.
+- Selection visibly works live: unfired subsets score .478/.573 vs
+  the .371 unconditional local floor.
+
+Deliverable framing: remix tables are the headline (validated at
+balanced), live aggressive documents the relay-channel cost as the
+native analogue of the uplink cost — same "channel, not selection"
+decomposition as the turn-based story.
