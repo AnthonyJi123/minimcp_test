@@ -10,6 +10,32 @@ TOKEN = "62dc5cd9"
 
 # (file, title, verdict-class, interpretation-html)
 FIGS = [
+    ("native_regimechain", "图N1 · 原生全双工 — 读点 regime 排序 + 校准 scaling（2026-09-01）", "win", """
+<b>这是什么</b>：系统换到了 MiniCPM 的<b>原生 full-duplex head</b> 上（mic 音频逐秒 prefill 进生成中的 context，
+模型自己决定 listen/speak，探针在它"决定开口"的那个 chunk 读）——之前所有图的结果都来自 turn-based/harness loop。
+<b>数字</b>：in-regime AUC 排序 turn-based .877/.771 &gt; <b>原生 .830/.709</b> &gt; concurrent .76/.689（internal/external mean），六个池无一例外。
+<b>为什么重要</b>：§8bb 测到的"上线代价"大半是 harness 拼接读点的 artifact；部署的原生读点几乎免费，而且不需要任何外部 EOT 检测——<b>duplex head 的开口决策本身就是读点</b>。
+<b>右图</b>：2310 行 in-regime 校准仍未饱和（internal .717→.830），scaling 形状与 concurrent regime 一致。
+<b>不变的坏消息</b>：阈值三个 regime 都不可搬（balanced .386→.645），必须 in-regime 重定标。
+"""),
+    ("native_validity", "图N2 · 原生全双工 — gated accuracy vs matched-random（六池）", "win", """
+<b>看什么</b>：蓝线=native 探针选择的升级曲线，灰虚线=同升级率随机选择；* 是置换 p&lt;.05。
+<b>数字</b>：5/6 池显著——our pool .371→.596（44% 升级）、TriviaQA .612→.872、SD-QA .440→.830（70%）。
+<b>为什么我们好</b>：native regime 的本地 floor 更低（同 240 题 .483→.371，⅓是解码温度、~8 分是真 regime 代价），
+探针判别力却没掉——所以 gate 在部署 regime 里的<b>边际收益比 turn-based 还大</b>。
+<b>为什么有一格不好</b>：Reasoning-zh 的 gate 完全不触发——全英文校准把中文分数压在所有全局阈值之下。
+这是老问题（语言轴）换了个表达形式：从 AUC 崩塌变成 fire-rate 失灵。如实报告。
+<b>第七池 AlpacaEval（图外，见论文表）</b>：turn-based 时代的纯 honest-negative，native 下 aggressive 档
+出现弱显著信号（VB 4.12 vs 随机 4.03，p=.019，但 fire 只有 24%）——开放式生成仍是方法边界，只是边界挪了一点。
+<b>公平吗</b>：expert 结果复用 always 臂缓存（8ad remix 算术），local 结果是 native 实测重判；正在跑的 live 验证臂会给出端到端对照。
+"""),
+    ("native_floor", "图N3 · 原生全双工 — floor control：零 harness 的打断/附和行为", "mixed", """
+<b>这是什么</b>：旧 demo 用能量 VAD + ASR 词表实现"软打断"；现在全部拆掉，这张图测的是 <b>head 自己</b>的话轮行为（108 组 overlap 试验）。
+<b>好的一半</b>：backchannel（"嗯""okay"）几乎从不打断它（误停 3/24），<b>没有任何 ASR/词表参与</b>——旧 harness 要靠 hosted ASR 才做到的事，模型原生就会。
+<b>差的一半</b>：短命令"Stop!"只有 25% 在 6 秒内让位——原生 head 读的是<b>持续语音</b>不是命令；旧的能量 VAD 反而切得更快。这是自然度换可靠性的真实 trade，不藏。
+<b>右图的发现</b>：escalation 等待期来一个<b>新问题</b>，70% 的 pending relay 会被冲掉（head 自己转场了）——这是"用户说话时要 abort 后台 thinker"的最强实证，已列为部署项。
+<b>公平吗</b>：脚本化注入、固定偏移、in-process 与部署同一条 chunk 循环；stim 音频与 8ba 完全同一批。
+"""),
     ("fair_dualview", "图1 · 我们的数据集 — escalation vs acc（speakable 子集 n=218）", "win", """
 <b>看什么</b>：蓝线是部署实测（专家读小模型的转写），绿线是信道对照（专家读原文），灰虚线是随机升级。
 <b>数字</b>：never .436 → aggressive .670，绿线到 .771，全升级上限 .922。
@@ -177,8 +203,12 @@ padding:.6rem .7rem;border-radius:0 6px 6px 0}}
 .interp b{{color:#000}}
 .note{{background:#fff;border-left:4px solid #333;padding:.7rem;
 font-size:.86rem}}</style></head><body>
-<h1>14 张图 + 逐图解读</h1>
-<div class=note><b>怎么读这套图</b>：每张图下面写了三件事——我们在这张图上<b>为什么占优</b>、
+<h1>17 张图 + 逐图解读</h1>
+<div class=note><b>2026-09-01 重要更新</b>：系统已切换到 MiniCPM 的<b>原生 full-duplex</b>
+模式（图N1-N3）。图1-14 的结果测于此前的 turn-based/harness loop——gate 的结论在原生
+regime 下全部复验（AUC .830/.709、validity 5/6 池显著），但那批图的绝对数字属于旧 loop，
+读的时候请带上这个前提。<br><br>
+<b>怎么读这套图</b>：每张图下面写了三件事——我们在这张图上<b>为什么占优</b>、
 <b>为什么吃亏</b>、以及<b>这个比较公不公平</b>。<br><br>
 统一口径：五个外部集用<b>官方判分器</b>（OpenAudioBench 的 gpt-4o / VoiceBench 的
 gpt-4o-mini，均逐字复制官方 prompt）；对比模型（Qwen3-Omni-30B、Kimi-Audio、官方

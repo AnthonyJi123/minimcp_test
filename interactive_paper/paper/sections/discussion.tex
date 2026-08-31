@@ -17,19 +17,29 @@ concurrent regime. (iii) Labels come from one judge family (a stronger
 re-judge bounds deltas at $\le$1 point), no human labels.
 (iv) One session per query per tier ($\pm$2--3 point floor); under
 concurrent prefill the frozen read degrades (AUC .87$\to$.76) and an
-in-regime refit on 360 rows recovers .82 --- calibration must follow
-the regime; that concurrent loop is exploratory (teacher-forced
-carrier, quarter-scale calibration, random-clearance internal but
-spotty externally; Appendix~\ref{app:duplexval}).
+in-regime refit recovers .82 --- calibration must follow the regime,
+and scale helps only partly (a full 2{,}310-row in-regime refit
+lifts external mean AUC .64$\to$.69, still short of turn-based .77);
+that concurrent loop is exploratory (teacher-forced carrier,
+random-clearance internal but spotty externally;
+Appendix~\ref{app:duplexval}). The deployed \emph{native} full-duplex
+regime lands strictly between the two (in-regime AUC .83 internal /
+.71 external mean; Appendix~\ref{app:native}), so much of the
+concurrent cost was the harness read point itself; what does not carry
+across any regime change is the thresholds.
 (v) Layer and features were chosen on internal calibration-split
 cross-validation and confirmed on held-out pools, not by nested
 selection inside each held-out pool (Appendix~\ref{app:signal}).
 (vi) The mechanism behind the late-layer decay is unresolved
-(Appendix~\ref{app:mech}). (vii) Our live protocol is turn-based
-end-of-turn escalation on scripted single-turn queries; the harder
-setting --- barge-in, disfluent self-correction, chained tool calls
-mid-utterance --- is what full-duplex agent benchmarks now target
-\citep{lin2026fdbv3}, and porting the gate there is future work.
+(Appendix~\ref{app:mech}). (vii) The gate now runs and validates under the model's native
+full-duplex head, with barge-in and backchannel handling measured as
+the head's own behavior (Appendix~\ref{app:native}); what remains
+future work is the harder content, not the channel --- disfluent
+self-correction, chained tool calls mid-utterance, and multi-turn
+grounding, as full-duplex agent benchmarks now target
+\citep{lin2026fdbv3} --- plus one measured deployment gap: a new
+question during the thinker wait derails the pending relay 7/10
+times, so the in-flight expert call should be aborted on user speech.
 
 \paragraph{Conclusion.}
 Duplex-trained speech models carry a competence signal their standard

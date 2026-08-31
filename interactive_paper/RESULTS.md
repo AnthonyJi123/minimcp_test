@@ -4524,3 +4524,340 @@ before deleting; (iii) busy-retry needed on the thr probe hello. Final run:
 
 **Landed:** app:duplexval floor-control paragraph + table (appendix),
 todo P1 → DONE, refs.bib + lin2025fdb (FDB v1.0).
+
+
+### 8bb — full-scale (2,310-row) in-regime recalibration: scale is real but the regime keeps a residue ⭐ (~$25 GPU, 2026-08-28)
+
+The deadline moved to 9-10, so the "honest camera-ready item" from 8at ran
+now: the paper attributed the concurrent probe's weak external AUC
+(.57–.67) to its quarter-scale calibration (360 rows) without testing it.
+Tested it.
+
+**Collection.** `modal_duplex_concurrent.py` generalized (FEAT_POOLS map:
+pool → query file + audio dir; `concurrent_shard` takes `audio_dir`;
+frozen default unchanged). The whole v3 train mix re-collected in the
+concurrent-prefill state — expansion 800 (x*) + expansion2 1,150 (y*),
+joining the existing calib-360 — plus the five binary external pools
+(striviaqa/swebq/sllama 250, sdqa 200, sreason 202). 3,102 rows, 8×H100
+per pool sequential, 48 min wall, 0 errors, gen_active_at_eot 3,102/3,102.
+Feats `frozen_conc_{exp,exp2,striviaqa,swebq,sllama,sdqa,sreason}_feats.shard0-7.npz`
+(volume + data/), traces alongside; log `conc_fullscale.log`.
+
+**Refit (`scripts/21_conc_fullscale_refit.py`).** Same recipe as
+scripts/12 (LogReg, C swept, 5-fold OOF, no scaler); labels =
+escalate_label from calib_features/expansion_labels/expansion2_labels
+(fail rates .32/.40/.50, pooled .437); C=3e-4, train OOF .823. External
+labels mirror scripts/14 auc_never (never-tier conclive outcome, pool's
+own judge). Artifacts `data/gate_conc_fullscale.json`,
+`figures/conc_fullscale.json`.
+
+**Replication sanity.** The 360-row probe re-scored on the freshly
+collected external features reproduces the 8at trace AUCs:
+.645/.641/.674/.639/.615 vs .636/.636/.672/.636/.570 — run-to-run floor
+holds (sreason wobbles most, +.045).
+
+**Result (paired on identical features, 10k bootstrap):**
+
+| pool | p360 | p2310 | Δ paired |
+|---|---|---|---|
+| internal test-240 | .818 | .817 | −.001 [−.037,+.035] |
+| striviaqa | .645 | .699 | +.054 [−.015,+.123] |
+| swebq | .641 | .713 | **+.073 [+.023,+.121]** |
+| sllama | .674 | .755 | **+.081 [+.017,+.150]** |
+| sdqa | .639 | .701 | +.062 [−.007,+.131] |
+| sreason (zh) | .615 | .577 | −.039 [−.117,+.037] |
+
+Mean paired Δ: all-5 **+.046 [.017,.076]**, En-4 **+.068 [.036,.099]** —
+both clear zero. Scaling curve (fixed C, 3 seeds, stratified subsample):
+external-mean .625→.646→.658→.679→.689 at n=360/720/1150/1560/2310
+(internal .714→.817) — monotone, flattening.
+
+**Reading.** Scale is real (the attribution wasn't wrong) but buys only
+~a third of the distance: external mean .643→.689 vs turn-based .771
+(per-pool turn-based .789/.785/.806/.792/.683). English pools land
+.70–.76, still short of .785–.806; Reasoning zh — no zh in the 2,310
+English calibration mix — declines within noise. So the corrected claim:
+*calibration must follow the regime AND the concurrent regime carries a
+genuine residual external cost that calibration scale does not pay off;
+plus a language axis (zh untouched by en calibration).* Internal is
+scale-saturated (.818 flat from 360 to 2310).
+
+**Landed:** app:duplexval attribution passage rewritten with the measured
+numbers; app:signal provenance sentence (now two in-regime fits);
+Limitations (iv) updated ("scale helps only partly"). NOT re-run: the
+conclive loop tiers with the 2310 probe (tab:conclive numbers unchanged,
+still 360-probe; exploratory label stays). Bib cleanup same session:
+orgad2024llms was missing Hadas Kotek (added), lin2026fdbv3 full author
+list (Lin/Chen/Chen/Lee), "TODO verify" notes deleted.
+
+
+### 8bc — benefit-trained refit: the expert-agnostic label leaves nothing trainable on the table (~$8 API, 2026-08-28)
+
+P0-R q3's optional item, now that the deadline allows it. app:fixedthr
+re-SCORES the fail-trained probe against the benefit label (y =
+local-wrong AND expert-right) and pays 0.63–0.81 external / .840→.732
+internal. Open question: label's price or probe's? Answer: the label's.
+
+**New data.** `modal_benefit.py::train_ceiling` — gpt-5.5 (low) answers
+the GOLD text of all 2,310 train queries (expert-cache deduped, 0
+errors), standard judge → expert-right rate .853 →
+`train_ceiling.parquet`. Benefit rate on train: .305 (fail .437 × the
+expert fixing ~70% of those).
+
+**Refit (`modal_benefit.py::benefit_refit`).** Same 12,288-d L22
+3-mode read from the stored eoth2 hiddens (CPU-only, as designed),
+LogReg C swept, benefit OOF .758 (C=1e-4). Scored against the deployed
+v3 probe on IDENTICAL features; eval label channels mirror scripts/09
+(never-tier local + ceiling expert, pool's own judge). Replication
+anchors: internal fail-probe benefit-AUC .732 = app:fixedthr's number
+exactly; striviaqa .782 exactly; others within .01–.03 (eoth2 re-score
+vs trace-score floor).
+
+| pool | bAUC fail-probe | bAUC benefit-probe | Δ paired |
+|---|---|---|---|
+| internal test | .732 | .759 | **+.027 [+.004,+.052]** |
+| striviaqa | .782 | .771 | −.010 [−.043,+.022] |
+| swebq | .719 | .749 | +.030 [−.012,+.072] |
+| sllama | .829 | .800 | −.029 [−.071,+.008] |
+| sdqa | .765 | .754 | −.010 [−.047,+.025] |
+| sreason | .634 | .671 | +.037 [−.007,+.083] |
+
+Fail-AUC cost of benefit training: internal .840→.839 (zero); external
+−.01 to −.03.
+
+**Reading.** Benefit training buys a small significant gain exactly
+where calibration matches the distribution (internal +.027) and NOTHING
+external — every CI spans zero, mean ≈ +.004. So the benefit gap
+measured in app:fixedthr is not an objective-mismatch artifact the
+paper left on the table; it is the label importing the expert's own
+failure surface (which the probe never sees and cannot see). The
+"label = local-wrong by design" choice is vindicated as costless.
+
+**Landed:** app:fixedthr closing sentences; artifacts
+`train_ceiling.parquet`, `benefit_refit.json` (volume), modal_benefit.py.
+
+## Phase 8bd — native full duplex: the soft barge-in harness is retired (2026-08-31)
+
+**Ask (user):** remove the demo's harness barge-in entirely; keep (1) the
+model's NATIVE full-duplex ability unconstrained, (2) an escalation hook
+at the moment the talker starts to answer, (3) native interruptibility
+of the relay. Point (4) — abort the in-flight thinker when the user
+speaks during the wait — explicitly deferred (memory:
+duplex-demo-thinker-abort).
+
+**What the old demo actually did** (user asked point-blank; confirmed in
+code): barge-in was 100% harness — server energy-VAD (≥1.2 s sustained
+loud) + duck + hosted-ASR backchannel word-list (`_classify_burst`) +
+a threading.Event that stopped *consuming* `streaming_generate` chunks,
+plus a client-side playback kill switch. MiniCPM ran turn-based
+half-duplex; interrupting speech never entered the model's context
+mid-generation.
+
+**New app `demo_duplex.py`** (Modal `gate-demo-duplex`; page
+rhe9527--gate-duplex.modal.run, ws rhe9527--gate-duplex-voice):
+`model.as_duplex()` → MiniCPMODuplex; every 1 s of mic audio is
+`streaming_prefill`ed into the SAME context the model generates from;
+`streaming_generate` per unit → the head itself emits <|listen|> or
+speaks; yields via <|turn_eos|>. No VAD, no burst ASR, no abort Event,
+no duck/kill-switch (browser AEC is the only echo control). Gate: L22
+hook (same tail-8 + user_mean features), scored at the listen→speak
+transition = "talker commits to answering"; conc-frozen weights +
+thresholds (closest regime; **native-duplex schema is uncalibrated —
+scores exploratory**). Fired ⇒ gpt-5.5 (web) in a background thread
+(ASR uplink of the last ≤30 s of user audio); on return the answer is
+prefilled as a TEXT unit (RELAY_TMPL) into the live stream — the relay
+is an ordinary duplex turn, so it is natively interruptible by
+construction.
+
+**Smoke (`_ws_native_smoke.py`, 3 arms, all pass):**
+- local (q0010): pattern L×15→S×31→turn_eos; mean chunk cost 0.41 s
+  (realtime holds on H100); gate read at onset .179 < .386 (no fire);
+  correct answer ($31).
+- barge: overlap speech at 19.2 s while talker mid-answer → model
+  finishes the phrase and yields ~3.8 s later, entirely its own
+  decision (4 speak-chunks after overlap onset, then turn_eos).
+- escalate (q0557 Lomax v. Ortiz-Marquez): onset score .469 ≥ .386 →
+  fired; thinker ASR heard the question verbatim, answered in 14.8 s;
+  talker meanwhile spoke its local hallucination ("John J. Carlin"),
+  ended its turn; relay unit injected → talker voiced the correction
+  "…was represented by Brian T. Burgess, not John J. Carlin" —
+  in-band self-correction, unprompted.
+
+**Open knobs:** (a) probe calibration on the native schema (feature
+recipe transfers, thresholds don't necessarily); (b) stall steering
+during the thinker wait — v1 lets the local attempt play out and the
+relay corrects; (c) the deferred point-4 thinker abort. Old demo_app.py
+live path is now legacy; keep for the paper's frozen sweeps
+(_ws_duplex.py latency numbers were measured against it).
+
+### 8bd addendum — stall steering in the native stream (2026-08-31)
+
+User caught v1 letting the talker voice its (likely wrong) local answer
+during the thinker wait — paper design is a stall. Three iterations:
+
+1. Imperative note ("stop speaking and wait") → model stopped BUT
+   swallowed the later relay too (kept the floor closed). 
+2. Quoted-line note ("say: 'Hmm, let me double-check…'") → the line got
+   voiced ONE UNIT LATE — at relay time instead of stall time. Text-unit
+   imperatives are followed with a lag; the duplex head treats them more
+   like context than commands.
+3. **Landed: canned stall + factual note.** The STALL line is teacher-
+   forced ONCE at load via the turn-based path (talker's own voice,
+   same trick as the old demo's tts_filler), PLAYED at fire time, and
+   the context gets a *factual* note ("You just told the user: …").
+   End-to-end smoke: fire → stall audio in 0.2 s → turn closed in
+   ~3.4 s → thinker 14.1 s → relay (with one nudge retry) voiced the
+   verified answer at the next onset. RELAY_NUDGE retry stays in
+   (first relay unit occasionally returns an empty turn).
+
+Latency shape for the paper table: fire→stall-audio ≈ 0.2-1 s;
+fire→relay-first-audio ≈ thinker wall + ~2.5 s.
+
+**Ops lessons:** modal deploy does NOT drain warm containers (esc4
+tested stale code — stop the container or wait out scaledown_window);
+a util image missing modal_app.py crash-loops silently from the
+module-level `from modal_app import OPENAI` (both "stuck build"
+incidents were this).
+
+## Phase 8be — native-regime recalibration: the deployed read point is nearly free ⭐ (2026-09-01)
+
+**Setup:** modal_native_dump.py drives MiniCPMODuplex in-process (no
+pacing, generate_audio=False — TTS never touches the LLM cache), one
+fresh session per query, features captured at the SAME point the
+deployed demo reads: after the generate of the first listen→speak
+chunk. 2310 calib rows (§8bb mix, same escalate_label parquets) + 240
+test. 0 no_speak across all 2550. ~20 s/query on H100.
+
+**Probe: near-zero regime cost at the native read point.**
+internal test-240, native features:
+- conc-frozen (360) transferred:    .818 [.763,.869]
+- conc-fullscale (2310) transferred: .807 [.751,.859]
+- native in-regime refit (2310):    .830 [.777,.878]  (Δ vs 2310
+  +.023 [-.012,+.059] n.s.;  turn-based reference .877)
+
+Regime ordering is now turn-based .877 > native .830 > concurrent —
+i.e. §8bb's "residual regime cost" was substantially an artifact of the
+harness-interleaved concurrent read, NOT of going live. The duplex
+head's own commit-to-speak moment is a naturally clean read point (the
+model listens silently through the question, then the tail-8 features
+cover its first ~8 answer tokens — a gen_at_eot-style read that the
+head hands us for free). Robustness: the 0.7-trained probe scores .843
+on temp-0.1 features (decoding-temperature invariant).
+
+**Thresholds do NOT transfer** (the fragile part of calibration, again):
+native score distribution shifts up — balanced .386 → .6445
+(conservative .8311, aggressive .3800). gate_native.json deployed to
+demo_duplex.
+
+**Talker local floor drops in-regime:** same 240 ids local-correct
+turn-based .483 → native default-temp .371; temp-0.1 control recovers
+to .404. So ≈⅓ decoding config, ≈8 pts genuine regime cost (chunked
+TTS-templated generation). Paper tables use the deployed config (0.7);
+0.1 becomes the attribution footnote. Lower floor + intact AUC ⇒ the
+gate's marginal value is LARGER in the deployed regime.
+
+**Pending:** external 5-pool native AUC (the §8bb external gap is the
+one number that could still bend the narrative), floor sweep full run
+(8bf), validity remix tables.
+
+## Phase 8bf — native floor control, first full pass (2026-09-01, analysis pending)
+
+108 trials (modal_native_floor.py, in-process, gate_native thresholds;
+esc carriers fire 60/60 under the new balanced .6445). Raw per-cell:
+
+  ans:bcl 10/12 held   ans:bcs 11/12 held   (backchannel discrimination
+  WITHOUT any ASR/lexicon — the harness needed hosted ASR for this)
+  ans:bq 6/12 yielded<=6 (med 1 chunk among yielders)
+  ans:stop 3/12 yielded<=6  ← native head is LESS sensitive to short
+  burst commands than to sustained speech; the old energy-VAD harness
+  cut faster on "Stop!". Honest trade: naturalness vs reliability.
+  esc:wait bcs 10/10 held; esc:relay cells CONTAMINATED by a
+  classification artifact — relay turns are naturally 1-3 chunks, so
+  natural completion within the yield window reads as "yielded".
+  relay_done .68 among fired is likewise conflated (legit bq barge-ins
+  kill relay completion by design).
+
+TODO (9-1): phase-aware re-analysis — no-stim turn-length baseline from
+the test dump's n_ans_chunks; wait-phase metrics = "responds to new
+question" + "relay still completes"; relay-phase yield vs natural-end
+via length-matched control. No GPU rerun needed; all in the jsonl.
+
+### 8be external pools — the regime ordering holds everywhere (2026-09-01)
+
+Native features, three probes (external n=200-250/pool):
+
+  pool        conc360→nat  conc2310→nat  native-refit   Δ(nat−2310)
+  striviaqa      .658          .631         .711        +.080 [+.030,+.129] ⭐
+  swebq          .720          .693         .736        +.043 [-.009,+.098]
+  sllama         .745          .639         .757        +.118 [+.050,+.192] ⭐
+  sdqa           .632          .706         .736        +.029 [-.027,+.086]
+  sreason(zh)    .578          .491         .606        +.115 [+.051,+.180] ⭐
+
+External mean (native in-regime): .709; En-4 mean .735. Reference
+chain: turn-based .771 > native .709 > concurrent .689 — the same
+ordering as internal, on every pool. In-regime refit beats transferred
+conc probes on 5/5 pools (3/5 significant). sreason stays the weakest
+(all-English calib — the known language axis, unchanged). The §8bb
+scaling+regime narrative carries over verbatim with one upgrade: the
+DEPLOYED regime sits closer to the turn-based ideal than the harness
+concurrent regime ever did.
+
+### 8be validity — native gated accuracy beats matched-random on 5/6 pools (2026-09-01)
+
+8ad remix on the native dumps: native onset scores select, native local
+outcomes (deployed decoding) + cached always-arm expert outcomes mix.
+figures/native_validity.json. Highlights (balanced / aggressive):
+
+  frozen     .371→.492 (esc 24%, p=.001) / .596 (44%, p<.0001)  ceiling .667
+  striviaqa  .612→.756 (26%, p<.0001)   / .872 (64%, p<.0001)  ceiling .916
+  swebq      .392→.556 (31%, p=.024)    / .740 (73%, p=.008)   ceiling .816
+  sllama     .760→.780 (4%, p=.031)     / .828 (24%, p=.0035)  ceiling .912
+  sdqa       .440→.660 (30%, p<.0001)   / .830 (70%, p<.0001)  ceiling .895
+  sreason    gate never fires (zh scores sit under the global calib
+             thresholds — the language axis, now expressed as a
+             fire-rate failure instead of an AUC failure). Honest
+             negative, consistent with 8bb.
+
+External fire rates drift from nominal (aggressive 64-73% vs 50%
+calib) — thresholds remain the fragile part of calibration, third
+regime in a row. All ingredients were cached or judged tonight; zero
+live escalation spend for these tables.
+
+### 8bf phase-aware re-analysis + latency (2026-09-01)
+
+Natural answer length (no-stim baseline, test dump): med 8 chunks
+[p25 5, p75 21]. Clean per-phase story:
+
+- **Answer speech**: backchannel false-stop 3/24 (12.5%) within the
+  6-chunk window (9/12 per kind kept talking past the whole window);
+  bq (sustained question) yields ≤6 in 6/12, med 8.5 post-stim chunks;
+  "Stop!" bursts only 3/12 — the native head reads sustained speech,
+  not short commands. bc-vs-interrupt post-stim length p=.088 (n=48).
+- **Thinker wait**: the model RESPONDS to any stim (speaks within 8
+  chunks 9-10/10 all kinds). Relay survival splits cleanly: bcs 8/10
+  vs stop 4/10, bq 3/10 — a NEW QUESTION during the wait derails the
+  pending relay 70% of the time. This is the strongest empirical
+  motivation yet for the deferred thinker-abort (memory:
+  duplex-demo-thinker-abort): the head already moves on; the machinery
+  should too.
+- **Relay speech**: robust — relay_done 26/30 under overlap (the
+  earlier "2/10 held" was the length artifact; relay turns are
+  naturally 1-3 chunks).
+
+**Latency (figures/native_latency.json):** 87% of queries get the
+commit-to-speak within ±1 chunk (±1 s) of question end (med gap -1);
+listen chunks cost .04 s, speak chunks ~.5 s (realtime holds);
+fire→stall-audio 0.2-1 s; fire→relay-first-audio = thinker wall
+(13-20 s observed) + ~2.5 s.
+
+### 8be valpaca — the seventh pool, native (2026-09-01)
+
+Native dump 199/199 + official VB 1-5 judge (gpt-4o-mini, verbatim
+prompt): native local VB 3.81, always-arm expert 4.76. Gate fire is
+suppressed (2/4/24% across tiers vs nominal 15/30/50 — same axis as
+sreason, open-ended scores sit low) but the aggressive tier shows a
+WEAK-significant win: VB 4.116 vs matched-random 4.033, p=.0185.
+Turn-based valpaca was a clean honest negative; native is "fire-rate
+suppressed with a weak aggressive-tier signal". Reported as-is —
+open-ended generation remains the method's boundary, the boundary just
+moved a little.

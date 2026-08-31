@@ -1,0 +1,641 @@
+"""Native full-duplex demo — the harness barge-in is GONE.
+
+demo_app.py's live loop wrapped MiniCPM's TURN-BASED streaming API in a
+server-side energy VAD + burst-ASR classifier + abort Event ("soft
+barge-in"). This app replaces all of that with the model's own duplex
+head (MiniCPMODuplex, `model.as_duplex()`):
+
+  mic 16 kHz PCM --continuous--> streaming_prefill (1 s units)
+                                 streaming_generate
+        <-- per chunk: <|listen|> (stay silent) or spoken audio
+
+Every second of mic audio is prefilled into the SAME context the model
+is generating from, so the model hears the user while it speaks and
+yields the floor itself (<|turn_eos|>). Barge-in vs backchannel is the
+duplex head's decision — no VAD, no burst ASR, no abort Event, no
+client-side duck/kill-switch. The only echo protection is browser AEC
+(use headphones for a clean run).
+
+The gate lives at the listen->speak transition: the chunk where the
+talker first decides to answer is its "starts thinking" moment. The
+L22 probe (concurrent-regime weights, gate_conc_frozen.json — closest
+calibrated regime; native-duplex token schema is NOT yet calibrated,
+scores are exploratory) reads the context right after that chunk's
+audio prefill. P(fail) >= tier threshold => the thinker (gpt-5.5, web
+search) runs in the background WHILE the duplex loop keeps rolling.
+When the thinker returns, its answer is prefilled as a TEXT unit into
+the same duplex stream and the talker voices it; the mic never stops
+flowing, so the user can interrupt the relay exactly like any other
+speech — same native mechanism, zero special-casing.
+
+Deliberately NOT implemented yet (recorded in project memory): aborting
+the in-flight thinker when the user speaks during the wait.
+
+Deploy:  modal deploy demo_duplex.py
+Page:    https://rhe9527--gate-duplex.modal.run/62dc5cd9/
+Voice:   wss://rhe9527--gate-duplex-voice.modal.run/62dc5cd9/ws
+"""
+import json
+import os
+import time
+
+import modal
+
+TOKEN = "62dc5cd9"
+
+app = modal.App("gate-demo-duplex")
+gate_data = modal.Volume.from_name("gate-data")
+weights = modal.Volume.from_name("minicpm-o45-weights")
+DATA = "/data"
+MODEL_DIR = "/workspace/models/MiniCPM-o-4_5"
+PROMPT_WAV = f"{MODEL_DIR}/assets/system_ref_audio.wav"
+LAYER = 22
+TIERS = ("conservative", "balanced", "aggressive")
+
+from modal_app import OPENAI  # noqa: E402
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_APP_PY = os.path.join(_HERE, "modal_app.py")
+
+web_image = (modal.Image.debian_slim(python_version="3.11")
+             .pip_install("fastapi[standard]")
+             .add_local_file(_APP_PY, "/root/modal_app.py"))
+# Same PROVEN spec as demo_app.py (torch 2.8 / transformers 4.51.0 pin),
+# plus the local _model_src duplex sources: the volume checkpoint's
+# modeling files may predate MiniCPMODuplex, so we overwrite the HF
+# modules cache with the shipped copies at @enter.
+gpu_image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .apt_install("git", "ffmpeg", "libgl1", "libglib2.0-0", "libsndfile1")
+    .pip_install("torch==2.8.0", "torchaudio==2.8.0")
+    .pip_install(
+        "minicpmo-utils[all]",
+        "transformers==4.51.0",
+        "accelerate==1.12.0",
+        "setuptools<81",
+        "pydantic>=2.11",
+        "PyYAML",
+        "soundfile",
+        "opencv-python-headless",
+        "huggingface_hub[hf_transfer]",
+        "scikit-learn",
+        "pandas",
+        "pyarrow",
+        "openai",
+        "sentencepiece",
+        "fastapi[standard]",
+    )
+    .add_local_dir(os.path.join(_HERE, "src"), "/workspace/gate")
+    .add_local_dir(os.path.join(_HERE, "_model_src"), "/workspace/model_src")
+    .add_local_file(_APP_PY, "/root/modal_app.py"))
+
+# proven wording (first escalate smoke: relayed + self-corrected);
+# free-text imperatives like "stop speaking and wait" made the head
+# swallow the relay, and "say X now" got followed one unit late — the
+# canned-stall + factual context note below avoids steering entirely.
+RELAY_TMPL = ("A verified answer came back: {ans}\n"
+              "Relay it to the user in one or two spoken sentences.")
+RELAY_NUDGE = "Say the verified answer aloud to the user now."
+STALL = "Hmm, let me double-check that — one moment."
+# fired => paper-parity canned stall: the STALL line is synthesized ONCE
+# at load via the turn-based teacher-forcing path (talker's own voice),
+# played to the user at fire time, and the context gets a factual note
+# that the line was said. The onset chunk's ~1 s of local attempt has
+# already been voiced when the gate reads — chunk granularity is the
+# regime's floor.
+STALL_NOTE = ("[SYSTEM NOTE] Your answer so far is likely wrong. You "
+              "just told the user: \"" + STALL + "\" A verified answer "
+              "will arrive in a moment.")
+
+
+def _call_def(fn, /, **kw):
+    import inspect
+    p = set(inspect.signature(fn).parameters)
+    return fn(**{k: v for k, v in kw.items() if k in p})
+
+
+@app.cls(image=gpu_image, gpu="H100",
+         volumes={"/workspace/models": weights, DATA: gate_data},
+         secrets=[OPENAI], timeout=60 * 60, scaledown_window=420)
+@modal.concurrent(max_inputs=4)
+class DuplexVoice:
+
+    @modal.enter()
+    def load(self):
+        import glob as _glob
+        import shutil
+        import sys
+        import threading
+
+        import torch
+        from transformers import AutoModel, AutoTokenizer
+        sys.path.insert(0, "/workspace/gate")
+        import gate as gate_mod
+
+        t0 = time.time()
+        cache = os.path.expanduser("~/.cache/huggingface/modules/"
+                                   "transformers_modules/"
+                                   + os.path.basename(MODEL_DIR))
+        os.makedirs(cache, exist_ok=True)
+        for f in _glob.glob(f"{MODEL_DIR}/*.py"):
+            shutil.copy(f, cache)
+        for f in _glob.glob("/workspace/model_src/*.py"):
+            shutil.copy(f, cache)      # duplex-capable modeling sources win
+        self.model = AutoModel.from_pretrained(
+            MODEL_DIR, trust_remote_code=True, attn_implementation="sdpa",
+            torch_dtype=torch.bfloat16,
+            init_vision=False, init_audio=True,
+            init_tts=True).eval().cuda()
+        self.tok = AutoTokenizer.from_pretrained(MODEL_DIR,
+                                                 trust_remote_code=True)
+        # as_duplex() runs init_tts itself (default asset path) and owns
+        # its token2wav stream cache via prepare(prompt_wav_path=...)
+        self.duplex = self.model.as_duplex()
+
+        # in-regime probe: 8be native-duplex refit (2310 rows, same
+        # speak-onset read point as this app; scripts/22)
+        self.art = json.load(open(f"{DATA}/gate_native.json"))
+        self.probe = gate_mod.Probe(self.art["w"], self.art["b"])
+        self.K3 = self.art.get("k_eot", 8)
+        self.st3 = {"accum": False, "tail": None, "sum": None, "cnt": 0}
+
+        import torch as _t
+
+        def hook(_m, _i, out):
+            hs = out[0] if isinstance(out, tuple) else out
+            h = hs[0].detach().float()
+            t = h[-self.K3:].cpu()
+            self.st3["tail"] = (t if self.st3["tail"] is None
+                                else _t.cat([self.st3["tail"],
+                                             t])[-self.K3:])
+            if self.st3["accum"]:
+                sm = h.sum(0).cpu()
+                self.st3["sum"] = (sm if self.st3["sum"] is None
+                                   else self.st3["sum"] + sm)
+                self.st3["cnt"] += h.shape[0]
+        self.model.llm.model.layers[LAYER].register_forward_hook(hook)
+        self.lock = threading.Lock()
+        # canned stall in the talker's own voice (teacher-forced via the
+        # turn-based path; the duplex wrapper reuses the same TTS)
+        self.stall_pcm = None
+        try:
+            import numpy as _np
+            import librosa as _lb
+            ref, _ = _lb.load(PROMPT_WAV, sr=16000, mono=True)
+            self.model.init_token2wav_cache(ref)
+            self.model.reset_session(reset_token2wav_cache=False)
+            sys_msg = _call_def(self.model.get_sys_prompt, mode="omni",
+                                language="en")
+            _call_def(self.model.streaming_prefill, session_id="s1",
+                      msgs=[sys_msg], tokenizer=self.tok)
+            _call_def(self.model.streaming_prefill, session_id="s1",
+                      msgs=[{"role": "user",
+                             "content": [_np.zeros(16000,
+                                                   dtype="float32")]}],
+                      tokenizer=self.tok, is_last_chunk=True)
+            res = _call_def(self.model.streaming_generate,
+                            tokenizer=self.tok, temperature=0.1,
+                            generate_audio=True, use_tts_template=True,
+                            teacher_forcing=True,
+                            teacher_forcing_text=STALL,
+                            max_new_tokens=64, session_id="s1")
+            parts = []
+            for item in res:
+                wf = item[0] if isinstance(item, tuple) else None
+                if wf is not None:
+                    parts.append(wf.float().cpu().numpy().reshape(-1))
+            if parts:
+                self.stall_pcm = _np.concatenate(parts)
+                print(f">>> canned stall: "
+                      f"{len(self.stall_pcm) / 24000:.2f}s", flush=True)
+        except Exception as e:
+            print(f">>> stall synth failed (no audio stall): {e}",
+                  flush=True)
+        self.load_s = round(time.time() - t0, 1)
+        print(f">>> DuplexVoice ready in {self.load_s}s", flush=True)
+
+    def _score_now(self):
+        import torch
+        if self.st3["tail"] is None or self.st3["cnt"] == 0:
+            return None
+        parts = []
+        for m in self.art["modes"]:
+            if m == "eot_last":
+                parts.append(self.st3["tail"][-1])
+            elif m == "eot_mean":
+                parts.append(self.st3["tail"].mean(0))
+            elif m == "user_mean":
+                parts.append(self.st3["sum"] / max(1, self.st3["cnt"]))
+        return float(self.probe.score(torch.cat(parts).numpy()))
+
+    def _session_reset(self):
+        import librosa
+        ref, _ = librosa.load(PROMPT_WAV, sr=16000, mono=True)
+        self.duplex.prepare(
+            prefix_system_prompt="Streaming Omni Conversation.",
+            ref_audio=ref, prompt_wav_path=PROMPT_WAV)
+        self.st3.update(tail=None, sum=None, cnt=0, accum=False)
+
+    # ---- web -------------------------------------------------------------
+    @modal.asgi_app(label="gate-duplex-voice")
+    def ws_app(self):
+        import asyncio
+        import base64
+        import threading as _th
+
+        import numpy as np
+        from fastapi import FastAPI, WebSocket
+        from fastapi.middleware.cors import CORSMiddleware
+        from fastapi.responses import JSONResponse
+
+        wapp = FastAPI()
+        wapp.add_middleware(CORSMiddleware, allow_origins=["*"],
+                            allow_methods=["*"], allow_headers=["*"])
+
+        @wapp.get(f"/{TOKEN}/ready")
+        def ready():
+            return JSONResponse({"ready": True, "load_s": self.load_s,
+                                 "busy": self.lock.locked()})
+
+        @wapp.websocket(f"/{TOKEN}/ws")
+        async def ws(sock: WebSocket):
+            await sock.accept()
+            tier = sock.query_params.get("tier", "balanced")
+            probe_on = sock.query_params.get("probe_on", "1") == "1"
+            thr = self.art["eot_thresholds"].get(tier, 1e9)
+            if not self.lock.acquire(timeout=3):
+                await sock.send_json({"type": "error",
+                                      "msg": "model busy — try again"})
+                await sock.close()
+                return
+            loop = asyncio.get_event_loop()
+            stop = _th.Event()
+            inbox, ilock = [], _th.Lock()
+            relay_box = []            # thinker -> chunk loop (one slot)
+
+            def emit(m):
+                asyncio.run_coroutine_threadsafe(sock.send_json(m), loop)
+
+            def chunk_loop():
+                """The whole session: one native duplex stream. No VAD,
+                no abort — the model owns the floor."""
+                import sys
+                sys.path.insert(0, "/workspace/gate")
+                import escalate
+                import soundfile as sf
+
+                CH = 16000                       # 1 s @ 16 kHz
+                pend = np.zeros(0, dtype=np.float32)
+                user_win = []                    # ASR uplink window
+                prev_listen = True
+                thinking = _th.Event()           # thinker in flight
+                n_chunk = 0
+
+                def thinker(snapshot):
+                    exp = {}
+                    try:
+                        sf.write("/tmp/duplex_up.wav", snapshot, 16000)
+                        t0 = time.time()
+                        with open("/tmp/duplex_up.wav", "rb") as fh:
+                            tr = (escalate._client().audio.transcriptions
+                                  .create(model="gpt-transcribe", file=fh,
+                                          response_format="text"))
+                        up = (tr if isinstance(tr, str)
+                              else getattr(tr, "text", str(tr)))
+                        emit({"type": "log",
+                              "msg": f"thinker uplink heard: "
+                                     f"“{str(up)[:120]}” "
+                                     f"({time.time() - t0:.1f}s ASR)"})
+                        r = escalate.ask_expert_web(up, effort="low")
+                        if r.get("error"):
+                            r = escalate.ask_expert(up, effort="low")
+                        exp["answer"] = (r.get("answer")
+                                         or f"[error: {r.get('error')}]")
+                        emit({"type": "log",
+                              "msg": f"thinker answered in "
+                                     f"{time.time() - t0:.1f}s"})
+                        relay_box.append(exp["answer"])
+                    except Exception as e:
+                        emit({"type": "log",
+                              "msg": f"thinker failed: {str(e)[:120]}"})
+                    finally:
+                        thinking.clear()
+
+                try:
+                    while not stop.is_set():
+                        with ilock:
+                            got, inbox[:] = inbox[:], []
+                        if got:
+                            pend = np.concatenate([pend] + got)
+                        if len(pend) < CH:
+                            time.sleep(0.02)
+                            continue
+                        ch, pend = pend[:CH], pend[CH:]
+                        if len(pend) > 6 * CH:
+                            emit({"type": "log",
+                                  "msg": f"falling behind realtime "
+                                         f"({len(pend) / CH:.1f}s queued)"})
+
+                        # thinker result: prefill as a TEXT unit into the
+                        # SAME stream; the talker voices it in-band and
+                        # stays interruptible (native, chunk 3 below)
+                        if relay_box:
+                            ans = relay_box.pop(0)
+                            emit({"type": "phase", "v": "relaying"})
+                            self.duplex.streaming_prefill(
+                                text_list=[RELAY_TMPL.format(ans=ans)])
+                            r = self.duplex.streaming_generate(
+                                prompt_wav_path=PROMPT_WAV)
+                            _emit_gen(r, relay=True)
+                            if not r.get("text"):
+                                emit({"type": "log",
+                                      "msg": "relay swallowed — nudging"})
+                                self.duplex.streaming_prefill(
+                                    text_list=[RELAY_NUDGE])
+                                r = self.duplex.streaming_generate(
+                                    prompt_wav_path=PROMPT_WAV)
+                                _emit_gen(r, relay=True)
+                            prev_listen = r["is_listen"]
+
+                        user_win.append(ch)
+                        if len(user_win) > 45:
+                            user_win = user_win[-45:]
+
+                        self.st3["accum"] = True
+                        ok = self.duplex.streaming_prefill(
+                            audio_waveform=ch)
+                        self.st3["accum"] = False
+                        if not ok.get("success"):
+                            emit({"type": "log",
+                                  "msg": f"prefill skipped: "
+                                         f"{ok.get('reason', '')[:80]}"})
+                            continue
+                        r = self.duplex.streaming_generate(
+                            prompt_wav_path=PROMPT_WAV)
+                        n_chunk += 1
+
+                        score = self._score_now()
+                        if score is not None:
+                            emit({"type": "score", "i": n_chunk,
+                                  "v": round(score, 4),
+                                  "listen": bool(r["is_listen"])})
+
+                        fired_now = False
+                        if prev_listen and not r["is_listen"]:
+                            # the talker just decided to answer — the
+                            # gate reads exactly here
+                            fired = bool(probe_on and score is not None
+                                         and score >= thr
+                                         and not thinking.is_set())
+                            fired_now = fired
+                            emit({"type": "gate",
+                                  "score": (None if score is None
+                                            else round(score, 4)),
+                                  "thr": round(thr, 4), "fired": fired,
+                                  "probe_on": probe_on})
+                            if fired:
+                                thinking.set()
+                                snap = np.concatenate(
+                                    user_win)[-30 * 16000:]
+                                emit({"type": "phase", "v": "escalating"})
+                                _th.Thread(target=thinker, args=(snap,),
+                                           daemon=True).start()
+
+                        _emit_gen(r)
+                        if fired_now:
+                            if self.stall_pcm is not None:
+                                i16s = (np.clip(self.stall_pcm, -1, 1)
+                                        * 32767).astype("<i2")
+                                emit({"type": "audio", "sr": 24000,
+                                      "pcm": base64.b64encode(
+                                          i16s.tobytes()).decode()})
+                                emit({"type": "text", "v": " " + STALL})
+                            emit({"type": "log",
+                                  "msg": "canned stall + context note"})
+                            self.duplex.streaming_prefill(
+                                text_list=[STALL_NOTE])
+                            r = self.duplex.streaming_generate(
+                                prompt_wav_path=PROMPT_WAV)
+                            _emit_gen(r)
+                        if r.get("end_of_turn"):
+                            user_win = []
+                            self.st3.update(sum=None, cnt=0)
+                        prev_listen = r["is_listen"]
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    emit({"type": "error", "msg": str(e)[:200]})
+                finally:
+                    emit({"type": "bye"})
+
+            def _emit_gen(r, relay=False):
+                wf = r.get("audio_waveform")
+                if not r["is_listen"] and wf is not None and len(wf):
+                    i16 = (np.clip(np.asarray(wf, dtype=np.float32),
+                                   -1, 1) * 32767).astype("<i2")
+                    emit({"type": "audio", "sr": 24000,
+                          "pcm": base64.b64encode(i16.tobytes()).decode()})
+                if not r["is_listen"] and r.get("text"):
+                    emit({"type": "text", "v": r["text"],
+                          "relay": relay})
+                emit({"type": "chunk",
+                      "listen": bool(r["is_listen"]),
+                      "eot": bool(r.get("end_of_turn")),
+                      "cost": round(r.get("cost_all", 0), 3)})
+                if r.get("end_of_turn"):
+                    emit({"type": "phase", "v": "listening"})
+
+            try:
+                await sock.send_json(
+                    {"type": "hello", "thr": round(thr, 4), "tier": tier,
+                     "probe_on": probe_on,
+                     "mode": "NATIVE full duplex — the model itself "
+                             "decides listen/speak every second; no VAD, "
+                             "no soft barge-in harness"})
+                await loop.run_in_executor(None, self._session_reset)
+                await sock.send_json({"type": "phase", "v": "listening"})
+                worker = _th.Thread(target=chunk_loop, daemon=True)
+                worker.start()
+                while True:
+                    msg = await sock.receive()
+                    if msg.get("type") == "websocket.disconnect":
+                        break
+                    txt = msg.get("text")
+                    if txt:
+                        try:
+                            if json.loads(txt).get("type") == "stop":
+                                break
+                        except Exception:
+                            pass
+                        continue
+                    b = msg.get("bytes")
+                    if b:
+                        f = (np.frombuffer(b, dtype=np.int16)
+                             .astype(np.float32) / 32768.0)
+                        with ilock:
+                            inbox.append(f)
+            except RuntimeError:
+                pass
+            finally:
+                stop.set()
+                self.duplex.set_session_stop()
+                await loop.run_in_executor(None, worker.join)
+                self.duplex.clear_session_stop()
+                self.lock.release()
+
+        return wapp
+
+
+@app.function(image=web_image)
+@modal.asgi_app(label="gate-duplex")
+def page():
+    from fastapi import FastAPI
+    from fastapi.responses import HTMLResponse
+
+    wapp = FastAPI()
+
+    @wapp.get(f"/{TOKEN}/")
+    def root():
+        return HTMLResponse(HTML.replace("__TOKEN__", TOKEN))
+    return wapp
+
+
+HTML = r"""<!doctype html><html><head><meta charset=utf-8>
+<title>gate — native duplex</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>
+body{font:15px/1.5 system-ui,sans-serif;margin:0;background:#f5f6f8;color:#1c2733}
+.wrap{max-width:880px;margin:0 auto;padding:1.2rem}
+h1{font-size:1.25rem;margin:.2rem 0}.sub{color:#5b6b7c;font-size:.85rem}
+.card{background:#fff;border:1px solid #dfe5ec;border-radius:10px;
+ padding:1rem;margin:.8rem 0}
+button{font:inherit;padding:.5rem 1rem;border-radius:8px;
+ border:1px solid #c8d2dd;background:#fff;cursor:pointer}
+button.primary{background:#2a78d6;color:#fff;border-color:#2a78d6}
+button:disabled{opacity:.45;cursor:default}
+select{font:inherit;padding:.35rem}
+#vu{height:6px;background:#2a78d6;width:0%;border-radius:3px;
+ transition:width .08s}
+#log{font:12px/1.55 ui-monospace,monospace;background:#0e1621;color:#cfe3f7;
+ border-radius:8px;padding:.7rem;height:270px;overflow-y:auto;
+ white-space:pre-wrap}
+#log .off{color:#8fa3b8}#log .esc{color:#ffcf6e}#log .txt{color:#9be49b}
+.pill{display:inline-block;padding:.1rem .55rem;border-radius:999px;
+ font-size:.75rem;background:#e8edf3;margin-right:.4rem}
+.pill.on{background:#d9ecdb;color:#1c6b2a}
+#swlab{cursor:pointer;user-select:none}
+</style></head><body><div class=wrap>
+<h1>escalation gate · native full duplex</h1>
+<div class=sub>MiniCPMODuplex — the model itself holds the floor: it hears
+you while it speaks and yields on its own. No VAD, no soft barge-in
+harness, no kill switch. Browser AEC is the only echo control —
+<b>use headphones</b>.</div>
+<div class=card>
+ <span class=pill id=swlab>PROBE ON</span>
+ tier <select id=tier><option>conservative</option>
+ <option selected>balanced</option><option>aggressive</option></select>
+ <button id=talk class=primary disabled>GPU starting…</button>
+ <div style="margin-top:.6rem"><div id=vu></div></div>
+ <div class=sub id=state>—</div>
+</div>
+<div class=card><b>talker</b> <span id=phase class=pill>idle</span>
+ <div id=text class=sub style="min-height:2.2rem"></div></div>
+<div class=card><div id=log></div></div>
+</div><script>
+const T="__TOKEN__";
+const VOICE="https://rhe9527--gate-duplex-voice.modal.run";
+const $=s=>document.querySelector(s);
+let probeOn=true,ws=null,ac=null,micStream=null,proc=null,talking=false;
+let playCtx=null,playT=0,gpuReady=false;
+function log(m,c){const l=$("#log");
+ l.innerHTML+=`<div class="${c||''}"><b>${new Date()
+ .toLocaleTimeString()}</b> ${m}</div>`;l.scrollTop=l.scrollHeight;}
+$("#swlab").onclick=()=>{probeOn=!probeOn;
+ $("#swlab").textContent=probeOn?"PROBE ON":"PROBE OFF";
+ $("#swlab").classList.toggle("on",probeOn);
+ log("probe "+(probeOn?"ON":"OFF")+" for the NEXT session","off");};
+function playPCM(b64,sr){
+ if(!playCtx)playCtx=new (window.AudioContext||window.webkitAudioContext)();
+ if(playCtx.state==="suspended")playCtx.resume();
+ const raw=atob(b64),n=raw.length>>1,f=new Float32Array(n);
+ for(let i=0;i<n;i++){let v=raw.charCodeAt(2*i)|(raw.charCodeAt(2*i+1)<<8);
+  if(v>=32768)v-=65536;f[i]=v/32768;}
+ const buf=playCtx.createBuffer(1,n,sr);buf.getChannelData(0).set(f);
+ const src=playCtx.createBufferSource();src.buffer=buf;
+ src.connect(playCtx.destination);
+ playT=Math.max(playT,playCtx.currentTime);
+ src.start(playT);playT+=buf.duration;}
+async function warm(){
+ const t0=Date.now();let j=null;
+ const tick=setInterval(()=>{if(!gpuReady)$("#state").textContent=
+  `GPU starting + loading MiniCPM… ${((Date.now()-t0)/1000|0)}s`;},1000);
+ for(let i=0;i<90&&!j;i++){
+  try{const r=await fetch(`${VOICE}/${T}/ready`,
+   {signal:AbortSignal.timeout(30000)});if(r.ok)j=await r.json();}
+  catch(_){}
+  if(!j)await new Promise(s=>setTimeout(s,4000));}
+ clearInterval(tick);
+ if(j&&j.ready){gpuReady=true;$("#talk").disabled=false;
+  $("#talk").textContent="Start duplex session";
+  $("#state").textContent=`GPU ready (model loaded in ${j.load_s}s)`;}
+ else $("#state").textContent="GPU start timed out — reload to retry.";}
+warm();
+function stopTalk(){talking=false;
+ try{if(ws&&ws.readyState<2){ws.send(JSON.stringify({type:"stop"}));
+  ws.close();}}catch(_){}
+ try{if(proc)proc.disconnect()}catch(_){}
+ try{if(ac)ac.close()}catch(_){}
+ try{if(micStream)micStream.getTracks().forEach(t=>t.stop())}catch(_){}
+ ws=ac=proc=micStream=null;
+ $("#talk").textContent="Start duplex session";$("#vu").style.width="0%";
+ $("#phase").textContent="idle";}
+async function startTalk(){
+ try{micStream=await navigator.mediaDevices.getUserMedia({audio:{
+  channelCount:1,echoCancellation:true,noiseSuppression:true,
+  autoGainControl:true}});}
+ catch(e){log("mic permission denied: "+e,"off");return;}
+ ac=new AudioContext();
+ const src=ac.createMediaStreamSource(micStream);
+ proc=ac.createScriptProcessor(2048,1,1);
+ const ratio=ac.sampleRate/16000;
+ ws=new WebSocket(`${VOICE.replace("https","wss")}/${T}/ws`
+  +`?tier=${$("#tier").value}&probe_on=${probeOn?1:0}`);
+ ws.onmessage=ev=>handle(JSON.parse(ev.data));
+ ws.onclose=()=>{if(talking){log("session closed","off");stopTalk();}};
+ ws.onerror=()=>{log("websocket error","off");stopTalk();};
+ ws.onopen=()=>{src.connect(proc);proc.connect(ac.destination);
+  talking=true;$("#talk").textContent="■ End session";
+  log(`duplex session open (tier ${$("#tier").value}, probe `
+   +`${probeOn?"ON":"OFF"}) — just talk; talk over it to interrupt`);};
+ proc.onaudioprocess=e=>{
+  const f=e.inputBuffer.getChannelData(0);
+  let ss=0;for(let i=0;i<f.length;i++)ss+=f[i]*f[i];
+  $("#vu").style.width=Math.min(100,Math.sqrt(ss/f.length)*700)+"%";
+  if(!ws||ws.readyState!==1)return;
+  const n=Math.floor(f.length/ratio),out=new Int16Array(n);
+  for(let i=0;i<n;i++){const v=f[Math.floor(i*ratio)];
+   out[i]=Math.max(-32768,Math.min(32767,v*32767));}
+  ws.send(out.buffer);};}
+$("#talk").onclick=()=>{talking?stopTalk():startTalk()};
+let turnText="";
+function handle(m){
+ if(m.type==="hello")log(`session config: thr ${m.thr} (${m.tier}), `
+  +`probe ${m.probe_on?"ON":"OFF"} — ${m.mode}`);
+ else if(m.type==="phase")$("#phase").textContent=m.v;
+ else if(m.type==="audio")playPCM(m.pcm,m.sr);
+ else if(m.type==="text"){turnText+=m.v;
+  $("#text").textContent=turnText.slice(-300);
+  log((m.relay?"[relay] ":"")+m.v,"txt");}
+ else if(m.type==="chunk"){
+  if(m.eot){turnText="";log("— turn ended (model yielded the floor) —",
+   "off");}}
+ else if(m.type==="score"){
+  if(m.listen)$("#state").textContent=
+   `listening · running P(fail)=${m.v.toFixed(3)}`;}
+ else if(m.type==="gate")log(`TALKER COMMITS — P(fail)=${m.score} vs thr `
+  +`${m.thr} → ${m.fired?"ESCALATE (thinker launched)":"stay local"}`
+  +(m.probe_on?"":" [probe off]"),m.fired?"esc":"");
+ else if(m.type==="log")log(m.msg,"off");
+ else if(m.type==="error")log("ERROR: "+m.msg,"esc");
+}
+</script></body></html>"""

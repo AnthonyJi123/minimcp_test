@@ -1,0 +1,249 @@
+{
+ "frozen": {
+  "n": 240,
+  "local_floor": 0.371,
+  "expert_ceiling": 0.667,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.371,
+    "random_matched": 0.371,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.071,
+    "acc": 0.388,
+    "random_matched": 0.392,
+    "perm_p": 0.7415
+   },
+   "balanced": {
+    "esc_rate": 0.237,
+    "acc": 0.492,
+    "random_matched": 0.442,
+    "perm_p": 0.001
+   },
+   "aggressive": {
+    "esc_rate": 0.438,
+    "acc": 0.596,
+    "random_matched": 0.5,
+    "perm_p": 0.0
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.667,
+    "random_matched": 0.667,
+    "perm_p": null
+   }
+  }
+ },
+ "striviaqa": {
+  "n": 250,
+  "local_floor": 0.612,
+  "expert_ceiling": 0.916,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.612,
+    "random_matched": 0.612,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.028,
+    "acc": 0.628,
+    "random_matched": 0.62,
+    "perm_p": 0.146
+   },
+   "balanced": {
+    "esc_rate": 0.264,
+    "acc": 0.756,
+    "random_matched": 0.693,
+    "perm_p": 0.0
+   },
+   "aggressive": {
+    "esc_rate": 0.644,
+    "acc": 0.872,
+    "random_matched": 0.808,
+    "perm_p": 0.0
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.916,
+    "random_matched": 0.916,
+    "perm_p": null
+   }
+  }
+ },
+ "swebq": {
+  "n": 250,
+  "local_floor": 0.392,
+  "expert_ceiling": 0.816,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.392,
+    "random_matched": 0.392,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.048,
+    "acc": 0.42,
+    "random_matched": 0.413,
+    "perm_p": 0.2265
+   },
+   "balanced": {
+    "esc_rate": 0.308,
+    "acc": 0.556,
+    "random_matched": 0.523,
+    "perm_p": 0.0235
+   },
+   "aggressive": {
+    "esc_rate": 0.728,
+    "acc": 0.74,
+    "random_matched": 0.7,
+    "perm_p": 0.008
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.816,
+    "random_matched": 0.816,
+    "perm_p": null
+   }
+  }
+ },
+ "sllama": {
+  "n": 250,
+  "local_floor": 0.76,
+  "expert_ceiling": 0.912,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.76,
+    "random_matched": 0.76,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.0,
+    "acc": 0.76,
+    "random_matched": 0.76,
+    "perm_p": null
+   },
+   "balanced": {
+    "esc_rate": 0.044,
+    "acc": 0.78,
+    "random_matched": 0.767,
+    "perm_p": 0.031
+   },
+   "aggressive": {
+    "esc_rate": 0.236,
+    "acc": 0.828,
+    "random_matched": 0.796,
+    "perm_p": 0.0035
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.912,
+    "random_matched": 0.912,
+    "perm_p": null
+   }
+  }
+ },
+ "sdqa": {
+  "n": 200,
+  "local_floor": 0.44,
+  "expert_ceiling": 0.895,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.44,
+    "random_matched": 0.44,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.07,
+    "acc": 0.505,
+    "random_matched": 0.472,
+    "perm_p": 0.0005
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.66,
+    "random_matched": 0.576,
+    "perm_p": 0.0
+   },
+   "aggressive": {
+    "esc_rate": 0.7,
+    "acc": 0.83,
+    "random_matched": 0.758,
+    "perm_p": 0.0
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.895,
+    "random_matched": 0.895,
+    "perm_p": null
+   }
+  }
+ },
+ "sreason": {
+  "n": 202,
+  "local_floor": 0.564,
+  "expert_ceiling": 0.807,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.564,
+    "random_matched": 0.564,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.0,
+    "acc": 0.564,
+    "random_matched": 0.564,
+    "perm_p": null
+   },
+   "balanced": {
+    "esc_rate": 0.0,
+    "acc": 0.564,
+    "random_matched": 0.564,
+    "perm_p": null
+   },
+   "aggressive": {
+    "esc_rate": 0.035,
+    "acc": 0.579,
+    "random_matched": 0.573,
+    "perm_p": 0.291
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.807,
+    "random_matched": 0.807,
+    "perm_p": null
+   }
+  }
+ },
+ "valpaca": {
+  "n": 199,
+  "local_vb": 3.81,
+  "expert_vb": 4.76,
+  "tiers": {
+   "conservative": {
+    "esc_rate": 0.015,
+    "vb": 3.829,
+    "random": 3.823,
+    "perm_p": 0.3885
+   },
+   "balanced": {
+    "esc_rate": 0.035,
+    "vb": 3.829,
+    "random": 3.842,
+    "perm_p": 0.824
+   },
+   "aggressive": {
+    "esc_rate": 0.236,
+    "vb": 4.116,
+    "random": 4.033,
+    "perm_p": 0.0185
+   }
+  }
+ }
+}

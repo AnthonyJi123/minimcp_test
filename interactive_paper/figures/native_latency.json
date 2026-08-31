@@ -1,0 +1,49 @@
+{
+ "onset_gap_chunks": {
+  "median": -1.0,
+  "mean": -3.16,
+  "hist": {
+   "-106": 1,
+   "-81": 1,
+   "-70": 1,
+   "-56": 1,
+   "-50": 2,
+   "-31": 1,
+   "-26": 1,
+   "-24": 1,
+   "-23": 1,
+   "-17": 1,
+   "-11": 1,
+   "-6": 2,
+   "-5": 2,
+   "-4": 4,
+   "-3": 2,
+   "-2": 10,
+   "-1": 149,
+   "0": 59
+  }
+ },
+ "chunk_cost_s": {
+  "listen": 0.04,
+  "speak_mean": 0.5,
+  "speak_max": 0.93,
+  "session_mean": [
+   0.14,
+   0.41
+  ]
+ },
+ "escalation_ws_smokes": {
+  "fire_to_stall_audio_s": [
+   0.2,
+   1.0
+  ],
+  "thinker_wall_s": [
+   13.0,
+   14.1,
+   15.9,
+   19.9
+  ],
+  "fire_to_relay_first_audio_s": "thinker_wall + ~2.5"
+ },
+ "note": "onset gap<=0 = model committed before the padded wav ended (TTS tail silence)"
+}
