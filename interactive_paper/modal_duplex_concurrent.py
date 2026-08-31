@@ -70,7 +70,7 @@ OUT2 = f"{DATA}/frozen_conc"  # feature runs: {OUT2}_{tag}_traces.jsonl / _feats
 @gen_app.function(image=image_cc, gpu="H100", volumes=GPU_VOL,
                   timeout=60 * 60 * 3)
 def concurrent_shard(shard: list, shard_id: int = -1,
-                     tag: str = "") -> list:
+                     tag: str = "", audio_dir: str = AUDIO_DIR) -> list:
     import glob as _glob
     import shutil
     import inspect
@@ -140,7 +140,7 @@ def concurrent_shard(shard: list, shard_id: int = -1,
     traces = []
     feat_ids, feat_X = [], []
     for qi, q in enumerate(shard):
-        au, _ = librosa.load(f"{AUDIO_DIR}/{q['id']}.wav",
+        au, _ = librosa.load(f"{audio_dir}/{q['id']}.wav",
                              sr=16000, mono=True)
         chunks = [au[i:i + 16000] for i in range(0, len(au), 16000)]
         chunks = [np.pad(c, (0, 16000 - len(c))) if len(c) < 16000 else c
@@ -207,7 +207,7 @@ def concurrent_shard(shard: list, shard_id: int = -1,
 
         feat_ids.append(q["id"])
         feat_X.append(feat_vec.astype(np.float32))
-        traces.append({"id": q["id"], "pool": q["pool"],
+        traces.append({"id": q["id"], "pool": q.get("pool", tag or "?"),
                        "n_chunks": len(chunks),
                        "n_concurrent": n_concurrent,
                        "gen_active_at_eot": gen_active_at_eot,
@@ -238,17 +238,40 @@ def _read_frozen(split: str = "test") -> list:
             if q.get("split") == split]
 
 
+# feature-run pools beyond the frozen split (8bb full-scale recalibration):
+# the whole 2310-row train mix + the external eval pools, same wav naming
+FEAT_POOLS = {
+    "frozen":     (f"{DATA}/queries.jsonl",            f"{DATA}/audio_pool"),
+    "expansion":  (f"{DATA}/queries_expansion.jsonl",  f"{DATA}/audio_expansion"),
+    "expansion2": (f"{DATA}/queries_expansion2.jsonl", f"{DATA}/audio_expansion2"),
+    "striviaqa":  (f"{DATA}/queries_striviaqa.jsonl",  f"{DATA}/bench_audio"),
+    "swebq":      (f"{DATA}/queries_swebq.jsonl",      f"{DATA}/bench_audio"),
+    "sllama":     (f"{DATA}/queries_sllama.jsonl",     f"{DATA}/bench_audio"),
+    "sdqa":       (f"{DATA}/queries_sdqa.jsonl",       f"{DATA}/sdqa_audio"),
+    "sreason":    (f"{DATA}/queries_sreason.jsonl",    f"{DATA}/bench_audio"),
+}
+
+
+@gen_app.function(image=util_cc, volumes={DATA: gate_data},
+                  timeout=60 * 5)
+def _read_qfile(qfile: str, split: str = "") -> list:
+    qs = _read_jsonl(qfile)
+    return [q for q in qs if q.get("split") == split] if split else qs
+
+
 @gen_app.local_entrypoint()
 def run_concurrent(workers: int = 4, limit: int = 0, split: str = "test",
-                   tag: str = ""):
-    split_qs = _read_frozen.remote(split)
+                   tag: str = "", pool: str = "frozen"):
+    qfile, audio_dir = FEAT_POOLS[pool]
+    split_qs = _read_qfile.remote(qfile, split if pool == "frozen" else "")
     if limit:
         split_qs = split_qs[:limit]
         workers = 1
     shards = [split_qs[i::workers] for i in range(workers)]
-    print(f">>> concurrent arm: {len(split_qs)} queries, {workers} workers")
+    print(f">>> concurrent arm [{pool}]: {len(split_qs)} queries, "
+          f"{workers} workers")
     done = list(concurrent_shard.starmap(
-        [(shards[i], i if not limit else -1, tag)
+        [(shards[i], i if not limit else -1, tag, audio_dir)
          for i in range(workers)]))
     print(f">>> complete: {sum(len(d) for d in done)} traces")
 

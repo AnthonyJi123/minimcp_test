@@ -1,0 +1,182 @@
+{
+ "train_n": 2310,
+ "C": 0.0001,
+ "benefit_oof_auc": 0.758,
+ "benefit_rate_train": 0.305,
+ "pools": {
+  "internal_test": {
+   "n": 240,
+   "benefit_rate": 0.533,
+   "bAUC_fail_probe": [
+    0.732,
+    0.666,
+    0.794
+   ],
+   "bAUC_benefit_probe": [
+    0.759,
+    0.695,
+    0.818
+   ],
+   "bAUC_delta": [
+    0.027,
+    0.004,
+    0.052
+   ],
+   "fAUC_fail_probe": [
+    0.84,
+    0.785,
+    0.887
+   ],
+   "fAUC_benefit_probe": [
+    0.839,
+    0.785,
+    0.887
+   ]
+  },
+  "striviaqa": {
+   "n": 250,
+   "benefit_rate": 0.308,
+   "bAUC_fail_probe": [
+    0.782,
+    0.72,
+    0.838
+   ],
+   "bAUC_benefit_probe": [
+    0.771,
+    0.706,
+    0.83
+   ],
+   "bAUC_delta": [
+    -0.01,
+    -0.043,
+    0.022
+   ],
+   "fAUC_fail_probe": [
+    0.796,
+    0.738,
+    0.849
+   ],
+   "fAUC_benefit_probe": [
+    0.773,
+    0.711,
+    0.832
+   ]
+  },
+  "swebq": {
+   "n": 250,
+   "benefit_rate": 0.324,
+   "bAUC_fail_probe": [
+    0.719,
+    0.655,
+    0.781
+   ],
+   "bAUC_benefit_probe": [
+    0.749,
+    0.683,
+    0.811
+   ],
+   "bAUC_delta": [
+    0.03,
+    -0.012,
+    0.072
+   ],
+   "fAUC_fail_probe": [
+    0.773,
+    0.714,
+    0.829
+   ],
+   "fAUC_benefit_probe": [
+    0.764,
+    0.703,
+    0.822
+   ]
+  },
+  "sllama": {
+   "n": 250,
+   "benefit_rate": 0.116,
+   "bAUC_fail_probe": [
+    0.829,
+    0.743,
+    0.9
+   ],
+   "bAUC_benefit_probe": [
+    0.8,
+    0.708,
+    0.882
+   ],
+   "bAUC_delta": [
+    -0.029,
+    -0.071,
+    0.008
+   ],
+   "fAUC_fail_probe": [
+    0.83,
+    0.761,
+    0.89
+   ],
+   "fAUC_benefit_probe": [
+    0.804,
+    0.729,
+    0.87
+   ]
+  },
+  "sdqa": {
+   "n": 200,
+   "benefit_rate": 0.435,
+   "bAUC_fail_probe": [
+    0.765,
+    0.696,
+    0.83
+   ],
+   "bAUC_benefit_probe": [
+    0.754,
+    0.684,
+    0.822
+   ],
+   "bAUC_delta": [
+    -0.01,
+    -0.047,
+    0.025
+   ],
+   "fAUC_fail_probe": [
+    0.8,
+    0.735,
+    0.862
+   ],
+   "fAUC_benefit_probe": [
+    0.769,
+    0.703,
+    0.833
+   ]
+  },
+  "sreason": {
+   "n": 202,
+   "benefit_rate": 0.302,
+   "bAUC_fail_probe": [
+    0.634,
+    0.543,
+    0.719
+   ],
+   "bAUC_benefit_probe": [
+    0.671,
+    0.582,
+    0.757
+   ],
+   "bAUC_delta": [
+    0.037,
+    -0.007,
+    0.083
+   ],
+   "fAUC_fail_probe": [
+    0.679,
+    0.602,
+    0.753
+   ],
+   "fAUC_benefit_probe": [
+    0.698,
+    0.62,
+    0.77
+   ]
+  }
+ }
+}
