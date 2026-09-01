@@ -1,132 +1,82 @@
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Full-duplex real-time dialogue.}
-End-to-end spoken dialogue spans native duplex designs --- dGSLM
-\citep{nguyen2023generative}, Moshi \citep{defossez2024moshi},
-GLM-4-Voice \citep{zeng2024glm4voice}, single-LLM native full-duplex
-\citep{bayling2026duplex} --- streaming omni models
+\paragraph{Pre-answer competence estimation.}
+Text-language-model correctness can be estimated from verbal
+self-evaluation \citep{kadavath2022language,lin2022teaching}, output
+uncertainty, or hidden representations
+\citep{azaria2023internal,burns2023discovering,marks2024geometry}.
+Intermediate layers can carry more useful information than the output
+distribution \citep{orgad2024llms}, and trained hidden-state probes are
+strong factual-confidence estimators \citep{mahaut2024factual}.
+Semantic entropy improves uncertainty estimation by comparing sampled
+answers \citep{kuhn2023semantic,farquhar2024detecting}; Semantic
+Entropy Probes amortize this signal into a pre-generation or post-hoc
+hidden-state read \citep{kossen2024semantic}. Attention-map probes and
+multimodal uncertainty fusion extend the same broad idea
+\citep{chuang2024lookback,umui2026}. This work establishes that
+competence is readable in text models. It does not show where the read
+remains reliable after duplex speech training or whether a probe
+calibrated on text transfers to speech-input states.
+
+\paragraph{Selective routing.}
+HybridLLM \citep{ding2024hybrid}, RouteLLM
+\citep{ong2024routellm}, and query-side routers
+\citep{hybridserve2025,hu2024routerbench,llmrouterbench2026} choose a
+model for a complete text query from query features or preference
+data. FrugalGPT organizes cascades that can score an earlier model's
+response \citep{chen2023frugalgpt}, while AutoMix verifies a drafted
+answer before escalating \citep{aggarwal2024automix}. Closest to our
+signal, recent methods read pre-generation activations or fit linear
+success probes on frozen states
+\citep{varshney2026llmrouter,lugoloobi2025difficulty,
+lugoloobi2026failures}. A second family trains the decision into the
+generator: Toolformer and Self-RAG learn tool or reflection tokens
+\citep{schick2023toolformer,asai2024selfrag}; Co-LLM and CITER learn
+token-level deferral \citep{shen2024collaborative,zheng2025citer}; and
+pause, thought, or think/no-think tokens allocate more internal
+computation
+\citep{goyal2024pause,zelikman2024quietstar,yang2025qwen3,
+guo2025deepseekr1}. Learning-to-defer and early-exit methods make
+related decisions within a model
+\citep{madras2018predict,schuster2022confident}. Our contribution is
+not the linear pre-generation probe by itself. We test whether this
+kind of read survives duplex training and audio input, and use a
+deployment-time threshold without modifying the speech checkpoint.
+
+\paragraph{Duplex control and live handoff.}
+End-to-end spoken dialogue includes native duplex models
+\citep{nguyen2023generative,defossez2024moshi,zeng2024glm4voice,
+bayling2026duplex}, streaming omni models
 \citep{xu2025qwen25omni,openbmb2026minicpmo}, frozen-backbone adapters
 \citep{wang2024freezeomni}, and audio fine-tunes
-\citep{chu2024qwen2audio}. Inside these models the standard control
-interface for turn-taking is a policy \emph{trained into the
-generator}: a neural-FSM scheme has the LLM emit explicit
-listen/speak transition tokens \citep{wang2024fsm}; duplex
-time-slicing learns an idle token that keeps the model silent
-\citep{zhang2024duplex}; SyncLLM aligns the two speech streams with
-synchronization tokens \citep{veluri2024syncllm}; LSLM halts
-generation on a detected-interruption token \citep{ma2024lslm}; VITA
-and SALMONN-omni emit state tokens around the speak/listen decision
-\citep{fu2024vita,yu2024salmonnomni}; DuplexSLA adds a third
-structured-action channel so tool calls are emitted without pausing
-speech \citep{zhang2026duplexsla}; BayLing-Duplex converts a
-turn-based SpeechLM into a native duplex one with a handful of state
-tokens and interleaved channels \citep{bayling2026duplex}; and the
-checkpoint we probe is itself of this design --- MiniCPM-o~4.5
-predicts a binary listen/speak token before it generates content
-\citep{openbmb2026minicpmo}. A neighboring line moves the
-same decision into small classifier heads --- FlexDuo
-\citep{liao2025flexduo}, MinMo \citep{chen2025minmo}, Freeze-Omni's
-state heads --- at 120--250\,ms cadences that show a live loop
-tolerates far more decision latency than our $\sim$30\,ms read
-\citep[cf.][]{sync2026turntaking,chrono2026thinking}; a further line
-tunes these behaviours by RL over interaction-level rewards
-\citep{ohashi2026interactivity}.
-All of these decide \emph{when the local model should speak}; our
-gate decides the orthogonal question --- \emph{whether the local
-model should be the one answering} --- and their shared choice of a
-trained last-layer readout is exactly the intervention our results
-show duplex fine-tuning damages.
+\citep{chu2024qwen2audio}. Their control interfaces decide when to
+listen or speak through state, idle, synchronization, or interruption
+tokens \citep{wang2024fsm,zhang2024duplex,veluri2024syncllm,
+ma2024lslm,fu2024vita,yu2024salmonnomni}, structured action channels
+\citep{zhang2026duplexsla}, or small classifier heads
+\citep{liao2025flexduo,chen2025minmo}. MiniCPM-o~4.5 likewise predicts
+a listen/speak state before content generation
+\citep{openbmb2026minicpmo}. These policies answer \emph{when} the
+model should speak, not whether its content is likely to be correct.
 
-\paragraph{Does the model know what it knows?}
-$\ptrue$ self-evaluation \citep{kadavath2022language}, verbalized
-uncertainty \citep{lin2022teaching}, and truthfulness probes on hidden
-states \citep{azaria2023internal,burns2023discovering,marks2024geometry}
-established that correctness is readable internally; intermediate
-layers carry more of it than the output distribution
-\citep{orgad2024llms}; across estimator families, trained hidden-state
-probes measure as the most reliable factual-confidence signal
-\citep{mahaut2024factual}, and attention-map probes detect contextual
-hallucination during decoding \citep{chuang2024lookback}. Semantic entropy
-\citep{kuhn2023semantic,farquhar2024detecting} needs multiple sampled
-generations; Semantic Entropy Probes \citep{kossen2024semantic}
-amortize it into a hidden-state probe that reads either before
-generation or post-hoc --- the closest signal to ours, but on
-text-only half-duplex models. Multimodal
-uncertainty fusion \citep{umui2026} asks a downstream question; we ask
-\emph{where} in a duplex model a modality-robust read survives at all.
+Recent systems also connect a duplex interface to a stronger resource.
+MoshiRAG triggers asynchronous retrieval from the model's emerging
+output and returns knowledge to the local model
+\citep{chien2026moshirag}. DuplexOmni uses a trained think-control
+token to hand work to a separate reasoning layer
+\citep{huang2026duplexomni}. These systems demonstrate that a live
+handoff is possible, but they do not evaluate a competence score read
+from a frozen duplex checkpoint before generation.
 
-\paragraph{Selective escalation and routing.}
-The classic routers are creatures of the turn-based, text-only
-setting: FrugalGPT \citep{chen2023frugalgpt}, HybridLLM
-\citep{ding2024hybrid}, RouteLLM \citep{ong2024routellm}, and
-confidence-based cascades
-\citep{hybridserve2025,hu2024routerbench,llmrouterbench2026} make one
-decision per complete typed query, from query-side features or
-preference data, before any model has answered; AutoMix
-\citep{aggarwal2024automix} escalates by \emph{post-answer}
-self-verification, which a voice deadline forbids. A newer line reads
-the local model's \emph{pre-generation} activations instead ---
-prefill-activation routing \citep{varshney2026llmrouter}, linear
-success probes on frozen states
-\citep{lugoloobi2025difficulty,lugoloobi2026failures} --- still over a
-complete typed query, with the large model answering directly. Both
-assumptions fail in full-duplex voice, where the session lives in the
-small model (query-side ceiling quantified in \S\ref{sec:audit}).
-A second family trains the routing decision \emph{into the weights}
-as special tokens emitted during decoding: Toolformer
-\citep{schick2023toolformer} teaches the model to insert API-call
-tokens by self-supervised fine-tuning; Self-RAG
-\citep{asai2024selfrag} fine-tunes the full model on distilled critic
-labels so reflection tokens trigger retrieval and self-critique;
-Co-LLM \citep{shen2024collaborative} and CITER \citep{zheng2025citer}
-learn a per-token deferral decision to a larger model; pause and
-thought tokens \citep{goyal2024pause,zelikman2024quietstar}, fused
-think/no-think modes \citep{yang2025qwen3,guo2025deepseekr1}, and the
-built-in think gate MiniCPM-o~4.5 itself ships
-\citep{openbmb2026minicpmo} route \emph{compute} the same way. The
-design is uniform --- extend the vocabulary, then fine-tune the
-generator until the policy lives in the checkpoint --- and so is the
-cost: supervision must be constructed and the talker fine-tuned, the
-policy is frozen at training time (a new expert, budget, or threshold
-means retraining), and in a duplex model fine-tuning the talker is
-exactly the intervention \S\ref{sec:duplex} shows damages the
-last-layer readout. Our gate is the pluggable complement: a logistic
-read over a frozen checkpoint, refit from stored activations in
-minutes, its budget moved by a deployment-time threshold, transferring
-across modality and model family (\S\ref{sec:transfer}) --- and it
-beats the model's own trained think token at matched budget
-(Table~\ref{tab:policy}). Learning-to-defer \citep{madras2018predict}
-and early exit \citep{schuster2022confident} decide inside one model.
-
-\paragraph{Escalating out of a live duplex session.} Two concurrent
-systems do escalate from a small duplex model to a stronger resource,
-and both differ from us in \emph{what fires the handoff}. MoshiRAG
-\citep{chien2026moshirag} pairs a compact duplex interface with
-selective retrieval, exploiting the lag between speech onset and the
-first content word to fetch asynchronously and inject the result as
-embeddings --- the trigger is read off the model's own emerging
-\emph{output}, and what arrives is knowledge for the small model
-rather than an answer from a larger one. DuplexOmni
-\citep{huang2026duplexomni} separates a real-time interaction layer
-from a pluggable thinking layer and trains a think-control token that
-hands work to it; the policy is once more fine-tuned into the talker.
-Our gate decides \emph{before} the talker commits to any output, from
-a frozen checkpoint's internal state, with no talker fine-tuning and a
-budget moved by a deployment-time threshold.
-
-\paragraph{The gap.}
-The prior work factors along two axes --- \{text-based, full-duplex\}
-$\times$ \{policy trained in as special tokens, probe read out of
-frozen internals\} --- and three cells are dense: text models both
-train routing tokens and read probes; duplex models train their
-control policies in as tokens or heads, the two systems above
-included. The fourth is empty --- no prior work we know of reads a
-\emph{frozen} full-duplex model's internal state for a pre-answer,
-modality-robust competence signal --- and empty at exactly the point
-our results say token-training is least safe. What is new is
-therefore not the pre-generation probe, which text-only routing
-already reads, but three duplex-specific results: duplex fine-tuning
-damages exactly that standard readout, the surviving mid-layer read
-transfers text$\to$speech in end-to-end models, and it holds inside a
-live escalation loop.
+\paragraph{Positioning.}
+Prior work therefore establishes three ingredients separately:
+competence can be read from text models, text queries can be routed,
+and duplex models can coordinate speaking or external computation.
+To our knowledge, the reviewed literature does not establish their
+conjunction: whether a frozen duplex-trained speech model exposes a
+pre-answer competence signal that survives unseen query pools and
+text-to-speech transfer, and whether that signal arrives early enough
+to improve live selective escalation. We evaluate these conditions
+directly. The claims are about readout robustness and system utility;
+the training mechanism behind the late-layer failure remains open.

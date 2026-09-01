@@ -34,11 +34,29 @@ additionally validated on real human recordings (SD-QA,
 audio (\S\ref{sec:transfer}). Judge prompts, pins, and spend:
 Appendix~\ref{app:prompts}--\ref{app:repro}.
 
-\paragraph{Gate signals (no model training).}
-(i) decode scalars: max token entropy / margin over the first $k$
-decode steps; (ii) linear probes: logistic regression on a single
-hidden state, position $\times$ layer swept, fit on the calibration
-split only; (iii) verbalized self-evaluation
+\paragraph{Candidate competence signals.}
+All model checkpoints remain frozen. We compare (i) decode scalars:
+max token entropy or margin over the first $k$ decode steps; (ii)
+linear probes: logistic regression on hidden states, with layer and
+position selected on calibration data; and (iii) verbalized
+self-evaluation
 \citep{kadavath2022language}: $\ptrue$-pre asks ``would you answer this
 correctly?'' before answering, $\ptrue$-post asks about a drafted
 answer; $P(\text{Yes})$ is read from the first token's distribution.
+The representation analyses use a single-position, 4096-d L22 probe
+fit on the 360-query calibration split. The live system uses the same
+layer plus two pooled positions, fit on a wider 2{,}310-query
+calibration mix that is disjoint from the external benchmarks.
+Concurrent and native serving change the read point, so those
+validations refit the same feature set in regime; Appendix
+\ref{app:signal} records the full calibration ledger.
+
+\paragraph{Evaluation logic.}
+In-distribution AUC is diagnostic, not the main robustness claim,
+because query-pool identity is predictive in the calibration mix. We
+therefore use LOPO AUC to test distribution transfer and
+text-trained/audio-scored AUC to test modality transfer. For the live
+system, the key comparison is against matched-rate random escalation:
+an improvement over always-local operation can come from the expert
+alone, while an improvement over random at the same call rate measures
+the value of the gate's ranking.
