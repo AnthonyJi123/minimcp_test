@@ -4919,3 +4919,33 @@ data/gate_act.json, figures/act_probe.json; demo_duplex.py wires the
 act term and reports P(info) in the gate event. Caveat: negatives are
 standalone stims; mid-conversation floor acts are covered by the live
 smoke but not yet by a systematic sweep.
+
+## Phase 8bi — context-carrying uplink: multi-turn escalation (2026-09-01)
+
+**User-caught bug:** "what is NVDA stock" then "what about Apple" — only
+"what about Apple" is ASR'd and sent to the expert, which cannot
+resolve the reference. Root cause: the PROBE reads L22 with full
+context (prior turns live in the model's KV cache), but the expert
+UPLINK was stateless — snapshot audio of the current turn only, and
+demo_duplex reset the window every end_of_turn.
+
+**Fix (deployed):** a rolling text dialogue `history`. Escalated turns
+record `User: <asr>` + `Assistant: <expert answer>` (inside thinker,
+using the resolved question); local turns record the talker's own
+answer (topic carrier). At fire, the expert input becomes
+"Conversation so far:\n<history[-6:]>\n\nThe user now asks (resolve
+references…): <asr>". The audio uplink stays per-turn clean (window
+still wiped) — context lives in resolved text, not re-ASR'd old audio.
+History capped at 8 lines.
+
+**Live smoke (aggressive tier, two real TTS turns):**
+- T1 "What is Nvidia's stock price today?" → relay "Nvidia is trading
+  at $220.78 today, up about 1.5%."
+- T2 "What about Apple?" → relay "Apple's currently at around $193.46
+  per share, down a bit from yesterday."
+T2 resolved to Apple's STOCK PRICE — only possible from the threaded
+history. Bug fixed. Files: demo_duplex.py, _ws_context_smoke.py.
+
+Paper note: the measured eval pools are single-turn, so no table
+changes; this is a deployment/demo capability. Recorded in
+Limitations as multi-turn grounding via a stateful uplink.

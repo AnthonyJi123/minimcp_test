@@ -310,11 +310,20 @@ class DuplexVoice:
                 CH = 16000                       # 1 s @ 16 kHz
                 pend = np.zeros(0, dtype=np.float32)
                 user_win = []                    # ASR uplink window
+                history = []                      # rolling dialogue text
+                turn_text = []                    # this turn's spoken text
+                turn_fired = False                # did this turn escalate
                 prev_listen = True
                 thinking = _th.Event()           # thinker in flight
                 n_chunk = 0
 
-                def thinker(snapshot):
+                def thinker(snapshot, context):
+                    # context: the resolved dialogue so far. The probe
+                    # reads L22 WITH this context (it is in the model's
+                    # KV cache), but the expert is stateless — a
+                    # follow-up like "what about apple" is unanswerable
+                    # in isolation, so we uplink the history too and ask
+                    # the expert to resolve references against it.
                     exp = {}
                     try:
                         sf.write("/tmp/duplex_up.wav", snapshot, 16000)
@@ -329,14 +338,25 @@ class DuplexVoice:
                               "msg": f"thinker uplink heard: "
                                      f"“{str(up)[:120]}” "
                                      f"({time.time() - t0:.1f}s ASR)"})
-                        r = escalate.ask_expert_web(up, effort="low")
+                        if context:
+                            q = ("Conversation so far:\n" + context
+                                 + "\n\nThe user now asks (resolve any "
+                                   "references like \"it\"/\"that\"/"
+                                   "\"what about X\" against the "
+                                   "conversation above): " + str(up))
+                        else:
+                            q = str(up)
+                        r = escalate.ask_expert_web(q, effort="low")
                         if r.get("error"):
-                            r = escalate.ask_expert(up, effort="low")
+                            r = escalate.ask_expert(q, effort="low")
                         exp["answer"] = (r.get("answer")
                                          or f"[error: {r.get('error')}]")
                         emit({"type": "log",
                               "msg": f"thinker answered in "
                                      f"{time.time() - t0:.1f}s"})
+                        history.append(f"User: {str(up).strip()}")
+                        history.append(f"Assistant: {exp['answer']}")
+                        del history[:-8]
                         relay_box.append(exp["answer"])
                     except Exception as e:
                         emit({"type": "log",
@@ -429,12 +449,17 @@ class DuplexVoice:
                                 thinking.set()
                                 snap = np.concatenate(
                                     user_win)[-30 * 16000:]
+                                ctx = "\n".join(history[-6:])
                                 emit({"type": "phase", "v": "escalating"})
-                                _th.Thread(target=thinker, args=(snap,),
+                                _th.Thread(target=thinker,
+                                           args=(snap, ctx),
                                            daemon=True).start()
 
                         _emit_gen(r)
+                        if r.get("text"):
+                            turn_text.append(r["text"])
                         if fired_now:
+                            turn_fired = True
                             if self.stall_pcm is not None:
                                 i16s = (np.clip(self.stall_pcm, -1, 1)
                                         * 32767).astype("<i2")
@@ -450,7 +475,16 @@ class DuplexVoice:
                                 prompt_wav_path=PROMPT_WAV)
                             _emit_gen(r)
                         if r.get("end_of_turn"):
+                            # local turns: the talker's own answer carries
+                            # the topic into history (escalated turns are
+                            # recorded inside thinker with the resolved
+                            # question). audio window stays per-turn clean.
+                            ans = "".join(turn_text).strip()
+                            if ans and not turn_fired:
+                                history.append(f"Assistant: {ans}")
+                                del history[:-8]
                             user_win = []
+                            turn_text, turn_fired = [], False
                             self.st3.update(sum=None, cnt=0)
                         prev_listen = r["is_listen"]
                 except Exception as e:

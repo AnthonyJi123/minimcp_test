@@ -1423,6 +1423,17 @@ $\mathrm{act}\ge\tau_a \wedge P(\mathrm{fail})\ge\tau$. The deployed
 demo answers floor turns naturally and reports the act score per
 commit; the failure probe's calibration is untouched.
 
+\paragraph{Multi-turn grounding.} A stateless expert uplink breaks on
+follow-ups: ``what is NVDA trading at'' then ``what about Apple'' sends
+only the second utterance, unresolvable in isolation. The probe itself
+is unaffected --- it reads L22 with the prior turns live in the
+model's KV cache --- so the fix is in the uplink, not the gate: the
+deployed demo threads a rolling resolved-dialogue history into the
+expert input and asks it to resolve references, after which the
+follow-up correctly returns Apple's share price. The measured eval
+pools are single-turn, so this is a deployment capability rather than
+a table; systematic multi-turn evaluation is future work.
+
 \paragraph{Floor control, natively.} With the harness gone, 8ba's
 question re-poses on the head itself (108 scripted overlap trials,
 stims spoken over the talker at fixed offsets). During answer speech,
