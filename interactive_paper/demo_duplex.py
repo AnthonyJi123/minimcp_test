@@ -323,6 +323,7 @@ class DuplexVoice:
                 turn_text = []                    # this turn's spoken text
                 turn_fired = False                # did this turn escalate
                 relay_guard = False               # relay being delivered
+                muted = 0                         # 8bm: suppressed chunks
                 prev_listen = True
                 thinking = _th.Event()           # thinker in flight
                 n_chunk = 0
@@ -394,6 +395,11 @@ class DuplexVoice:
                         # stays interruptible (native, chunk 3 below)
                         if relay_box:
                             ans = relay_box.pop(0)
+                            if muted:
+                                emit({"type": "log",
+                                      "msg": f"muted {muted - 1} chunks "
+                                             "of local continuation"})
+                                muted = 0
                             relay_guard = True   # no gate fire until
                             #                      this delivery's eot
                             emit({"type": "phase", "v": "relaying"})
@@ -471,8 +477,10 @@ class DuplexVoice:
                                            args=(snap, ctx),
                                            daemon=True).start()
 
-                        _emit_gen(r)
-                        if r.get("text"):
+                        _emit_gen(r, mute=muted > 0)
+                        if muted:
+                            muted += 1
+                        if r.get("text") and not muted:
                             turn_text.append(r["text"])
                         if fired_now:
                             turn_fired = True
@@ -484,14 +492,22 @@ class DuplexVoice:
                                           i16s.tobytes()).decode()})
                                 emit({"type": "text", "v": " " + STALL})
                             emit({"type": "log",
-                                  "msg": "canned stall + context note"})
+                                  "msg": "canned stall + context note; "
+                                         "local continuation muted "
+                                         "until relay"})
+                            muted = 1
                             self.duplex.streaming_prefill(
                                 text_list=[STALL_NOTE])
                             r = self.duplex.streaming_generate(
                                 prompt_wav_path=PROMPT_WAV,
                                 top_k=GEN_TOP_K)
-                            _emit_gen(r)
+                            _emit_gen(r, mute=True)
                         if r.get("end_of_turn"):
+                            if muted:
+                                emit({"type": "log",
+                                      "msg": f"muted {muted - 1} chunks "
+                                             "of local continuation"})
+                                muted = 0
                             # local turns: the talker's own answer carries
                             # the topic into history (escalated turns are
                             # recorded inside thinker with the resolved
@@ -512,7 +528,20 @@ class DuplexVoice:
                 finally:
                     emit({"type": "bye"})
 
-            def _emit_gen(r, relay=False):
+            def _emit_gen(r, relay=False, mute=False):
+                if mute:
+                    # 8bm: thinker engaged — the condemned turn's
+                    # continuation is generated (context true,
+                    # perception intact, natively interruptible)
+                    # but not voiced
+                    emit({"type": "chunk",
+                          "listen": bool(r["is_listen"]),
+                          "eot": bool(r.get("end_of_turn")),
+                          "muted": True,
+                          "cost": round(r.get("cost_all", 0), 3)})
+                    if r.get("end_of_turn"):
+                        emit({"type": "phase", "v": "listening"})
+                    return
                 wf = r.get("audio_waveform")
                 if not r["is_listen"] and wf is not None and len(wf):
                     i16 = (np.clip(np.asarray(wf, dtype=np.float32),

@@ -5195,3 +5195,24 @@ design").
 repeat-then-judge ptrue_pre on the audio pools (calib/test + the five
 external, ~$2-3 by 5b costing); (b) external fusion eval — THE
 decisive number; (c) if it holds, wire the stacker into demo_duplex.
+
+## Phase 8bm — double-talking fix: mute the condemned turn (2026-09-01)
+
+**User report:** after fire, the talker kept voicing its own (wrong,
+$530) answer while the thinker worked — stall note obeyed "loosely"
+again (the head replied "'ll do better." to the note, then finished
+the hallucination; third confirmed failure of in-band imperative
+steering, consistent with 8bk's turn-granular behavior channel).
+
+**Fix (deployed + verified):** output-side mute of exactly the
+condemned turn. After fire, the turn the gate judged likely-wrong
+keeps GENERATING (context true, perception intact, natively
+interruptible — user audio still prefills, barge-in unchanged) but its
+audio/text are not emitted. Mute lifts at that turn's natural
+turn_eos or at relay injection; unvoiced text is excluded from the
+dialogue history (history records only what the user heard). Verified:
+fire → 1-chunk onset fragment → stall → "muted 8 chunks" → relay
+$220.78 as the sole audible answer; follow-up "Thanks" stays a floor
+turn. Classification: an output-channel edit (same class as the canned
+stall) — no perception/generation/interruption capability is
+constrained; probe-off leaves the path nonexistent.
