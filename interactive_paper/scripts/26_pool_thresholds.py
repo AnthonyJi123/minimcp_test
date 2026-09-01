@@ -24,6 +24,7 @@ Outputs:
 Usage (from interactive_paper/): python scripts/26_pool_thresholds.py
 """
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -33,13 +34,14 @@ D = Path("data")
 RNG = np.random.default_rng(42)
 RATES = {"conservative": .15, "balanced": .30, "aggressive": .50}
 WINDOW = 100  # sliding-window size for the online tracker
+SFX = sys.argv[1] if len(sys.argv) > 1 else ""  # "off" = official config
 POOLS = [
-    ("frozen", "test", None),
-    ("striviaqa", "striviaqa", "oab_ok"),
-    ("swebq", "swebq", "oab_ok"),
-    ("sllama", "sllama", "oab_ok"),
-    ("sdqa", "sdqa", "heard_ok"),
-    ("sreason", "sreason", "heard_ok"),
+    ("frozen", "test" + ("off" if SFX else ""), None),
+    ("striviaqa", "striviaqa" + SFX, "oab_ok"),
+    ("swebq", "swebq" + SFX, "oab_ok"),
+    ("sllama", "sllama" + SFX, "oab_ok"),
+    ("sdqa", "sdqa" + SFX, "heard_ok"),
+    ("sreason", "sreason" + SFX, "heard_ok"),
 ]
 
 
@@ -153,11 +155,13 @@ def main():
                                  "perm_p": None}
         valid[pool] = pv
 
-    (D / "gate_native_pooled.json").write_text(json.dumps(out, indent=1))
-    Path("figures/native_validity_pooled.json").write_text(
+    tag = "_official" if SFX else ""
+    (D / f"gate_native_pooled{tag}.json").write_text(
+        json.dumps(out, indent=1))
+    Path(f"figures/native_validity_pooled{tag}.json").write_text(
         json.dumps(valid, indent=1))
-    print("\nwrote data/gate_native_pooled.json + "
-          "figures/native_validity_pooled.json")
+    print(f"\nwrote data/gate_native_pooled{tag}.json + "
+          f"figures/native_validity_pooled{tag}.json")
 
 
 if __name__ == "__main__":

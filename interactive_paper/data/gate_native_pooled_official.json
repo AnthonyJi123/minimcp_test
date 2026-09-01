@@ -1,0 +1,45 @@
+{
+ "rates": {
+  "conservative": 0.15,
+  "balanced": 0.3,
+  "aggressive": 0.5
+ },
+ "window": 100,
+ "global": {
+  "conservative": 0.8601943254470825,
+  "balanced": 0.6736619472503662,
+  "aggressive": 0.3739548921585083
+ },
+ "pools": {
+  "frozen": {
+   "conservative": 0.7783452684353465,
+   "balanced": 0.5959406562309207,
+   "aggressive": 0.3370625330380294
+  },
+  "striviaqa": {
+   "conservative": 0.7197319296624852,
+   "balanced": 0.6035653991491138,
+   "aggressive": 0.44488710340951587
+  },
+  "swebq": {
+   "conservative": 0.7757942062803764,
+   "balanced": 0.6711234697464001,
+   "aggressive": 0.49999698323220043
+  },
+  "sllama": {
+   "conservative": 0.5098059631238968,
+   "balanced": 0.36563294943909136,
+   "aggressive": 0.20575319999655248
+  },
+  "sdqa": {
+   "conservative": 0.7918957065536738,
+   "balanced": 0.6530895592096212,
+   "aggressive": 0.5030032156080748
+  },
+  "sreason": {
+   "conservative": 0.35828674715792524,
+   "balanced": 0.2554237437137497,
+   "aggressive": 0.20177835564025148
+  }
+ }
+}

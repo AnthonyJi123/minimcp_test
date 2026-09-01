@@ -5459,3 +5459,15 @@ this session and was dodged by writing scripts to files); both
 repaired, updated to the merged-gate numbers, and the stale
 default-config validity prose refreshed. Lesson for both sessions: do
 NOT pass backslash-bearing text through bash heredocs on this setup.
+
+### 8bp addendum — official per-pool thresholds + PDF verify ($0, 2026-09-01)
+
+scripts/26_pool_thresholds.py grew the same SFX arg as scripts/23; run
+"off" against the merged 5228 gate on official features →
+gate_native_pooled_official.json + native_validity_pooled_official.json.
+sreason: global fire 0/.01/.13 → per-pool static exactly nominal
+(.15/.30/.50), windowed .19/.27/.62 — the deployed gate's last
+operating-point gap now has concrete numbers on the deployed config.
+En pools' windowed tracker converges within ±.06 of nominal everywhere.
+Paper rebuilt on Modal after the table repair: clean compile, 38 pages,
+main.pdf refreshed.
