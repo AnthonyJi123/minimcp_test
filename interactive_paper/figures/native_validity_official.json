@@ -11,21 +11,21 @@
     "perm_p": null
    },
    "conservative": {
-    "esc_rate": 0.105,
+    "esc_rate": 0.1,
     "acc": 0.485,
-    "random_matched": 0.456,
-    "perm_p": 0.008
+    "random_matched": 0.455,
+    "perm_p": 0.007
    },
    "balanced": {
-    "esc_rate": 0.218,
-    "acc": 0.544,
-    "random_matched": 0.483,
+    "esc_rate": 0.234,
+    "acc": 0.556,
+    "random_matched": 0.488,
     "perm_p": 0.0
    },
    "aggressive": {
-    "esc_rate": 0.456,
-    "acc": 0.661,
-    "random_matched": 0.54,
+    "esc_rate": 0.477,
+    "acc": 0.657,
+    "random_matched": 0.544,
     "perm_p": 0.0
    },
    "always": {
@@ -48,21 +48,21 @@
     "perm_p": null
    },
    "conservative": {
-    "esc_rate": 0.052,
-    "acc": 0.588,
-    "random_matched": 0.586,
-    "perm_p": 0.499
+    "esc_rate": 0.028,
+    "acc": 0.572,
+    "random_matched": 0.578,
+    "perm_p": 0.92
    },
    "balanced": {
-    "esc_rate": 0.256,
-    "acc": 0.74,
-    "random_matched": 0.657,
+    "esc_rate": 0.2,
+    "acc": 0.704,
+    "random_matched": 0.637,
     "perm_p": 0.0
    },
    "aggressive": {
-    "esc_rate": 0.604,
-    "acc": 0.848,
-    "random_matched": 0.778,
+    "esc_rate": 0.608,
+    "acc": 0.852,
+    "random_matched": 0.779,
     "perm_p": 0.0
    },
    "always": {
@@ -86,21 +86,21 @@
    },
    "conservative": {
     "esc_rate": 0.075,
-    "acc": 0.427,
+    "acc": 0.436,
     "random_matched": 0.441,
-    "perm_p": 0.9525
+    "perm_p": 0.7825
    },
    "balanced": {
-    "esc_rate": 0.295,
-    "acc": 0.556,
-    "random_matched": 0.529,
-    "perm_p": 0.0555
+    "esc_rate": 0.286,
+    "acc": 0.56,
+    "random_matched": 0.525,
+    "perm_p": 0.025
    },
    "aggressive": {
-    "esc_rate": 0.614,
-    "acc": 0.705,
-    "random_matched": 0.656,
-    "perm_p": 0.0045
+    "esc_rate": 0.651,
+    "acc": 0.734,
+    "random_matched": 0.67,
+    "perm_p": 0.0
    },
    "always": {
     "esc_rate": 1.0,
@@ -124,19 +124,19 @@
    "conservative": {
     "esc_rate": 0.008,
     "acc": 0.776,
-    "random_matched": 0.768,
-    "perm_p": 0.026
+    "random_matched": 0.769,
+    "perm_p": 0.028
    },
    "balanced": {
-    "esc_rate": 0.065,
-    "acc": 0.808,
-    "random_matched": 0.777,
+    "esc_rate": 0.053,
+    "acc": 0.8,
+    "random_matched": 0.775,
     "perm_p": 0.0005
    },
    "aggressive": {
-    "esc_rate": 0.261,
+    "esc_rate": 0.294,
     "acc": 0.865,
-    "random_matched": 0.805,
+    "random_matched": 0.809,
     "perm_p": 0.0
    },
    "always": {
@@ -159,22 +159,22 @@
     "perm_p": null
    },
    "conservative": {
-    "esc_rate": 0.09,
-    "acc": 0.515,
-    "random_matched": 0.494,
-    "perm_p": 0.047
+    "esc_rate": 0.07,
+    "acc": 0.505,
+    "random_matched": 0.486,
+    "perm_p": 0.046
    },
    "balanced": {
-    "esc_rate": 0.325,
-    "acc": 0.66,
-    "random_matched": 0.598,
-    "perm_p": 0.0
+    "esc_rate": 0.27,
+    "acc": 0.62,
+    "random_matched": 0.574,
+    "perm_p": 0.0055
    },
    "aggressive": {
-    "esc_rate": 0.685,
-    "acc": 0.82,
-    "random_matched": 0.756,
-    "perm_p": 0.0
+    "esc_rate": 0.68,
+    "acc": 0.81,
+    "random_matched": 0.754,
+    "perm_p": 0.001
    },
    "always": {
     "esc_rate": 1.0,
@@ -202,47 +202,22 @@
     "perm_p": null
    },
    "balanced": {
-    "esc_rate": 0.0,
+    "esc_rate": 0.01,
     "acc": 0.525,
-    "random_matched": 0.525,
-    "perm_p": null
+    "random_matched": 0.527,
+    "perm_p": 0.9425
    },
    "aggressive": {
-    "esc_rate": 0.054,
-    "acc": 0.54,
-    "random_matched": 0.54,
-    "perm_p": 0.6345
+    "esc_rate": 0.129,
+    "acc": 0.574,
+    "random_matched": 0.561,
+    "perm_p": 0.1995
    },
    "always": {
     "esc_rate": 1.0,
     "acc": 0.807,
     "random_matched": 0.807,
     "perm_p": null
-   }
-  }
- },
- "valpaca": {
-  "n": 194,
-  "local_vb": 3.62,
-  "expert_vb": 4.76,
-  "tiers": {
-   "conservative": {
-    "esc_rate": 0.021,
-    "vb": 3.649,
-    "random": 3.647,
-    "perm_p": 0.4725
-   },
-   "balanced": {
-    "esc_rate": 0.057,
-    "vb": 3.701,
-    "random": 3.688,
-    "perm_p": 0.2915
-   },
-   "aggressive": {
-    "esc_rate": 0.366,
-    "vb": 4.072,
-    "random": 4.039,
-    "perm_p": 0.24
    }
   }
  }

@@ -37,16 +37,29 @@ def load_feats(tag):
 
 def main():
     parts_X, parts_y = [], []
+    used = []
     for tag, lab_file in [("caliboff", "calib_features.parquet"),
                           ("expoff", "expansion_labels.parquet"),
-                          ("exp2off", "expansion2_labels.parquet")]:
-        ids, X = load_feats(tag)
-        lab = pd.read_parquet(D / lab_file).set_index("id")[
-            "escalate_label"]
+                          ("exp2off", "expansion2_labels.parquet"),
+                          # optional expansion3 parts under official
+                          # config (8bo merge; exp3zh v2 = MGSM+XCOPA,
+                          # source-disjoint from sreason)
+                          ("exp3off", "expansion3_labels.parquet"),
+                          ("exp3zhoff", "expansion3zh_labels.parquet")]:
+        try:
+            ids, X = load_feats(tag)
+            lab = pd.read_parquet(D / lab_file).set_index("id")[
+                "escalate_label"]
+        except FileNotFoundError:
+            if tag in ("exp3off", "exp3zhoff"):
+                print(f"core part {tag}: missing — skipped")
+                continue
+            raise
         y = lab.reindex(ids).to_numpy().astype(float)
         keep = ~np.isnan(y)
         parts_X.append(X[keep])
         parts_y.append(y[keep].astype(int))
+        used.append(tag)
         print(f"{tag}: {keep.sum()} rows")
     X0 = np.concatenate(parts_X)
     y0 = np.concatenate(parts_y)
@@ -110,7 +123,7 @@ def main():
     art.update(w=clf.coef_[0].tolist(), b=float(clf.intercept_[0]),
                C=C, train_n=int(len(y_tr)), eot_thresholds=thr,
                recipe="scripts/26 official-config native refit "
-                      "(8bl final: 2310 core + fresh, official "
+                      f"(core {'+'.join(used)} + fresh, official "
                       "serving params)")
     (D / "gate_native.json").write_text(json.dumps(art))
     print("wrote data/gate_native.json (official)")

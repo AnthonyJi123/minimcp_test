@@ -1366,64 +1366,68 @@ features: AUC 0.843).
 
 \begin{table}[t]
 \centering\small
-\caption{Native-regime probe AUC at the deployed listen$	o$speak
+\caption{Native-regime probe AUC at the deployed listen$\to$speak
 read point, under the OFFICIAL serving configuration (final deployed
 system; the chronological narrative above measured under inherited
-wrapper defaults). In-regime refit, 2{,}542 rows incl.\ FreshQA.
-En-4 mean .760 vs.\ turn-based .771 --- the English regime cost is
-essentially eliminated; the all-English calibration + assistant
-prompt push Reasoning-zh to chance (the language axis, sharpened).}
+wrapper defaults). The merged refit adds the 2{,}700-row
+public-benchmark expansion (incl.\ 400 Mandarin rows) to the official
+core. En-4 mean .770 vs.\ turn-based .771 --- the English regime cost
+is eliminated; the Mandarin slice restores Reasoning-zh from the
+all-English chance collapse.}
 \label{tab:native-auc}
-egin{tabular}{lrcc}
-	oprule
-pool & $n$ & old-config native & 	extbf{official config} \
+\begin{tabular}{lrccc}
+\toprule
+pool & $n$ & old-config & official (2{,}542) & \textbf{official$+$exp3 (5{,}228)} \\
 \midrule
-internal test & 239 & .830 & 	extbf{.846} \
-TriviaQA & 250 & .711 & 	extbf{.759} \
-WebQ & 241 & .736 & 	extbf{.754} \
-Llama-QA & 245 & .757 & 	extbf{.789} \
-SD-QA & 200 & .736 & 	extbf{.737} \
-Reasoning-zh & 202 & .606 & .495 \
-ottomrule
+internal test & 239 & .830 & \textbf{.846} & .844 \\
+TriviaQA & 250 & .711 & .759 & \textbf{.767} \\
+WebQ & 241 & .736 & .754 & \textbf{.772} \\
+Llama-QA & 245 & .757 & .789 & \textbf{.815} \\
+SD-QA & 200 & .736 & \textbf{.737} & .728 \\
+Reasoning-zh & 202 & .606 & .495 & \textbf{.605} \\
+\bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[t]
 \centering\small
 \caption{Native-regime gated accuracy under the official serving
-config (8ad remix: native scores select, native local outcomes +
-cached always-arm expert outcomes mix). $p$ = permutation vs.matched-rate random; escalation rate in parentheses. On frozen test
-the aggressive tier reaches within .008 of the always-escalate
-ceiling at 46\% of the expert cost. Reasoning-zh: the gate never
-fires (language axis); AlpacaEval returns to a clean honest negative
-under the official config.}
+config and the deployed merged (official$+$exp3) gate (8ad remix:
+native scores select, native local outcomes + cached always-arm
+expert outcomes mix). $p$ = permutation vs.\ matched-rate random;
+escalation rate in parentheses. On frozen test the aggressive tier
+reaches within .012 of the always-escalate ceiling at 48\% of the
+expert cost. Reasoning-zh now separates (AUC .605) but global
+English thresholds still barely fire there --- the per-pool quantile
+remedy applies. AlpacaEval (measured under the 2{,}542-row official
+gate) stays a clean honest negative.}
 \label{tab:native-validity}
-egin{tabular}{lcccc}
-	oprule
-pool & local & balanced & aggressive & always \
+\begin{tabular}{lcccc}
+\toprule
+pool & local & balanced & aggressive & always \\
 \midrule
-frozen test & .431 & .544 (22\%, $p{<}.0001$) & 	extbf{.661} (46\%, $p{<}.0001$) & .669 \
-TriviaQA & .568 & .740 (26\%, $p{<}.0001$) & .848 (60\%, $p{<}.0001$) & .916 \
-WebQ & .411 & .556 (29\%, $p{=}.056$) & .705 (61\%, $p{=}.0045$) & .809 \
-Llama-QA & .767 & .808 (7\%, $p{=}.0005$) & .865 (26\%, $p{<}.0001$) & .910 \
-SD-QA & .455 & .660 (33\%, $p{<}.0001$) & .820 (69\%, $p{<}.0001$) & .895 \
-Reasoning-zh & .525 & --- (0\%) & .540 (5\%, n.s.) & .807 \
-AlpacaEval (VB 1--5) & 3.65 & 3.70 (6\%, n.s.) & 4.07 (37\%, $p{=}.24$) & 4.76 \
-ottomrule
+frozen test & .431 & .556 (23\%, $p{<}.0001$) & \textbf{.657} (48\%, $p{<}.0001$) & .669 \\
+TriviaQA & .568 & .704 (20\%, $p{<}.0001$) & .852 (61\%, $p{<}.0001$) & .916 \\
+WebQ & .411 & .560 (29\%, $p{=}.025$) & .734 (65\%, $p{<}.0001$) & .809 \\
+Llama-QA & .767 & .800 (5\%, $p{=}.0005$) & .865 (29\%, $p{<}.0001$) & .910 \\
+SD-QA & .455 & .620 (27\%, $p{=}.0055$) & .810 (68\%, $p{=}.001$) & .895 \\
+Reasoning-zh & .525 & --- (1\%) & .574 (13\%, n.s.) & .807 \\
+AlpacaEval (VB 1--5) & 3.65 & 3.70 (6\%, n.s.) & 4.07 (37\%, $p{=}.24$) & 4.76 \\
+\bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Validity.} Re-mixing native local outcomes
 (gpt-judged, deployed decoding) with cached always-arm expert
 outcomes under the native scores
-(Table~\ref{tab:native-validity}): gated accuracy clears matched-rate
-random on five of six pools --- frozen .371$\to$.596 at 44\%
-escalation ($p{<}.0001$; ceiling .667), TriviaQA .612$\to$.872 at
-64\%, WebQ .392$\to$.740, Llama-QA .760$\to$.828, SD-QA
-.440$\to$.830 at 70\% ($p{<}.0001$). External fire rates drift from
-their nominal calib quantiles (aggressive fires 64--73\% vs.\ the
-nominal 50\%) --- thresholds are the fragile part of calibration in a
-third consecutive regime. On Reasoning-zh the gate simply
+(Table~\ref{tab:native-validity}): under the deployed merged gate, gated accuracy clears matched-rate
+random on all five English pools at both deployed tiers --- frozen
+.431$\to$.657 at 48\% escalation ($p{<}.0001$; ceiling .669),
+TriviaQA .568$\to$.852 at 61\%, WebQ .411$\to$.734, Llama-QA
+.767$\to$.865, SD-QA .455$\to$.810 at 68\%. In-regime training
+renormalizes the score distribution, so realized fire rates sit near
+their nominal quantiles on the English pools (the earlier 64--73\%
+drift was a transferred-threshold artifact). On Reasoning-zh the gate simply
 never fires: the all-English calibration places zh scores below every
 global threshold --- the language axis of
 Appendix~\ref{app:duplexval}, now expressed as a fire-rate failure

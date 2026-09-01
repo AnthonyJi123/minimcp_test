@@ -5414,3 +5414,48 @@ exp3zh re-dumped under official config (tags exp3off / exp3zhoff,
 8×H100 + 2×H100) → official refit with the 5,409-row core → the merged
 probe (official serving ⊕ expanded en ⊕ zh axis) becomes the deployment
 candidate.
+
+## Phase 8bp — the tracks merge: official config + exp3 + zh axis = the deployment candidate (~$60 GPU, 2026-09-01)
+
+Convergence step promised in 8bo, executed: exp3 (2300) + exp3zh (400)
+re-dumped under the OFFICIAL serving config (exp3off: 2300 traces / 14
+no_speak — force_listen's expected tax; exp3zhoff: 400 / 0), then
+scripts/26_official_refit.py extended with the optional exp3off/
+exp3zhoff parts and rerun: **5228 rows** (caliboff 358 + expoff 796 +
+exp2off 1146 + exp3off 2286 + exp3zhoff 400 + fresh 242), C=3e-4,
+OOF .854. Guards hold: testoff .844 (vs .846), fresh fast-fire
+.39/.80/.95, never .00/.06/.50, thresholds ~unmoved
+(.860/.674/.374). Deployed as data/gate_native.json.
+
+**External AUCs, official features (conclive never labels):**
+
+| pool | official-2542 | merged-5228 |
+|---|---:|---:|
+| striviaqa | .759 | **.767** |
+| swebq | .754 | **.772** |
+| sllama | .789 | **.815** |
+| sdqa | .737 | .728 |
+| sreason (zh) | **.495 (chance)** | **.605 (restored)** |
+
+**En-4 mean .760 → .770 vs turn-based .771 — the English regime cost
+is now fully eliminated. The zh medicine worked**: 400 MGSM+XCOPA rows
+lift Reasoning-zh from the all-English chance collapse back to .605
+(the pre-official level), while staying source-disjoint from the eval
+pool.
+
+**Official validity under the merged gate (scripts/23 off): all five
+en pools significant at BOTH deployed tiers** — frozen bal .556@23% /
+agg .657@48% (ceiling .669 — 98% of the achievable margin at half the
+expert cost), striviaqa .704/.852, swebq .560/.734, sllama .800/.865,
+sdqa .620/.810. sreason separates on AUC but global en thresholds
+still barely fire (1%/13%) — the per-pool/windowed quantile remedy
+(8bn) is the deployable fix; the windowed tracker is config-agnostic
+(open item: demo does not yet consume it).
+
+**Housekeeping:** the two paper tables the parallel session added
+(tab:native-auc / tab:native-validity) had shell-escape corruption
+(\b/\t control chars from a heredoc bug — the same class of bug hit
+this session and was dodged by writing scripts to files); both
+repaired, updated to the merged-gate numbers, and the stale
+default-config validity prose refreshed. Lesson for both sessions: do
+NOT pass backslash-bearing text through bash heredocs on this setup.
