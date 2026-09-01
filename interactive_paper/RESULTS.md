@@ -5471,3 +5471,30 @@ operating-point gap now has concrete numbers on the deployed config.
 En pools' windowed tracker converges within ±.06 of nominal everywhere.
 Paper rebuilt on Modal after the table repair: clean compile, 38 pages,
 main.pdf refreshed.
+
+## Phase 8bn — post-interrupt deafness: a silent loop death (2026-09-02)
+
+**User report:** occasionally, after barging in (model yields), all
+subsequent speech gets no response for the rest of the session.
+
+**Diagnosis:** scripted repro (interrupt mid-answer → settle → new
+question) passed 8/8 on demo AND vanilla — not a behavior, an
+intermittent fault. Code audit found it: at fire,
+np.concatenate(user_win) raises on an empty uplink window (fire
+landing in the same-second window after end_of_turn clears user_win —
+exactly the compressed timing a barge-in produces), and the exception
+exited the whole chunk_loop: session stays connected, model deaf
+forever. Intermittent ✓ post-interrupt ✓ total deafness ✓.
+
+**Fix (deployed + regressed):** (1) no fire without uplink audio;
+(2) concatenate guard; (3) per-iteration try/except in chunk_loop —
+any future single-iteration fault logs "loop error (recovered)" and
+the session continues; the whole "one exception kills the session"
+failure class is closed. Regression: resume 3/3, escalation chain +
+multi-turn resolution intact.
+
+Residual (logged, not fixed): at balanced tier a follow-up question's
+P(fail) sometimes under-fires (failure-probe calibration is
+standalone-question only; the same in-context coverage gap 8bj fixed
+for the ACT probe exists for the FAILURE probe). Next calibration
+pass: add reqqx-style in-context rows to the failure-probe mix.

@@ -377,150 +377,166 @@ class DuplexVoice:
 
                 try:
                     while not stop.is_set():
-                        with ilock:
-                            got, inbox[:] = inbox[:], []
-                        if got:
-                            pend = np.concatenate([pend] + got)
-                        if len(pend) < CH:
-                            time.sleep(0.02)
-                            continue
-                        ch, pend = pend[:CH], pend[CH:]
-                        if len(pend) > 6 * CH:
-                            emit({"type": "log",
-                                  "msg": f"falling behind realtime "
-                                         f"({len(pend) / CH:.1f}s queued)"})
+                        try:
+                            with ilock:
+                                got, inbox[:] = inbox[:], []
+                            if got:
+                                pend = np.concatenate([pend] + got)
+                            if len(pend) < CH:
+                                time.sleep(0.02)
+                                continue
+                            ch, pend = pend[:CH], pend[CH:]
+                            if len(pend) > 6 * CH:
+                                emit({"type": "log",
+                                      "msg": f"falling behind realtime "
+                                             f"({len(pend) / CH:.1f}s queued)"})
 
-                        # thinker result: prefill as a TEXT unit into the
-                        # SAME stream; the talker voices it in-band and
-                        # stays interruptible (native, chunk 3 below)
-                        if relay_box:
-                            ans = relay_box.pop(0)
-                            if muted:
-                                emit({"type": "log",
-                                      "msg": f"muted {muted - 1} chunks "
-                                             "of local continuation"})
-                                muted = 0
-                            relay_guard = True   # no gate fire until
-                            #                      this delivery's eot
-                            emit({"type": "phase", "v": "relaying"})
-                            self.duplex.streaming_prefill(
-                                text_list=[RELAY_TMPL.format(ans=ans)])
-                            r = self.duplex.streaming_generate(
-                                prompt_wav_path=PROMPT_WAV,
-                                top_k=GEN_TOP_K)
-                            _emit_gen(r, relay=True)
-                            if not r.get("text"):
-                                emit({"type": "log",
-                                      "msg": "relay swallowed — nudging"})
+                            # thinker result: prefill as a TEXT unit into the
+                            # SAME stream; the talker voices it in-band and
+                            # stays interruptible (native, chunk 3 below)
+                            if relay_box:
+                                ans = relay_box.pop(0)
+                                if muted:
+                                    emit({"type": "log",
+                                          "msg": f"muted {muted - 1} chunks "
+                                                 "of local continuation"})
+                                    muted = 0
+                                relay_guard = True   # no gate fire until
+                                #                      this delivery's eot
+                                emit({"type": "phase", "v": "relaying"})
                                 self.duplex.streaming_prefill(
-                                    text_list=[RELAY_NUDGE])
+                                    text_list=[RELAY_TMPL.format(ans=ans)])
                                 r = self.duplex.streaming_generate(
                                     prompt_wav_path=PROMPT_WAV,
                                     top_k=GEN_TOP_K)
                                 _emit_gen(r, relay=True)
-                            prev_listen = r["is_listen"]
+                                if not r.get("text"):
+                                    emit({"type": "log",
+                                          "msg": "relay swallowed — nudging"})
+                                    self.duplex.streaming_prefill(
+                                        text_list=[RELAY_NUDGE])
+                                    r = self.duplex.streaming_generate(
+                                        prompt_wav_path=PROMPT_WAV,
+                                        top_k=GEN_TOP_K)
+                                    _emit_gen(r, relay=True)
+                                prev_listen = r["is_listen"]
 
-                        user_win.append(ch)
-                        if len(user_win) > 45:
-                            user_win = user_win[-45:]
+                            user_win.append(ch)
+                            if len(user_win) > 45:
+                                user_win = user_win[-45:]
 
-                        self.st3["accum"] = True
-                        ok = self.duplex.streaming_prefill(
-                            audio_waveform=ch)
-                        self.st3["accum"] = False
-                        if not ok.get("success"):
-                            emit({"type": "log",
-                                  "msg": f"prefill skipped: "
-                                         f"{ok.get('reason', '')[:80]}"})
-                            continue
-                        r = self.duplex.streaming_generate(
-                            prompt_wav_path=PROMPT_WAV,
-                            top_k=GEN_TOP_K)
-                        n_chunk += 1
-
-                        score = self._score_now()
-                        if score is not None:
-                            emit({"type": "score", "i": n_chunk,
-                                  "v": round(score, 4),
-                                  "listen": bool(r["is_listen"])})
-
-                        fired_now = False
-                        if prev_listen and not r["is_listen"]:
-                            # the talker just decided to answer — the
-                            # gate reads exactly here. 8bh: floor-
-                            # management commits (stop words,
-                            # backchannel replies) must not escalate.
-                            act = self._act_now()
-                            is_info = (act is None
-                                       or act >= self.act[
-                                           "act_threshold"])
-                            fired = bool(probe_on and score is not None
-                                         and score >= thr and is_info
-                                         and not thinking.is_set()
-                                         and not relay_guard)
-                            fired_now = fired
-                            emit({"type": "gate",
-                                  "score": (None if score is None
-                                            else round(score, 4)),
-                                  "thr": round(thr, 4), "fired": fired,
-                                  "act": (None if act is None
-                                          else round(act, 4)),
-                                  "is_info": bool(is_info),
-                                  "probe_on": probe_on})
-                            if fired:
-                                thinking.set()
-                                snap = np.concatenate(
-                                    user_win)[-30 * 16000:]
-                                ctx = "\n".join(history[-6:])
-                                emit({"type": "phase", "v": "escalating"})
-                                _th.Thread(target=thinker,
-                                           args=(snap, ctx),
-                                           daemon=True).start()
-
-                        _emit_gen(r, mute=muted > 0)
-                        if muted:
-                            muted += 1
-                        if r.get("text") and not muted:
-                            turn_text.append(r["text"])
-                        if fired_now:
-                            turn_fired = True
-                            if self.stall_pcm is not None:
-                                i16s = (np.clip(self.stall_pcm, -1, 1)
-                                        * 32767).astype("<i2")
-                                emit({"type": "audio", "sr": 24000,
-                                      "pcm": base64.b64encode(
-                                          i16s.tobytes()).decode()})
-                                emit({"type": "text", "v": " " + STALL})
-                            emit({"type": "log",
-                                  "msg": "canned stall + context note; "
-                                         "local continuation muted "
-                                         "until relay"})
-                            muted = 1
-                            self.duplex.streaming_prefill(
-                                text_list=[STALL_NOTE])
+                            self.st3["accum"] = True
+                            ok = self.duplex.streaming_prefill(
+                                audio_waveform=ch)
+                            self.st3["accum"] = False
+                            if not ok.get("success"):
+                                emit({"type": "log",
+                                      "msg": f"prefill skipped: "
+                                             f"{ok.get('reason', '')[:80]}"})
+                                continue
                             r = self.duplex.streaming_generate(
                                 prompt_wav_path=PROMPT_WAV,
                                 top_k=GEN_TOP_K)
-                            _emit_gen(r, mute=True)
-                        if r.get("end_of_turn"):
+                            n_chunk += 1
+
+                            score = self._score_now()
+                            if score is not None:
+                                emit({"type": "score", "i": n_chunk,
+                                      "v": round(score, 4),
+                                      "listen": bool(r["is_listen"])})
+
+                            fired_now = False
+                            if prev_listen and not r["is_listen"]:
+                                # the talker just decided to answer — the
+                                # gate reads exactly here. 8bh: floor-
+                                # management commits (stop words,
+                                # backchannel replies) must not escalate.
+                                act = self._act_now()
+                                is_info = (act is None
+                                           or act >= self.act[
+                                               "act_threshold"])
+                                fired = bool(probe_on and score is not None
+                                             and score >= thr and is_info
+                                             and not thinking.is_set()
+                                             and not relay_guard
+                                             and len(user_win) > 0)
+                                fired_now = fired
+                                emit({"type": "gate",
+                                      "score": (None if score is None
+                                                else round(score, 4)),
+                                      "thr": round(thr, 4), "fired": fired,
+                                      "act": (None if act is None
+                                              else round(act, 4)),
+                                      "is_info": bool(is_info),
+                                      "probe_on": probe_on})
+                                if fired:
+                                    thinking.set()
+                                    snap = (np.concatenate(user_win)
+                                            if user_win else
+                                            np.zeros(1600,
+                                                     np.float32))[-30 * 16000:]
+                                    ctx = "\n".join(history[-6:])
+                                    emit({"type": "phase", "v": "escalating"})
+                                    _th.Thread(target=thinker,
+                                               args=(snap, ctx),
+                                               daemon=True).start()
+
+                            _emit_gen(r, mute=muted > 0)
                             if muted:
+                                muted += 1
+                            if r.get("text") and not muted:
+                                turn_text.append(r["text"])
+                            if fired_now:
+                                turn_fired = True
+                                if self.stall_pcm is not None:
+                                    i16s = (np.clip(self.stall_pcm, -1, 1)
+                                            * 32767).astype("<i2")
+                                    emit({"type": "audio", "sr": 24000,
+                                          "pcm": base64.b64encode(
+                                              i16s.tobytes()).decode()})
+                                    emit({"type": "text", "v": " " + STALL})
                                 emit({"type": "log",
-                                      "msg": f"muted {muted - 1} chunks "
-                                             "of local continuation"})
-                                muted = 0
-                            # local turns: the talker's own answer carries
-                            # the topic into history (escalated turns are
-                            # recorded inside thinker with the resolved
-                            # question). audio window stays per-turn clean.
-                            ans = "".join(turn_text).strip()
-                            if ans and not turn_fired:
-                                history.append(f"Assistant: {ans}")
-                                del history[:-8]
-                            user_win = []
-                            turn_text, turn_fired = [], False
-                            relay_guard = False
-                            self.st3.update(sum=None, cnt=0)
-                        prev_listen = r["is_listen"]
+                                      "msg": "canned stall + context note; "
+                                             "local continuation muted "
+                                             "until relay"})
+                                muted = 1
+                                self.duplex.streaming_prefill(
+                                    text_list=[STALL_NOTE])
+                                r = self.duplex.streaming_generate(
+                                    prompt_wav_path=PROMPT_WAV,
+                                    top_k=GEN_TOP_K)
+                                _emit_gen(r, mute=True)
+                            if r.get("end_of_turn"):
+                                if muted:
+                                    emit({"type": "log",
+                                          "msg": f"muted {muted - 1} chunks "
+                                                 "of local continuation"})
+                                    muted = 0
+                                # local turns: the talker's own answer carries
+                                # the topic into history (escalated turns are
+                                # recorded inside thinker with the resolved
+                                # question). audio window stays per-turn clean.
+                                ans = "".join(turn_text).strip()
+                                if ans and not turn_fired:
+                                    history.append(f"Assistant: {ans}")
+                                    del history[:-8]
+                                user_win = []
+                                turn_text, turn_fired = [], False
+                                relay_guard = False
+                                self.st3.update(sum=None, cnt=0)
+                            prev_listen = r["is_listen"]
+                        except Exception as ie:
+                            # 8bn: one bad iteration must not
+                            # kill the session (a fire-time
+                            # concatenate on an empty uplink
+                            # window did exactly that)
+                            import traceback
+                            traceback.print_exc()
+                            emit({"type": "log",
+                                  "msg": "loop error "
+                                         "(recovered): "
+                                         + str(ie)[:100]})
+                            time.sleep(0.1)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
