@@ -1,0 +1,332 @@
+{
+ "frozen": {
+  "n": 240,
+  "local_floor": 0.371,
+  "expert_ceiling": 0.667,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.371,
+    "random_matched": 0.371,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.15,
+    "acc": 0.433,
+    "random_matched": 0.415,
+    "perm_p": 0.1105,
+    "windowed": {
+     "esc_rate": 0.143,
+     "acc": 0.479,
+     "random_matched": 0.426,
+     "perm_p": 0.0015
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.525,
+    "random_matched": 0.459,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.293,
+     "acc": 0.536,
+     "random_matched": 0.47,
+     "perm_p": 0.003
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.613,
+    "random_matched": 0.519,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.464,
+     "acc": 0.614,
+     "random_matched": 0.513,
+     "perm_p": 0.0
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.667,
+    "random_matched": 0.667,
+    "perm_p": null
+   }
+  }
+ },
+ "striviaqa": {
+  "n": 250,
+  "local_floor": 0.612,
+  "expert_ceiling": 0.916,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.612,
+    "random_matched": 0.612,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.152,
+    "acc": 0.712,
+    "random_matched": 0.658,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.127,
+     "acc": 0.64,
+     "random_matched": 0.613,
+     "perm_p": 0.0455
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.772,
+    "random_matched": 0.703,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.26,
+     "acc": 0.767,
+     "random_matched": 0.688,
+     "perm_p": 0.0
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.844,
+    "random_matched": 0.763,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.54,
+     "acc": 0.86,
+     "random_matched": 0.768,
+     "perm_p": 0.0
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.916,
+    "random_matched": 0.916,
+    "perm_p": null
+   }
+  }
+ },
+ "swebq": {
+  "n": 250,
+  "local_floor": 0.392,
+  "expert_ceiling": 0.816,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.392,
+    "random_matched": 0.392,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.152,
+    "acc": 0.472,
+    "random_matched": 0.456,
+    "perm_p": 0.1325,
+    "windowed": {
+     "esc_rate": 0.127,
+     "acc": 0.44,
+     "random_matched": 0.433,
+     "perm_p": 0.411
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.552,
+    "random_matched": 0.519,
+    "perm_p": 0.0225,
+    "windowed": {
+     "esc_rate": 0.28,
+     "acc": 0.553,
+     "random_matched": 0.504,
+     "perm_p": 0.009
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.648,
+    "random_matched": 0.604,
+    "perm_p": 0.004,
+    "windowed": {
+     "esc_rate": 0.433,
+     "acc": 0.62,
+     "random_matched": 0.582,
+     "perm_p": 0.0675
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.816,
+    "random_matched": 0.816,
+    "perm_p": null
+   }
+  }
+ },
+ "sllama": {
+  "n": 250,
+  "local_floor": 0.76,
+  "expert_ceiling": 0.912,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.76,
+    "random_matched": 0.76,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.152,
+    "acc": 0.824,
+    "random_matched": 0.783,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.153,
+     "acc": 0.793,
+     "random_matched": 0.748,
+     "perm_p": 0.0
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.84,
+    "random_matched": 0.805,
+    "perm_p": 0.007,
+    "windowed": {
+     "esc_rate": 0.28,
+     "acc": 0.84,
+     "random_matched": 0.823,
+     "perm_p": 0.151
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.86,
+    "random_matched": 0.836,
+    "perm_p": 0.0435,
+    "windowed": {
+     "esc_rate": 0.513,
+     "acc": 0.847,
+     "random_matched": 0.805,
+     "perm_p": 0.017
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.912,
+    "random_matched": 0.912,
+    "perm_p": null
+   }
+  }
+ },
+ "sdqa": {
+  "n": 200,
+  "local_floor": 0.44,
+  "expert_ceiling": 0.895,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.44,
+    "random_matched": 0.44,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.15,
+    "acc": 0.565,
+    "random_matched": 0.508,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.16,
+     "acc": 0.54,
+     "random_matched": 0.492,
+     "perm_p": 0.019
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.3,
+    "acc": 0.665,
+    "random_matched": 0.577,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.3,
+     "acc": 0.68,
+     "random_matched": 0.599,
+     "perm_p": 0.0005
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.74,
+    "random_matched": 0.668,
+    "perm_p": 0.0,
+    "windowed": {
+     "esc_rate": 0.51,
+     "acc": 0.77,
+     "random_matched": 0.682,
+     "perm_p": 0.002
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.895,
+    "random_matched": 0.895,
+    "perm_p": null
+   }
+  }
+ },
+ "sreason": {
+  "n": 202,
+  "local_floor": 0.564,
+  "expert_ceiling": 0.807,
+  "tiers": {
+   "never": {
+    "esc_rate": 0.0,
+    "acc": 0.564,
+    "random_matched": 0.564,
+    "perm_p": null
+   },
+   "conservative": {
+    "esc_rate": 0.153,
+    "acc": 0.634,
+    "random_matched": 0.602,
+    "perm_p": 0.015,
+    "windowed": {
+     "esc_rate": 0.137,
+     "acc": 0.618,
+     "random_matched": 0.586,
+     "perm_p": 0.0835
+    }
+   },
+   "balanced": {
+    "esc_rate": 0.302,
+    "acc": 0.658,
+    "random_matched": 0.638,
+    "perm_p": 0.164,
+    "windowed": {
+     "esc_rate": 0.304,
+     "acc": 0.618,
+     "random_matched": 0.606,
+     "perm_p": 0.396
+    }
+   },
+   "aggressive": {
+    "esc_rate": 0.5,
+    "acc": 0.713,
+    "random_matched": 0.686,
+    "perm_p": 0.106,
+    "windowed": {
+     "esc_rate": 0.52,
+     "acc": 0.745,
+     "random_matched": 0.725,
+     "perm_p": 0.279
+    }
+   },
+   "always": {
+    "esc_rate": 1.0,
+    "acc": 0.807,
+    "random_matched": 0.807,
+    "perm_p": null
+   }
+  }
+ }
+}

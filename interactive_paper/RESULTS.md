@@ -5216,3 +5216,94 @@ $220.78 as the sole audible answer; follow-up "Thanks" stays a floor
 turn. Classification: an output-channel edit (same class as the canned
 stall) — no perception/generation/interruption capability is
 constrained; probe-off leaves the path nonexistent.
+
+## Phase 8bn — the margin worklist runs on Modal: RTJ fusion external half + thresholds + receipt (~$10 GPU + ~$2 API, 2026-09-01)
+
+User provided Modal creds ("用我的modal来跑") — every stage that was
+blocked in 8bk'/8bl executed this session.
+
+### Per-pool thresholds + receipt (the 8bk' CPU stages, volume feats
+were already local)
+
+- `scripts/26`: label-free per-pool quantiles fix both recorded
+  operating-point failures — sreason fires .14/.30/.52 at the three
+  tiers (was 0/0/.03 under global thresholds; zh scores just sit lower)
+  and the aggressive-tier global drift (.65–.90 realized vs .50
+  nominal) disappears. The WINDOWED online tracker (no labels, no pool
+  identity, window=100) converges to nominal on every pool —
+  `gate_native_pooled.json` + `native_validity_pooled.json`.
+- `scripts/27`: the deployed-probe receipt regenerated
+  (`probe_receipt_native.json`): recipe n=2553, OOF .855, internal
+  test .833, external .601 (sreason) – .766 (sllama) — matches 8be to
+  the third digit; the receipt is no longer four refits stale.
+
+### Repeat-then-judge collection (modal_rtj.py, 5 external pools,
+2×H100 each; internal 600 reused from 6a's asr shards)
+
+wav → verbatim transcript (ASR_INSTR) → TEXT ptrue_pre on the
+transcript (+ ptrue_pre on the original query text as a diagnostic
+arm). 1,152 external rows → `rtj_{pool}.shard*.parquet`.
+
+### ⭐ Fusion, deployed shape, native regime (scripts/29 →
+figures/ptrue_fusion_native.json)
+
+Probe branch = deployed v2 recipe verbatim (calib+exp+exp2+fresh-train,
+C=3e-4); stacker = LR on the 360 calib rows [logit(probe_oof),
+−logit(p_yes_rtj)], coefs [.86, .30].
+
+| pool | n | probe | rtj solo | fusion | Δ [95% CI] |
+|---|---:|---:|---:|---:|---|
+| frozen test | 240 | .833 | .836 | **.863** | +.030 [+.008,+.052] ⭐ |
+| striviaqa | 250 | .787 | .761 | **.823** | +.035 [+.002,+.071] ⭐ |
+| swebq | 250 | .736 | .723 | .765 | +.029 [−.005,+.063] |
+| sllama | 250 | .667 | .674 | .683 | +.016 [−.014,+.045] |
+| sdqa | 200 | .788 | .742 | .799 | +.010 [−.018,+.038] |
+| sreason (zh) | 202 | .615 | .586 | .603 | −.012 [−.065,+.040] |
+
+Margins (per-pool quantile thresholds, remix vs matched-random):
+striviaqa balanced +.069→+.085, aggressive +.080→+.096 (both p=0);
+swebq/sllama ~flat; sdqa slightly down; sreason conservative flips
+negative (−.012) — fusion should NOT be enabled for zh.
+
+**Readings.**
+1. The native + repeat-then-judge shape is STRONGER than 8bl's
+   conc/text version: internal Δ+.030 with a CI that excludes zero at
+   n=240 (8bl's +.027 spanned zero). First significant AUC lift over
+   the deployed probe since 8bb.
+2. External: positive on 4/5 pools, significant on striviaqa. Mean
+   external Δ ≈ +.016.
+3. **The 8bl prediction "complementarity peaks where the probe is
+   weakest" is FALSIFIED.** Gains track where the RTJ signal itself is
+   strong (test .836, striviaqa .761), not where the probe is weak —
+   on sllama/sreason RTJ is as weak as the probe (.674/.586) and adds
+   ~nothing. The txtq diagnostic says the transcript is not the loss:
+   original-text ptrue ≈ RTJ ptrue on every pool (e.g. swebq .725 vs
+   .723). 5b's optimistic per-pool transfer numbers (hard-math .809)
+   came from pools where self-eval is genuinely informative; these
+   external pools mostly aren't.
+4. The zh axis stays untouched by fusion (self-eval carries no signal
+   there) — that remains expansion3zh's job.
+
+**Deployment disposition:** wiring the stacker into demo_duplex is
+justified on the en side (one short prefill + 1-token decode per turn
+buys +.03 internal / +.035 best-external), but HOLD until the exp3
+refit lands — re-run scripts/29 with the exp3-trained probe and wire
+only if fusion still adds on top.
+
+### expansion3zh v2 — the original plan was impossible
+
+Diagnostic rerun measured: OpenAudioBench reasoning_qa has exactly 202
+rows and the sreason eval pool sampled ALL of them — the "~355 unused
+rows" of the 8bk' plan do not exist. Rebuilt as MGSM zh (250,
+human-translated GSM8K) + XCOPA zh (150/500, causal MC), public
+benchmarks through the same tts-1/alloy pipeline as the en families
+(400 rows, `queries_expansion3zh.jsonl`). Source-disjoint from sreason,
+which therefore STAYS a fully external transfer pool — strictly cleaner
+than the original in-domain plan. bugfixes landed: librosa image dep,
+bare `xcopa` repo id → `cambridgeltl/xcopa`.
+
+### expansion3 pipeline (in flight this session)
+
+build ✅ 2300 en (7 families, seed 45, deduped) → TTS ✅ 2300+400 wavs
+→ answers/judge/native-dump/refit: running; results recorded in the
+next section when the refit lands.

@@ -9,14 +9,12 @@ the zh axis. Motivated by two measured facts, not vibes:
      expansion2.
   2. The zh axis: sreason fires 0% at every deployed tier and DECLINED
      when en calib grew (8bb -.039) — no amount of en data touches it.
-     expansion3zh stages the ~355 OpenAudioBench reasoning_qa rows the
-     202-row eval pool did NOT sample (excluded by source stem, so the
-     two sets are disjoint), official audio, zh labels.
-
-  METHOD NOTE: once exp3zh enters a probe's calib mix, sreason stops
-  being an "external transfer" pool for that probe — same source
-  distribution. Report it as zh in-domain, or keep exp3zh out of any
-  probe scored for the external-transfer table.
+     expansion3zh v2: the original OpenAudioBench-leftover plan is
+     impossible (reasoning_qa has only 202 rows; the eval pool sampled
+     ALL of them — measured 2026-09-01). Instead MGSM zh (250) + XCOPA
+     zh (150), public benchmarks through the same TTS pipeline as the
+     en families, source-disjoint from sreason — which therefore STAYS
+     a fully external transfer pool.
 
 Cost (est.): TTS ~$3, answers ~2-3 H100h ~$10, judge ~$4 API, native
 dump ~15 H100h ~$60-75 -> ~$80-100 all-in for a predicted external
@@ -42,7 +40,6 @@ import json
 import os
 import re
 import sys
-import time
 
 from modal_app import (app, gen_app, GPU_VOL, gate_data, DATA, OPENAI,
                        API_REGION, QUERIES, _read_jsonl)
@@ -68,7 +65,6 @@ ZQ = f"{DATA}/queries_expansion3.jsonl"
 ZAUDIO = f"{DATA}/audio_expansion3"
 ZHQ = f"{DATA}/queries_expansion3zh.jsonl"
 ZHAUDIO = f"{DATA}/audio_expansion3zh"
-SREASON_Q = f"{DATA}/queries_sreason.jsonl"
 
 TAGS = {"expansion3": (ZQ, ZAUDIO),
         "expansion3zh": (ZHQ, ZHAUDIO)}
@@ -224,89 +220,64 @@ def build_expansion3():
 @app.function(image=dl_image3, volumes={DATA: gate_data}, memory=8192,
               timeout=60 * 60)
 def build_expansion3zh():
-    """The zh calib slice: every OpenAudioBench reasoning_qa row the
-    sreason eval pool did NOT sample (excluded by source stem — the
-    two sets are disjoint by construction). Official audio resampled
-    to 16 kHz, refs from the zh reference column. ~355 rows."""
+    """The zh calib slice, v2. The original plan (OpenAudioBench
+    reasoning_qa leftovers) is IMPOSSIBLE: the subset has only 202 rows
+    and the sreason eval pool sampled ALL of them (measured 2026-09-01;
+    the assumed ~355-row remainder does not exist). Instead: public zh
+    benchmarks through the same TTS pipeline as the en families —
+    MGSM zh (250, human-translated GSM8K math word problems) + XCOPA zh
+    (150 of 500, causal commonsense MC). BOTH are source-disjoint from
+    sreason, so it STAYS a fully external transfer pool — strictly
+    cleaner than the original in-domain plan. ~400 rows."""
     import numpy as np
-    import librosa
-    import pandas as pd
-    import soundfile as sf
-    from huggingface_hub import snapshot_download
+    from datasets import load_dataset
 
-    repo, sub = "baichuan-inc/OpenAudioBench", "reasoning_qa"
-    root = None
-    for attempt in range(4):
-        try:
-            root = snapshot_download(
-                repo, repo_type="dataset", max_workers=2,
-                allow_patterns=[f"eval_datas/{sub}/**"])
-            break
-        except Exception as e:
-            wait = 90 * (attempt + 1)
-            print(f">>> snapshot attempt {attempt}: {str(e)[:200]} — "
-                  f"retrying in {wait}s", flush=True)
-            time.sleep(wait)
-    if root is None:
-        raise RuntimeError("snapshot_download kept failing")
-
-    base = os.path.join(root, "eval_datas", sub)
-    metas = [f for f in os.listdir(base)
-             if f.endswith((".csv", ".tsv", ".jsonl"))]
-    mpath = os.path.join(base, metas[0])
-    meta = (pd.read_json(mpath, lines=True) if mpath.endswith(".jsonl")
-            else pd.read_csv(mpath, sep="\t" if mpath.endswith(".tsv")
-                             else ","))
-    audir = os.path.join(base, "audios")
-    files = {os.path.splitext(f)[0]: os.path.join(audir, f)
-             for f in sorted(os.listdir(audir))}
-
-    keycol = None                       # modal_bench keying, verbatim
-    for c in meta.columns:
-        vals = (meta[c].astype(str).str.split("/").str[-1]
-                .str.replace(r"\.[A-Za-z0-9]{1,5}$", "", regex=True))
-        if vals.isin(files).mean() > .9:
-            keycol = c
-            meta["_stem"] = vals
-            break
-    if keycol is None:
-        raise RuntimeError(f"no column matches the audio stems "
-                           f"(cols {list(meta.columns)})")
-
-    norm_cols = {c.lower().strip(): c for c in meta.columns}
-    q_field = next(norm_cols[c] for c in
-                   ("prompt", "question", "query", "text") if c in
-                   norm_cols)
-    ref_field = norm_cols.get("参考答案") or norm_cols.get("answer")
-
-    used_stems = set()
-    used_text = set()
-    for q in _read_jsonl(SREASON_Q):
-        used_stems.add(str(q.get("source", "")).split("/")[-1])
-        used_text.add(re.sub(r"\s+", " ", q["query"])[:120])
-    meta = meta[meta["_stem"].isin(files)]
-    meta = meta[~meta["_stem"].isin(used_stems)]
-    meta = meta[~meta[q_field].astype(str).str.replace(
-        r"\s+", " ", regex=True).str[:120].isin(used_text)]
-    meta = meta.reset_index(drop=True)
-    print(f">>> reasoning_qa leftovers after eval-pool exclusion: "
-          f"{len(meta)}", flush=True)
-
-    os.makedirs(ZHAUDIO, exist_ok=True)
     rng = np.random.default_rng(46)
     rows = []
-    for j, di in enumerate(rng.permutation(len(meta))):
-        r = meta.iloc[int(di)]
-        qid = f"zh{j:04d}"
-        arr, _sr = librosa.load(files[r["_stem"]], sr=16000, mono=True)
-        sf.write(f"{ZHAUDIO}/{qid}.wav", arr.astype(np.float32), 16000)
-        ref = r[ref_field] if ref_field else None
-        rows.append({"id": qid, "pool": "zh-reasoning",
-                     "source": f"{repo}/{sub}/{r['_stem']}",
-                     "query": str(r[q_field]),
-                     "reference_answer": (str(ref) if ref is not None
-                                          else None),
-                     "split": "calib_zh"})
+
+    def add(pool, items):
+        for q, ref in items:
+            rows.append({"id": f"zh{len(rows):04d}", "pool": pool,
+                         "query": q, "reference_answer": ref,
+                         "split": "calib_zh"})
+        print(f">>> {pool}: +{len(items)}", flush=True)
+
+    def take(ds, fmt, n):
+        out, seen = [], set()
+        for i in rng.permutation(len(ds)):
+            r = fmt(ds[int(i)])
+            if r is None:
+                continue
+            k = re.sub(r"\s+", " ", r[0])[:120]
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append(r)
+            if len(out) >= n:
+                break
+        return out
+
+    mgsm = load_dataset("juletxara/mgsm", "zh", split="test",
+                        trust_remote_code=True)
+
+    def fmt_mgsm(e):
+        a = e["answer_number"]
+        ref = (str(int(a)) if float(a) == int(float(a)) else str(a))
+        return (e["question"].strip(), ref)
+    add("zh-mathword", take(mgsm, fmt_mgsm, 250))
+
+    xcopa = load_dataset("cambridgeltl/xcopa", "zh", split="test",
+                         trust_remote_code=True)
+
+    def fmt_xcopa(e):
+        what = "原因" if e["question"] == "cause" else "结果"
+        q = (f"{e['premise']} 更可能的{what}是哪一个？"
+             f"(A) {e['choice1']} (B) {e['choice2']}")
+        k = "AB"[int(e["label"])]
+        ref = f"({k}) {e['choice1'] if k == 'A' else e['choice2']}"
+        return (q, ref)
+    add("zh-causal", take(xcopa, fmt_xcopa, 150))
+
     with open(ZHQ, "w", encoding="utf-8") as fh:
         for r in rows:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -323,31 +294,37 @@ def _read_tag(tag: str) -> list:
 @gen_app.function(image=util_st3, volumes={DATA: gate_data},
                   secrets=[OPENAI], timeout=60 * 60, region=API_REGION)
 def run_tts3(limit: int = 0, concurrency: int = 8):
-    """tts-1/alloy over expansion3 (en) only — expansion3zh ships the
-    official OpenAudioBench audio, no TTS."""
+    """tts-1/alloy over expansion3 (en) + expansion3zh (zh; alloy is
+    the pinned en+zh voice — same as the frozen pool's zh items)."""
     from concurrent.futures import ThreadPoolExecutor
     from openai import OpenAI
 
-    qs = _read_jsonl(ZQ)[:limit or None]
-    os.makedirs(ZAUDIO, exist_ok=True)
     client = OpenAI()
+    for qfile, audir in ((ZQ, ZAUDIO), (ZHQ, ZHAUDIO)):
+        try:
+            qs = _read_jsonl(qfile)[:limit or None]
+        except FileNotFoundError:
+            print(f">>> {qfile} missing — skipped", flush=True)
+            continue
+        os.makedirs(audir, exist_ok=True)
 
-    def render(q):
-        out = f"{ZAUDIO}/{q['id']}.wav"
-        if os.path.exists(out) and os.path.getsize(out) > 44:
-            return "cached"
-        resp = client.audio.speech.create(model="tts-1", voice=TTS_VOICE,
-                                          input=q["query"][:4000],
-                                          response_format="wav")
-        with open(out, "wb") as fh:
-            fh.write(resp.content)
-        return "done"
+        def render(q):
+            out = f"{audir}/{q['id']}.wav"
+            if os.path.exists(out) and os.path.getsize(out) > 44:
+                return "cached"
+            resp = client.audio.speech.create(
+                model="tts-1", voice=TTS_VOICE,
+                input=q["query"][:4000], response_format="wav")
+            with open(out, "wb") as fh:
+                fh.write(resp.content)
+            return "done"
 
-    with ThreadPoolExecutor(concurrency) as ex:
-        res = list(ex.map(render, qs))
-    gate_data.commit()
-    print(f">>> tts3: {res.count('done')} rendered, "
-          f"{res.count('cached')} cached / {len(qs)}", flush=True)
+        with ThreadPoolExecutor(concurrency) as ex:
+            res = list(ex.map(render, qs))
+        gate_data.commit()
+        print(f">>> tts3 [{os.path.basename(audir)}]: "
+              f"{res.count('done')} rendered, "
+              f"{res.count('cached')} cached / {len(qs)}", flush=True)
 
 
 @app.function(image=image_st3, gpu="H100", volumes=GPU_VOL,

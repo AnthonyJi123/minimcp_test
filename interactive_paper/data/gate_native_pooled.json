@@ -1,0 +1,45 @@
+{
+ "rates": {
+  "conservative": 0.15,
+  "balanced": 0.3,
+  "aggressive": 0.5
+ },
+ "window": 100,
+ "global": {
+  "conservative": 0.5589111608882317,
+  "balanced": 0.3991298032000041,
+  "aggressive": 0.22221239569904194
+ },
+ "pools": {
+  "frozen": {
+   "conservative": 0.74113055610558,
+   "balanced": 0.557861419311236,
+   "aggressive": 0.3400630848426923
+  },
+  "striviaqa": {
+   "conservative": 0.7025664902474628,
+   "balanced": 0.6164942830571188,
+   "aggressive": 0.459300031527004
+  },
+  "swebq": {
+   "conservative": 0.7789379156807755,
+   "balanced": 0.6729835146390484,
+   "aggressive": 0.53366213137147
+  },
+  "sllama": {
+   "conservative": 0.5103893592464195,
+   "balanced": 0.37048910400124113,
+   "aggressive": 0.2245849580707237
+  },
+  "sdqa": {
+   "conservative": 0.7608146746964609,
+   "balanced": 0.6489709064593578,
+   "aggressive": 0.4670059701352788
+  },
+  "sreason": {
+   "conservative": 0.25752686740717107,
+   "balanced": 0.19492656005382666,
+   "aggressive": 0.13678399117611217
+  }
+ }
+}

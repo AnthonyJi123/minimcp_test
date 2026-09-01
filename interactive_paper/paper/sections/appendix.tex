@@ -164,6 +164,44 @@ Freeze-Omni & frozen + adapter & 0.165 $\rightarrow$ 0.112 (intact) & 0.612 (cap
 \end{tabular}
 \end{table}
 
+\paragraph{Probe $\oplus$ repeat-then-judge fusion.} The restored
+self-evaluation is \emph{additive} with the probe. We stack the
+deployed L22 probe with $\ptrue$-pre asked over the model's own
+transcript (one short text prefill + a 1-token decode per turn;
+logistic stacker fit on the 360 calibration rows, native regime,
+Table~\ref{tab:rtjfusion}). On the internal test split the fusion is
+the first significant AUC lift over the deployed probe
+(0.833$\to$0.863; bootstrap 95\% CI on $\Delta$ excludes zero), and it
+transfers to one external pool (TriviaQA 0.787$\to$0.823); the
+remaining English pools move positively but within CI, and the
+Mandarin reasoning pool is untouched --- there the self-evaluation
+itself carries no signal (AUC 0.586). Contrary to our a-priori
+expectation, the gain tracks where the self-evaluation signal is
+strong, not where the probe is weak; a diagnostic arm asking
+$\ptrue$-pre on the original query text scores within 0.01--0.02 of
+the transcript arm on every pool, so transcription quality is not the
+limiter.
+
+\begin{table}[h]
+\centering\small
+\caption{Probe $\oplus$ repeat-then-judge $\ptrue$-pre fusion (native
+regime, deployed read point). $\Delta$ = fusion $-$ probe, bootstrap
+95\% CI.}
+\label{tab:rtjfusion}
+\begin{tabular}{lccccc}
+\toprule
+pool & $n$ & probe & rtj solo & fusion & $\Delta$ [95\% CI] \\
+\midrule
+internal test & 240 & 0.833 & 0.836 & \textbf{0.863} & $+0.030$ $[+0.008,+0.052]$ \\
+TriviaQA & 250 & 0.787 & 0.761 & \textbf{0.823} & $+0.035$ $[+0.002,+0.071]$ \\
+WebQ & 250 & 0.736 & 0.723 & 0.765 & $+0.029$ $[-0.005,+0.063]$ \\
+Llama-Q & 250 & 0.667 & 0.674 & 0.683 & $+0.016$ $[-0.014,+0.045]$ \\
+SD-QA & 200 & 0.788 & 0.742 & 0.799 & $+0.010$ $[-0.018,+0.038]$ \\
+Reasoning-zh & 202 & 0.615 & 0.586 & 0.603 & $-0.012$ $[-0.065,+0.040]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \paragraph{Real-speech validation.} The matched-pair design rerun on
 200 real human recordings (VoiceBench SD-QA, USA split) replicates all
 three audio-side findings: modality tax (0.400$\to$0.450),
