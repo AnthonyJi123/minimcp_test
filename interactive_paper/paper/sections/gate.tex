@@ -1,39 +1,37 @@
-\section{From Signal to Gate}
+\section{The Read Arrives Before Response Commitment}
 \label{sec:system}
 
-\paragraph{The decision exists before decoding starts.}
+\paragraph{Scoring latency.}
 The gate is a linear read on L22 states the forward pass already
 computes --- a 4096-d dot product per position, over one position
 (mechanistic probe) or three (the deployed probe adds two running
-means at no added latency; Appendix~\ref{app:signal}). Measured on H100 (wall-clock, prefill start to L22
-score, CUDA-synced; network excluded --- the cloud call fires
-asynchronously; protocol: Appendix~\ref{app:gatedetail}), the
-decision lands in
-\textbf{20\,ms (text) / 45\,ms (audio)} at P50 (P95 25/104) against
-same-bench time-to-first-token of 36/68\,ms:
-$T_{\text{gate}} < T_{\text{first token}}$, far inside the
-200--300\,ms turn-taking budget \citep{stivers2009universals}, and the
-cloud call can launch while the remaining $\sim$40\% of prefill and the
-whole decode still run. Deciding pre-token is optimal, not merely feasible: one could wait out
-a few decoded tokens and cancel, but decode-time readouts measure
-\emph{weaker} (max entropy@4 0.696; early-decode hiddens 0.776 vs.\
-0.828 at the prompt), and every waited millisecond delays the stall
-onset and the expert launch (Appendix~\ref{app:gatedetail}).
-
-\paragraph{Accuracy--cost tradeoff.}
-On the frozen test split ($n{=}240$): small-only 58.8\%, big-only
-(\texttt{gpt-5.5}) 91.7\%. Gated escalation beats random escalation at
-every operating point (Figure~\ref{fig:tradeoff}, appendix); the
-balanced tier at a 33\% budget reaches \textbf{77.9--78.7\%}, recovering
-$\sim$58\% of the small$\to$big gap at one third of the big-only cost.
-In distribution the gate is statistically on par with a pool-oracle
-(type-only) router --- as the type-shortcut audit predicts --- so its
-case over type routing rests on transfer, where the type shortcut
-collapses (\S\ref{sec:audit}) and the mid-layer signal does not.
-The gate is fit to \emph{local failure}, not expert benefit: a benefit
-label would bake the current expert's blind spots into a router meant
-to survive expert swaps, and against the harder label the frozen scores
-stay usable out of distribution (Appendix~\ref{app:fixedthr}).
-Against the model's own built-in reasoning mode, gated-cloud escalation
-dominates on both accuracy and latency at every rate
+means at no added scoring latency; Appendix~\ref{app:signal}).
+On an H100, measured from prefill start with CUDA synchronization, the
+score is available at P50 in \textbf{20\,ms for text and 45\,ms for
+audio} (P95 25/104\,ms). Time to first token on the same benchmark is
+36/68\,ms. The measurement excludes network time, but it establishes
+the ordering needed by the system: the cloud request can start before
+local decoding commits to an answer. Waiting for decoded tokens does
+not improve the read in our data. Max entropy over four tokens reaches
+AUC 0.696, and early-decode hidden states reach 0.776, compared with
+0.828 at the prompt; waiting also postpones the expert request
 (Appendix~\ref{app:gatedetail}).
+
+\paragraph{From score to escalation budget.}
+On the frozen test split ($n{=}240$), always-local accuracy is 58.8\%
+and always-expert accuracy is 91.7\%. Thresholding the probe beats
+matched-rate random escalation at every operating point
+(Figure~\ref{fig:tradeoff}, appendix). At a 33\% escalation budget, it
+reaches \textbf{77.9--78.7\%}, recovering about 58\% of the
+local-to-expert gap with one third of the expert calls. In
+distribution, the gate is statistically tied with a pool-identity
+oracle, as the shortcut audit predicts. Its advantage appears under
+transfer, where pool identity stops being sufficient
+(\S\ref{sec:audit}).
+
+The gate is fit to \emph{local failure}, not expert benefit: a benefit
+label would specialize the ranking to the current expert. The frozen
+scores remain useful under the stricter benefit label, but pools with
+little expert headroom remain a system-level limit
+(Appendix~\ref{app:fixedthr}). Comparisons with the model's built-in
+reasoning mode are in Appendix~\ref{app:gatedetail}.

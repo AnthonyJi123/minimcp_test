@@ -3,75 +3,70 @@
 \label{sec:liveloop}
 \label{sec:livecurve}
 
-\paragraph{The streaming loop.}
+\paragraph{Primary protocol.}
 The protocol is turn-based: audio streams in 1\,s chunks, but the
 talker speaks only after the user's turn ends and the model's native
-listen/speak head is not engaged. Per-chunk probe scores are strictly
-weaker than the offline read (best chunk statistic AUC 0.764) and miss
-short utterances whose critical entity lands in the final chunk. The
-fix is an \textbf{end-of-turn read}: after the last audio chunk,
-prefill an assistant turn containing a single space and read L22 at the
-assistant-start position. This read reaches \textbf{AUC 0.887} ---
-above the offline reference (0.843) --- in $\sim$30\,ms, still before
-the first output token, and is the loop's only decision point;
-escalation-rate thresholds are quantiles of this single score.
-Speculative mid-stream prefetch was measured and dropped (an expert
-answer to a partial transcript answers the full question only
-7--51\% of the time; Appendix~\ref{app:livedetail}). On escalation the talker speaks a
-stall phrase, its \emph{own} transcription of the audio goes to the
-expert (\texttt{gpt-5.5}, reasoning effort fixed low --- higher effort
-buys zero accuracy on the escalated population at double the latency),
-and the returned answer is injected as context for the talker to
-relay.
+listen/speak head is not engaged. This protocol isolates competence
+handoff from turn-taking; the native-head validation is reported
+separately below. Scores from intermediate chunks are weaker than the
+offline read (best summary AUC 0.764) and can miss information in the
+last chunk. We therefore make one \textbf{end-of-turn read}: after the
+final audio chunk, the system prefills the assistant turn and reads L22
+at its start. In the 360-query read-point study, the single-position
+probe reaches \textbf{AUC 0.887} in $\sim$30\,ms, compared with 0.843
+for the offline reference, and arrives before the first output token.
+This experiment establishes the read point. The accuracy sweeps below
+use the deployed three-position probe fit on the wider 2{,}310-query
+calibration mix (frozen-test AUC 0.879); tier thresholds are quantiles
+of its score.
+
+If the turn is escalated, the local talker first produces a short stall
+phrase. Its own transcription of the input is sent to
+\texttt{gpt-5.5}, and the returned answer is injected as context for
+the local model to relay. The expert request runs asynchronously.
+Partial-query prefetch, expert reasoning effort, and injection controls
+are reported in Appendix~\ref{app:livedetail}.
 \label{sec:inject}
-On the deployed channel the relay is clean: model wrong, correct answer
-injected, comply $=1.00$ ($n{=}24$); more broadly the competence signal
-also predicts relay compliance (comply 42\%$\to$75\% across gate-score
-quartiles) --- a model that knows it doesn't know is willing to listen.
-Conflicting-injection and framing controls: Appendix~\ref{app:livedetail}.
 
 \paragraph{The live result.}
 We ran 240 frozen test queries $\times$ four escalation tiers, each a
-complete turn-based spoken session, scored on \emph{deployed-channel
-answer accuracy}: correctness of the content the system delivers on
-its output channel. The sweeps are text-out (a TTS-on replay changes
-no gate decision, Appendix~\ref{app:livedetail}); figures abbreviate
-the metric as ``heard''. Headline numbers use a pre-registered
-input-side filter (21 formula-LaTeX ids + 1 broken recording removed;
-spoken formulas are destroyed by any TTS render before the system
-hears them). Deployed-channel accuracy climbs monotonically,
+complete turn-based loop with audio input. The primary accuracy sweep
+retains the model's output as text; a separate TTS-on run of the
+balanced tier verifies that enabling speech synthesis leaves all
+84/240 gate decisions unchanged and measures speech onset. We score
+\emph{deployed-channel answer accuracy}: correctness of the relayed
+content after the system path. Headline numbers use a pre-registered
+input filter that removes 21 formula-LaTeX queries and one broken
+recording, because the speech rendering destroys the symbolic input
+before the model receives it. Accuracy rises monotonically,
 $\mathbf{42.2\% \to 52.8\% \to 59.2\% \to 63.3\%}$ at 0/14/31/57\% escalation,
 every tier's gain significant (paired bootstrap;
-Figure~\ref{fig:dualview}). A measured always-escalate arm closes the
-curve at 66.5\% (P50 4.2\,s): the last 43 points of escalation buy
-3.2 points, because past the gated tiers the binding constraint is the
-\emph{transcription-uplink} channel, not selection: the same sessions
-re-scored with gold-text expert answers reach 92.2\%, and the channel
-costs +2.3/+6.9/+12.8 points against that counterfactual across
-tiers. Against the matched-rate random reference \emph{internal to
-each view} the gate wins at every arm --- in the deployed view by
-7.2--9.5 points, in the channel-controlled view by 5.4--8.4
-(Figure~\ref{fig:dualview}). Live arm accuracies on this pool carry
-a replication-noise floor of $\pm$2--3 points, so no claim here rests on
-a sub-3-point live delta. Full tables (both views, both pools), latency profiles, uplink
-diagnostics, and two boundary query classes (false-premise,
-real-time) are in Appendix~\ref{app:livedetail}. A talker-on replay leaves the frozen probe intact (AUC 0.871/0.856
-vs.\ 0.866 headless); TTS-on, first audible audio lands p50 0.55\,s
-on local turns and 22--29\,ms on escalated ones (the canned stall),
-expert content at p50 6.4\,s with the stall covering the head of the
-wait (Appendix~\ref{app:duplexval}, ~\ref{app:livedetail}).
-Re-run end to end in the \emph{concurrent} regime (target audio
-interleaved into the same KV stream mid-answer; carrier turn
-teacher-forced, not the official free-running serving path), the loop
-reproduces where calibration matches the regime: internally, speakable
-accuracy climbs 44.5$\to$71.1\%, clears matched-rate random from the
-balanced tier on ($p\le.009$) and beats always-escalate (66.5\%);
-externally the quarter-scale in-regime probe clears random only in
-spots (exploratory, Table~\ref{tab:conclive}).
-Finally, the system now runs on the model's \emph{native full-duplex}
-head --- no VAD, no barge-in harness, the gate reading at the head's
-own listen$\to$speak commit --- where the recalibrated probe reaches
-AUC 0.830 internally / 0.709 external mean and gated accuracy clears
-matched-rate random on five of six pools
-(Appendix~\ref{app:native}).
+Figure~\ref{fig:dualview}). More importantly, it exceeds the
+matched-rate random reference at every tier, by
+7.2--9.5 points in the deployed view and by 5.4--8.4 points in the
+channel-controlled view
+(Figure~\ref{fig:dualview}). A measured always-escalate arm reaches
+66.5\%. The small remaining gain from 57\% to 100\% escalation is not
+evidence that selection is perfect: the same sessions reach 92.2\%
+when the expert receives gold text, showing that the model's
+transcription uplink is the limiting channel at high escalation rates.
+Live accuracies have a replication floor of $\pm$2--3 points; no claim
+rests on a smaller difference. Full tables, latency profiles, and
+boundary cases are in Appendix~\ref{app:livedetail}.
+
+\paragraph{Serving-regime checks.}
+A talker-on replay leaves the frozen ranking nearly unchanged
+(AUC 0.871/0.856 versus 0.866 headless). A teacher-forced concurrent
+interleave is less stable and requires an in-regime refit; its external
+results remain exploratory (Appendix~\ref{app:duplexval}). Under the
+model's native full-duplex head, the read moves to the head's own
+listen$\to$speak commit point. Refitting the same features in that
+regime yields AUC 0.830 internally and 0.709 across the external QA
+pools. A native outcome re-mix beats matched-rate random on five of six
+pools. A full native live run on the internal 240 queries improves
+accuracy from 0.371 to 0.537 at 45\% escalation, below the 0.596 re-mix
+prediction because relaying the returned answer is lossy. These checks
+support the ranking beyond the primary turn-based loop, but they also
+show that read points, probe weights, and thresholds must be calibrated
+for the serving regime (Appendix~\ref{app:native}).
 

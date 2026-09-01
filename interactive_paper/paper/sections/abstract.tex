@@ -1,25 +1,29 @@
 \begin{abstract}
-Full-duplex speech models answer in real time with a small on-device
-backbone, yet many queries exceed its competence. Routing to a large
-cloud model sounds solved --- until one asks \emph{when} the decision
-must be made: before the first output token, or the wrong answer is
-already on the air. We ask whether the model's own hidden state carries
-that warning early enough, and find that the obvious readout is exactly
-what duplex fine-tuning corrupts:
-final-layer probes collapse under distribution shift on text input
-(leave-one-pool-out math AUC 0.93$\to$0.37) --- a duplex-specific
-decay of the distributed late-layer read whose mechanism direct tests
-leave unresolved --- while verbalized
-self-assessment collapses on audio input. The signal is not gone ---
-it sits one layer band earlier. Mid-network, the same linear probe
-transfers at 0.93, reads speech input from text-only calibration at
-0.86, and an end-of-turn read in the streaming loop reaches AUC 0.887
-in $\sim$30\,ms --- half a second before the first audible word. Run
-live end-to-end in a turn-based loop, the gated system climbs from
-42.2\% to 63.3\% deployed-channel answer accuracy at 57\% escalation, the remaining gap
-dominated by the transcription uplink rather than the gate; frozen,
-the same gate improves five of six public speech benchmarks, lifting
-Speech TriviaQA to 86.0\% live against the model's official offline
-75.5\%. Reading one band earlier, before speech commits, is enough to
-escalate live.
+Real-time speech systems often rely on compact models, but some user
+queries require a stronger expert. Selective escalation is well studied
+for text, yet speech adds a deployment question: does a duplex-trained
+model expose a reliable competence signal before it commits to a
+response, and does that signal survive distribution and modality shift?
+We compare decode-time uncertainty, verbalized self-assessment, and
+linear probes across layers and matched model controls, using
+leave-one-query-pool-out evaluation, matched text and speech inputs,
+and end-to-end escalation loops. On MiniCPM-o~4.5, an in-distribution
+final-layer probe scores AUC 0.822 but falls to 0.372 on held-out math
+with text input; the same last-token read at layer 22 reaches 0.931,
+while the cause of the late-layer failure remains unresolved. A
+text-calibrated layer-22 probe reads speech-input states at AUC 0.855,
+and a single-position end-of-turn study reaches 0.887 in
+$\sim$30\,ms, before the first output token. The live system uses the
+same layer with a separately calibrated three-position probe. In the
+primary turn-based, audio-input/text-output evaluation, selective
+escalation raises deployed-channel answer accuracy from 42.2\% to
+63.3\% at 57\% escalation and beats matched-rate random escalation by
+7.2--9.5 points; a separate TTS-on replay leaves gate decisions
+unchanged when speech synthesis is enabled. With its weights, features,
+and layer fixed, the gate also
+improves all five external speech-QA benchmarks over always-local
+operation, although it does not beat matched-rate random escalation on
+every pool. These results identify a mid-network representation, rather
+than the conventional final-layer read, as a practical signal for
+handoff before response commitment.
 \end{abstract}
