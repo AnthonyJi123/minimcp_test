@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MiniCPM paired, blinded human evaluation participant experience">
+  <title>Voice Assistant Experience Study</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="site-header">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div>
+          <div class="brand-title">Voice Assistant Experience Study</div>
+        </div>
+      </div>
+
+      <div class="header-progress">
+        <div class="progress-copy">
+          <span>Overall progress</span>
+          <span id="progressLabel">Device check</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5">
+          <span id="progressBar"></span>
+        </div>
+      </div>
+
+      <div class="session-block">
+        <span id="sessionId">Initializing…</span>
+      </div>
+    </header>
+
+    <nav class="major-tabs" aria-label="Study steps">
+      <button class="major-tab is-current" type="button" data-major="setup" aria-current="step">
+        <span class="major-index">1</span><span>Device check</span>
+      </button>
+      <button class="major-tab" type="button" data-major="task-0" disabled>
+        <span class="major-index">2</span><span>Task 1</span>
+      </button>
+      <button class="major-tab" type="button" data-major="task-1" disabled>
+        <span class="major-index">3</span><span>Task 2</span>
+      </button>
+      <button class="major-tab" type="button" data-major="thanks" disabled>
+        <span class="major-index">4</span><span>Thank you</span>
+      </button>
+    </nav>
+
+    <main id="mainContent" class="main-content" aria-live="polite">
+      <section class="loading-panel">
+        <div class="loading-dot" aria-hidden="true"></div>
+        <p>Preparing the study…</p>
+      </section>
+    </main>
+
+  </div>
+
+  <template id="setupTemplate">
+    <section class="setup-layout">
+      <div class="intro-panel surface">
+        <span class="eyebrow">Before you begin</span>
+        <h1>Device check</h1>
+        <p class="lede">Please complete the study in a quiet environment using headphones with a microphone. The study includes two tasks, with two separate conversations in each task.</p>
+
+        <div class="instruction-list">
+          <div><span>1</span><p><strong>Speak naturally</strong>Follow the task prompts as you talk with the voice assistant.</p></div>
+          <div><span>2</span><p><strong>Two-minute limit</strong>You may finish early. At the time limit, the conversation will end automatically and move to the rating page.</p></div>
+          <div><span>3</span><p><strong>Rate promptly</strong>Base each rating on the current conversation and task.</p></div>
+        </div>
+      </div>
+
+      <div class="device-panel surface">
+        <h2>Check your devices and consent</h2>
+
+        <div class="device-check" data-device="microphone">
+          <div class="device-copy"><span class="status-icon" aria-hidden="true"></span><div><strong>Headset microphone</strong><p id="micStatus">Connect your headset before testing</p></div></div>
+          <button id="testMic" class="secondary-button" type="button">Test microphone</button>
+        </div>
+        <div id="micMeterWrap" class="mic-meter-wrap" hidden>
+          <div class="mic-meter-label"><span>Input level</span><span>Say a short sentence</span></div>
+          <div class="mic-meter"><span id="micMeter"></span></div>
+        </div>
+
+        <div class="device-check" data-device="speaker">
+          <div class="device-copy"><span class="status-icon" aria-hidden="true"></span><div><strong>Headphones</strong><p id="speakerStatus">Use headphones to prevent echo</p></div></div>
+          <button id="testSpeaker" class="secondary-button" type="button">Play test sound</button>
+        </div>
+
+        <div class="device-check" data-device="model">
+          <div class="device-copy"><span class="status-icon" aria-hidden="true"></span><div><strong>Voice model</strong><p id="modelStatus">Starting model…</p></div></div>
+          <button id="retryModel" class="secondary-button" type="button" hidden>Retry</button>
+        </div>
+
+        <label class="consent-row">
+          <input id="consentCheck" type="checkbox">
+          <span>I have read the instructions and consent to the collection of anonymized transcripts, ratings, timestamps, system logs, and approved audio.</span>
+        </label>
+
+        <div id="deviceError" class="inline-error" role="alert" hidden></div>
+        <button id="enterStudy" class="primary-button full-width" type="button" disabled>Continue to Task 1</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="taskTemplate">
+    <section class="task-screen">
+      <nav class="sub-tabs" aria-label="Task steps"></nav>
+      <div id="taskStage"></div>
+    </section>
+  </template>
+
+  <template id="thanksTemplate">
+    <section class="thanks-panel surface">
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <span class="eyebrow">Study complete</span>
+      <h1>Thank you for participating</h1>
+      <p class="lede">All conversation states and ratings have been submitted successfully. You may now close this page.</p>
+      <div class="completion-box">
+        <span>Completion code</span>
+        <strong id="completionCode">—</strong>
+      </div>
+    </section>
+  </template>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
