@@ -29,6 +29,10 @@ Run (cwd=interactive_paper, PYTHONUTF8=1):
       --workers 8                     # 1150
   modal run modal_native_dump.py::run_native --pool frozen --split test \
       --tag test --workers 4          # test 240 (validity)
+  modal run modal_native_dump.py::run_native --pool expansion3 \
+      --tag exp3 --workers 8          # ~2300 (modal_train3.py)
+  modal run modal_native_dump.py::run_native --pool expansion3zh \
+      --tag exp3zh --workers 2        # ~355 zh (modal_train3.py)
 """
 import json
 import os
@@ -111,6 +115,8 @@ FEAT_POOLS = {
     "frozen":     (f"{DATA}/queries.jsonl",            f"{DATA}/audio_pool"),
     "expansion":  (f"{DATA}/queries_expansion.jsonl",  f"{DATA}/audio_expansion"),
     "expansion2": (f"{DATA}/queries_expansion2.jsonl", f"{DATA}/audio_expansion2"),
+    "expansion3": (f"{DATA}/queries_expansion3.jsonl", f"{DATA}/audio_expansion3"),
+    "expansion3zh": (f"{DATA}/queries_expansion3zh.jsonl", f"{DATA}/audio_expansion3zh"),
     "striviaqa":  (f"{DATA}/queries_striviaqa.jsonl",  f"{DATA}/bench_audio"),
     "swebq":      (f"{DATA}/queries_swebq.jsonl",      f"{DATA}/bench_audio"),
     "sllama":     (f"{DATA}/queries_sllama.jsonl",     f"{DATA}/bench_audio"),

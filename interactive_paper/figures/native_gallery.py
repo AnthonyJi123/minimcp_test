@@ -72,32 +72,61 @@ for ax, pool in zip(axes.flat, ORDER):
     xs = [d["tiers"][t]["esc_rate"] for t in TIERS]
     ys = [d["tiers"][t]["acc"] for t in TIERS]
     rs = [d["tiers"][t]["random_matched"] for t in TIERS]
+    # oracle selector: escalate the (local-wrong, expert-right) items
+    # first. The benefit-pool size is joint-free bounded in
+    # [ceil-floor, min(1-floor, ceil)]; the band spans the two.
+    fl, ce = d["local_floor"], d["expert_ceiling"]
+    pb_lo, pb_hi = max(0.0, ce - fl), min(1 - fl, ce)
+    rg = np.linspace(0, 1, 201)
+
+    def oracle(pb):
+        acc = fl + np.minimum(rg, pb)
+        tail = rg >= pb
+        acc[tail] = (fl + pb) + (ce - fl - pb) * (rg[tail] - pb) / (1 - pb)
+        return acc
+
+    ax.fill_between(rg, oracle(pb_lo), oracle(pb_hi), color=TEAL,
+                    alpha=.13, lw=0)
+    ax.plot(rg, oracle(pb_lo), color=TEAL, lw=1.3, alpha=.8,
+            label="oracle selector")
     ax.plot(xs, rs, "--", color=GREY, lw=1.6, label="matched random")
     ax.plot(xs, ys, "o-", color=BLUE, lw=2, label="gated (native)")
     ax.set_title(f"{NICE[pool]}  (n={d['n']})", fontsize=11)
     ax.set_xlim(-.04, 1.04)
     for t in ("balanced", "aggressive"):
         p = d["tiers"][t]["perm_p"]
+        i = TIERS.index(t)
         if p is not None and p < .05:
-            i = TIERS.index(t)
             ax.annotate("*", (xs[i], ys[i]),
                         textcoords="offset points", xytext=(0, 4),
                         ha="center", color=ORANGE, fontsize=15)
-axes[0][0].legend(frameon=False, fontsize=9, loc="upper left")
+        # fraction of the oracle-over-random margin the gate captures
+        # (exact when the tier rate <= ceil-floor, else optimistic end)
+        om = min(xs[i], pb_lo) - xs[i] * (ce - fl)
+        if om > 0 and xs[i] > 0:
+            ax.annotate(f"{(ys[i] - rs[i]) / om:.0%}", (xs[i], ys[i]),
+                        textcoords="offset points", xytext=(3, -13),
+                        fontsize=9, color=ORANGE)
+axes[0][0].legend(frameon=False, fontsize=8, loc="upper left")
 for ax in axes[1]:
     ax.set_xlabel("escalation rate")
 for r in range(2):
     axes[r][0].set_ylabel("delivered accuracy")
-fig.suptitle("Native full duplex: gated accuracy vs matched-random"
-             " (* = permutation p<.05; Reasoning-zh never fires)",
+fig.suptitle("Native full duplex: gated accuracy vs matched-random vs the"
+             " oracle bound\n(* = permutation p<.05; orange % = share of the"
+             " oracle-over-random margin captured; Reasoning-zh never fires)",
              fontsize=12)
-fig.tight_layout(rect=[0, 0, 1, 0.95])
+fig.tight_layout(rect=[0, 0, 1, 0.93])
 fig.savefig("figures/native_validity.png", dpi=170)
 plt.close(fig)
 
 # ---- fig 3: floor behavior ----------------------------------------------
 rows = [json.loads(l) for p in glob.glob("data/floor.jsonl.shard*")
         for l in open(p, encoding="utf-8") if l.strip()]
+if not rows:
+    print("wrote figures/native_{regimechain,validity}.png "
+          "(no data/floor.jsonl.shard*; floor fig left untouched)")
+    raise SystemExit
 
 
 def cell(arm, phase, kind):
