@@ -79,9 +79,21 @@ def main():
     parts = []
     for tag, lab_file in [("calib", "calib_features.parquet"),
                           ("exp", "expansion_labels.parquet"),
-                          ("exp2", "expansion2_labels.parquet")]:
-        ids, X = load_feats(tag)
-        lab = pd.read_parquet(D / lab_file).set_index("id")["escalate_label"]
+                          ("exp2", "expansion2_labels.parquet"),
+                          # optional expansion3 parts (modal_train3.py);
+                          # NB adding exp3zh makes sreason in-domain —
+                          # see the method note in modal_train3.py
+                          ("exp3", "expansion3_labels.parquet"),
+                          ("exp3zh", "expansion3zh_labels.parquet")]:
+        try:
+            ids, X = load_feats(tag)
+            lab = pd.read_parquet(
+                D / lab_file).set_index("id")["escalate_label"]
+        except FileNotFoundError:
+            if tag in ("exp3", "exp3zh"):
+                print(f"train part {tag}: feats/labels missing — skipped")
+                continue
+            raise
         y = lab.reindex(ids).to_numpy().astype(float)
         keep = ~np.isnan(y)
         parts.append((np.array(ids)[keep], X[keep], y[keep].astype(int)))

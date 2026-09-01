@@ -4996,3 +4996,59 @@ change re-opens calibration — the L22 signals separate perfectly each
 time (act AUC 1.000 twice), but thresholds and coverage must follow
 deployment. Ten minutes of live use found what 3,000 scripted rows
 did not; interactive evaluation is not optional (the venue's point).
+## Phase 8bk — oracle-headroom accounting + the margin worklist ($0 local, 2026-09-01)
+
+User challenge on the 8be validity gallery: "gated barely clears the
+random-escalation line on many pools — the probe is undertrained."
+Quantified instead of argued: at each tier's realized rate r the
+oracle selector's margin over matched-random is joint-free bounded —
+escalate the (local-wrong, expert-right) items first, so
+margin_oracle(r) = min(r, p_benefit) − r·(ceiling − floor), with
+p_benefit ≥ ceiling − floor guaranteed. At the balanced tier every
+pool's rate sits under that bound, so the oracle margin is EXACT:
+
+| pool | r | gate−rand | oracle−rand | captured |
+|---|---:|---:|---:|---:|
+| frozen | .237 | +.050 | .167 | 30% |
+| striviaqa | .264 | +.063 | .184 | 34% |
+| swebq | .308 | +.033 | .177 | 19% |
+| sllama | .044 | +.013 | .037 | 35% |
+| sdqa | .300 | +.084 | .163 | 51% |
+| sreason | — (never fires) | | | |
+
+**Diagnosis: the gap is real but "train more" explains little of it.**
+(a) Internal is scale-saturated (.818 flat 360→2310, 8bb) yet captures
+only 30% — the visual closeness is the AUC≈.83 signature, not an
+undertrained one. (b) The native external curve IS still rising
+(.643→.709, ~+.02/doubling, native_refit.json) but extrapolates to the
+same-recipe turn-based ceiling ≈.771, nowhere near oracle. (c) The two
+biggest visible offenders are operating-point failures, not probe
+failures: sreason fires 0% (zh scores under the en-calib thresholds —
+the language axis) and conservative-tier margins are mathematically
+invisible (oracle ≤.04 at r≤.07). 8bc already ruled out the label as
+a lever.
+
+**Landed (local, $0):**
+- `figures/native_gallery.py`: validity small-multiples now draw the
+  oracle band + per-tier captured-% annotations (floor/ceiling only,
+  no new data deps); `figures/native_validity.png` regenerated. Also
+  guards the floor-control fig when floor.jsonl shards are absent.
+- `scripts/26_pool_thresholds.py` (CPU, needs volume feats): label-free
+  per-pool quantile thresholds + a WINDOWED online-quantile tracker
+  (the deployable story — no labels, no pool identity), recomputes the
+  scripts/23 validity table under both → gate_native_pooled.json +
+  native_validity_pooled.json. Expected: sreason fires at nominal,
+  aggressive drift (.64–.73 vs .50) gone.
+- `scripts/27_probe_receipt_native.py` (CPU): the 8j/8k receipt
+  regenerated for the CURRENT deployed probe — the 8bj v2 recipe
+  (2310 core + fresh train rows, budgets on core-mix quantiles) —
+  plus external test-only rows → probe_receipt_native.json. The
+  shipped probe_receipt.json was four refits stale.
+- `modal_train3.py` + FEAT_POOLS/refit wiring: expansion3 (~2300 en,
+  same 7 families, seed 45, deduped incl. expansion2 — the measured
+  scaling lever, predicted +.02–.03 external) and expansion3zh (~355
+  OpenAudioBench reasoning_qa rows the eval pool did NOT sample,
+  stem-disjoint, official audio — the zh axis). Method note in the
+  docstring: mixing exp3zh in makes sreason in-domain; report it as
+  such or keep it out of the external-transfer probe. Est. ~$80–100
+  all-in; NOT run this session (no Modal creds in the remote env).
