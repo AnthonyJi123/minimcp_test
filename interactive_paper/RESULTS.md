@@ -5307,3 +5307,26 @@ bare `xcopa` repo id → `cambridgeltl/xcopa`.
 build ✅ 2300 en (7 families, seed 45, deduped) → TTS ✅ 2300+400 wavs
 → answers/judge/native-dump/refit: running; results recorded in the
 next section when the refit lands.
+
+### 8bl final — official-config recalibration lands (2026-09-01)
+
+Full calib mix re-collected under the official serving config (2300
+core + 242 fresh usable of 2550/303). scripts/26: train OOF .864
+(was .845); testoff AUC .846; **official thresholds land back at
+.830/.646/.386 — in-regime training renormalizes the score
+distribution to almost exactly the original quantile positions**
+(the interim test-based thresholds were a transient). Fresh-heldout
+fast fire .80 balanced / .95 aggressive, never-controls .06/.50.
+Deployed.
+
+**Frozen validity under the official config (n=239): the strongest
+validity table of the project.** Local floor .431, ceiling .669:
+  conservative .485 @ 10% (rand .456, p=.008)
+  balanced     .544 @ 22% (rand .483, p<.0001)
+  aggressive   .661 @ 46% (rand .540, p<.0001)
+At 46% escalation the gate reaches within .008 of the always-escalate
+ceiling — it captures essentially ALL achievable gain at half the
+expert cost. The official config improved every layer at once: local
+floor (+6 pts), stop responsiveness (2.1 s), AND gate margin over
+random (aggressive +12.1 pts vs +9.6 under the old config). External
+pools re-dumping under official config for the full refreshed table.
