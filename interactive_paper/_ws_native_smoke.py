@@ -42,7 +42,75 @@ async def smoke(arm: str = "local", tier: str = "balanced",
     import pandas as pd
     import websockets
 
-    assert arm in ("local", "barge", "escalate"), arm
+    assert arm in ("local", "barge", "escalate", "stopword"), arm
+    if arm == "stopword":
+        # speak ONLY floor-management utterances from silence — with the
+        # 8bh act gate none of them may escalate (gate events must show
+        # is_info=false or stay local; zero "escalating" phases)
+        import glob as _glob
+        stims = sorted(_glob.glob("/data/flooract_audio/fa0*.wav"))
+        stims = stims[::37][:6] or stims[:6]
+        t0 = _time.time()
+        r = None
+        while _time.time() - t0 < 480:
+            try:
+                r = json.load(urllib.request.urlopen(
+                    f"{BASE}/ready", timeout=25))
+                break
+            except Exception:
+                await asyncio.sleep(4)
+        assert r and r.get("ready"), "GPU never became ready"
+        gates, esc_phases = [], 0
+        FRB = 2048
+        rngb = np.random.default_rng(3)
+        async with websockets.connect(
+                f"{WS}?tier={tier}&probe_on=1", max_size=2 ** 24,
+                open_timeout=60) as sock:
+            t0s = _time.time()
+
+            async def rd():
+                nonlocal esc_phases
+                async for m in sock:
+                    e = json.loads(m)
+                    t = round(_time.time() - t0s, 1)
+                    if e.get("type") == "gate":
+                        gates.append(e)
+                        print(f"[{t}s] GATE score={e.get('score')} "
+                              f"act={e.get('act')} "
+                              f"is_info={e.get('is_info')} "
+                              f"fired={e.get('fired')}")
+                    elif e.get("type") == "phase" and \
+                            e.get("v") == "escalating":
+                        esc_phases += 1
+                        print(f"[{t}s] !! ESCALATING")
+                    elif e.get("type") == "text":
+                        print(f"[{t}s] TEXT: {e['v'][:60]}")
+            rt = asyncio.create_task(rd())
+            for sp in stims:
+                au, _sr = librosa.load(sp, sr=16000, mono=True)
+                i16 = (au * 32767).clip(-32767, 32767).astype(np.int16)
+                for i in range(0, len(i16), FRB):
+                    await sock.send(i16[i:i + FRB].tobytes())
+                    await asyncio.sleep(FRB / 16000)
+                for _ in range(int(6 * 16000 / FRB)):   # 6 s silence
+                    await sock.send((rngb.normal(0, 0.003, FRB) * 32767)
+                                    .clip(-32767, 32767)
+                                    .astype(np.int16).tobytes())
+                    await asyncio.sleep(FRB / 16000)
+                print(f"--- stim {sp.split('/')[-1]} done")
+            try:
+                await sock.send(json.dumps({"type": "stop"}))
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+            rt.cancel()
+        fired = sum(1 for g in gates if g.get("fired"))
+        print(f"\n===== STOPWORD SUMMARY =====\n{len(stims)} stims, "
+              f"{len(gates)} gate reads, fired={fired}, "
+              f"escalating-phases={esc_phases}")
+        return {"arm": arm, "n_stims": len(stims),
+                "gates": len(gates), "fired": fired,
+                "esc_phases": esc_phases}
 
     tr = pd.read_parquet("/data/frozen_v3_traces.parquet")
     import os

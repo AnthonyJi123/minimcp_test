@@ -155,6 +155,13 @@ class DuplexVoice:
         # in-regime probe: 8be native-duplex refit (2310 rows, same
         # speak-onset read point as this app; scripts/22)
         self.art = json.load(open(f"{DATA}/gate_native.json"))
+        # 8bh dialogue-act gate: stop words / backchannels hit the same
+        # commit as questions and the failure probe is OOD on them —
+        # escalate only when the SAME L22 read says "info-seeking"
+        try:
+            self.act = json.load(open(f"{DATA}/gate_act.json"))
+        except Exception:
+            self.act = None
         self.probe = gate_mod.Probe(self.art["w"], self.art["b"])
         self.K3 = self.art.get("k_eot", 8)
         self.st3 = {"accum": False, "tail": None, "sum": None, "cnt": 0}
@@ -214,7 +221,7 @@ class DuplexVoice:
         self.load_s = round(time.time() - t0, 1)
         print(f">>> DuplexVoice ready in {self.load_s}s", flush=True)
 
-    def _score_now(self):
+    def _feat_now(self):
         import torch
         if self.st3["tail"] is None or self.st3["cnt"] == 0:
             return None
@@ -226,7 +233,23 @@ class DuplexVoice:
                 parts.append(self.st3["tail"].mean(0))
             elif m == "user_mean":
                 parts.append(self.st3["sum"] / max(1, self.st3["cnt"]))
-        return float(self.probe.score(torch.cat(parts).numpy()))
+        return torch.cat(parts).numpy()
+
+    def _score_now(self):
+        v = self._feat_now()
+        return None if v is None else float(self.probe.score(v))
+
+    def _act_now(self):
+        """P(info-seeking) from the same read; None = act gate off."""
+        import numpy as np
+        if self.act is None:
+            return None
+        v = self._feat_now()
+        if v is None:
+            return None
+        z = float(v @ np.array(self.act["w"], dtype=v.dtype)) \
+            + self.act["b"]
+        return float(1.0 / (1.0 + np.exp(-z)))
 
     def _session_reset(self):
         import librosa
@@ -383,15 +406,24 @@ class DuplexVoice:
                         fired_now = False
                         if prev_listen and not r["is_listen"]:
                             # the talker just decided to answer — the
-                            # gate reads exactly here
+                            # gate reads exactly here. 8bh: floor-
+                            # management commits (stop words,
+                            # backchannel replies) must not escalate.
+                            act = self._act_now()
+                            is_info = (act is None
+                                       or act >= self.act[
+                                           "act_threshold"])
                             fired = bool(probe_on and score is not None
-                                         and score >= thr
+                                         and score >= thr and is_info
                                          and not thinking.is_set())
                             fired_now = fired
                             emit({"type": "gate",
                                   "score": (None if score is None
                                             else round(score, 4)),
                                   "thr": round(thr, 4), "fired": fired,
+                                  "act": (None if act is None
+                                          else round(act, 4)),
+                                  "is_info": bool(is_info),
                                   "probe_on": probe_on})
                             if fired:
                                 thinking.set()
@@ -633,7 +665,9 @@ function handle(m){
   if(m.listen)$("#state").textContent=
    `listening · running P(fail)=${m.v.toFixed(3)}`;}
  else if(m.type==="gate")log(`TALKER COMMITS — P(fail)=${m.score} vs thr `
-  +`${m.thr} → ${m.fired?"ESCALATE (thinker launched)":"stay local"}`
+  +`${m.thr}`+(m.act==null?"":` · P(info)=${m.act}`)
+  +` → ${m.fired?"ESCALATE (thinker launched)":
+   (m.is_info===false?"floor turn — gate bypassed":"stay local")}`
   +(m.probe_on?"":" [probe off]"),m.fired?"esc":"");
  else if(m.type==="log")log(m.msg,"off");
  else if(m.type==="error")log("ERROR: "+m.msg,"esc");

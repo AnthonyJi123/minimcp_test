@@ -34,6 +34,9 @@ FIGS = [
 <b>好的一半</b>：backchannel（"嗯""okay"）几乎从不打断它（误停 3/24），<b>没有任何 ASR/词表参与</b>——旧 harness 要靠 hosted ASR 才做到的事，模型原生就会。
 <b>差的一半</b>：短命令"Stop!"只有 25% 在 6 秒内让位——原生 head 读的是<b>持续语音</b>不是命令；旧的能量 VAD 反而切得更快。这是自然度换可靠性的真实 trade，不藏。
 <b>右图的发现</b>：escalation 等待期来一个<b>新问题</b>，70% 的 pending relay 会被冲掉（head 自己转场了）——这是"用户说话时要 abort 后台 thinker"的最强实证，已列为部署项。
+<b>后续修复（8bh，已部署）</b>：用户发现 stop words 本身会触发 escalation 判断（"停"被送给 gpt-5.5）。
+根因：full-duplex 里很多 commit 是话轮管理不是回答问题，失败 probe 在那里是分布外的（aggressive 档对 stop 命令误触发 45%）。
+修复：同一 L22 读点再加一个"信息型 vs 话轮管理"线性头（OOF AUC 1.000，完全线性可分），双条件才升级——损失 0.5% 真升级，误触发归零。
 <b>公平吗</b>：脚本化注入、固定偏移、in-process 与部署同一条 chunk 循环；stim 音频与 8ba 完全同一批。
 """),
     ("fair_dualview", "图1 · 我们的数据集 — escalation vs acc（speakable 子集 n=218）", "win", """

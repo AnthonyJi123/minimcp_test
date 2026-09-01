@@ -1407,6 +1407,22 @@ expert p50 4.4--5.7\,s, wait p50 5--6 chunks, fire$\to$relay first
 audio p50 $\sim$7--8\,s. Selection is visible live: unfired subsets
 score .478/.573 against the .371 unconditional local floor.
 
+\paragraph{Dialogue-act gating.} Full duplex creates commits that are
+not answers: after a barge-in or a backchannel the head speaks to
+\emph{manage the floor} (``Okay.''), and the failure probe is
+out-of-distribution there --- on 194 TTS'd floor-management stims
+(stop commands, backchannels, acknowledgments, fillers; en+zh) the
+unmodified gate false-fires on 37\% at the aggressive tier (stop
+commands 45\%), i.e.\ it would escalate ``stop'' to the expert. The
+fix is a second linear head on the \emph{same} L22 read ---
+info-seeking vs.\ floor-management --- which separates the two acts
+perfectly (OOF AUC 1.000); thresholded at the question-side 0.5th
+percentile it costs 0.5\% of true escalations and admits 0\% of floor
+stims. Escalation requires \emph{both} heads:
+$\mathrm{act}\ge\tau_a \wedge P(\mathrm{fail})\ge\tau$. The deployed
+demo answers floor turns naturally and reports the act score per
+commit; the failure probe's calibration is untouched.
+
 \paragraph{Floor control, natively.} With the harness gone, 8ba's
 question re-poses on the head itself (108 scripted overlap trials,
 stims spoken over the talker at fixed offsets). During answer speech,

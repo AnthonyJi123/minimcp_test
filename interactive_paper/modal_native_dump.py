@@ -117,6 +117,7 @@ FEAT_POOLS = {
     "sdqa":       (f"{DATA}/queries_sdqa.jsonl",       f"{DATA}/sdqa_audio"),
     "sreason":    (f"{DATA}/queries_sreason.jsonl",    f"{DATA}/bench_audio"),
     "valpaca":    (f"{DATA}/queries_valpaca.jsonl",    f"{DATA}/bench_audio"),
+    "flooract":   (f"{DATA}/queries_flooract.jsonl",   f"{DATA}/flooract_audio"),
 }
 
 

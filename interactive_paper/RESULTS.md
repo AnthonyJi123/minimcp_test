@@ -4888,3 +4888,34 @@ Deliverable framing: remix tables are the headline (validated at
 balanced), live aggressive documents the relay-channel cost as the
 native analogue of the uplink cost — same "channel, not selection"
 decomposition as the turn-based story.
+
+## Phase 8bh — dialogue-act gate: stop words must not escalate (2026-09-01)
+
+**User-caught bug:** floor-management utterances ("stop", "停",
+"别说了", backchannels) hit the same listen→speak commit as questions;
+the failure probe is OOD there and the gate escalated "stop" to
+gpt-5.5. Quantified on 194 TTS'd floor stims (stop/backchannel/ack/
+filler, en+zh, 2 voices, standalone-from-silence): 0% false-fire at
+balanced/conservative but **37% at aggressive (stop commands 45%)**;
+live mid-conversation contexts are worse (the user hit it at
+balanced — user_mean then carries prior-turn audio).
+
+**Fix (deployed):** a second linear head on the SAME L22 read —
+info-seeking vs floor-management. Training: 2310 native question
+features (pos) vs the 194 stims (neg). **OOF AUC 1.0000** — the act
+distinction is perfectly linearly separable at L22. Threshold at the
+question-side 0.5th percentile: loses 0.52% of true escalations,
+passes 0% of floor stims. Escalation condition is now
+act≥thr ∧ P(fail)≥tier. The validated 8be failure-probe calibration
+is untouched by design.
+
+**Live smoke:** 6 stop/backchannel stims through the deployed demo —
+act .0006-.061 → "floor turn — gate bypassed", zero escalations, model
+answers floor turns naturally ("Okay."); several backchannels caused
+no commit at all (no gate read — the ideal case).
+
+Files: modal_flooract.py (stim inventory + TTS), scripts/24_act_probe.py,
+data/gate_act.json, figures/act_probe.json; demo_duplex.py wires the
+act term and reports P(info) in the gate event. Caveat: negatives are
+standalone stims; mid-conversation floor acts are covered by the live
+smoke but not yet by a systematic sweep.
