@@ -4996,3 +4996,94 @@ change re-opens calibration — the L22 signals separate perfectly each
 time (act AUC 1.000 twice), but thresholds and coverage must follow
 deployment. Ten minutes of live use found what 3,000 scripted rows
 did not; interactive evaluation is not optional (the venue's point).
+
+## Phase 8bk — the head has no mid-turn yield channel (2026-09-01) ⭐ mechanism
+
+**User observation:** said "stop" at count three; the model counted to
+ten. Interruptions during a committed answer only take effect "at the
+last micro-turn".
+
+**Hypothesis tested (and refuted):** the serving wrapper force-rewrites
+a mid-turn sampled <|listen|> to tts_bos ("not allowed to listen"), so
+maybe the head WAS reacting and the wrapper was eating the signal.
+Instrumented the rewrite (modal_native_listen.py, 36 trials, TTS-on
+pacing, "count slowly to thirty" carrier, stop/sustained stim at 2
+chunks after onset, plus a yield mode honoring >=2 attempts as
+turn_eos): **mid-turn listen attempts = 0 in every chunk of every
+trial**. The rewrite is dead code; the head never samples listen
+mid-turn at all.
+
+**The real mechanism:** the head's only native stop is <|turn_eos|>,
+trained to fire at answer completion points. Interruption handling is
+therefore TURN-granular, not token-granular — post-stop latency is
+bounded by remaining answer length (stop-stim post median ~10 chunks,
+range 1-14; sustained-stim similar; and 1/12 unstimmed trials
+spontaneously quit after "one", so mid-answer turn_eos is
+high-variance, not a controllable channel). 8bf's "stop yields 3/12"
+now has its explanation: not insensitivity — a missing channel.
+
+Paper placement: floor-control paragraph of app:native — first
+mechanism-level evidence that current full-duplex ALM interruption
+operates at turn granularity. Product mitigations (client-side
+playback cut, prompt steering) are harness-tier and deliberately not
+deployed; the demo stays honestly native. Instrumentation
+(listen_attempts telemetry + dormant allow_midturn_yield) ships in
+_model_src, behavior-neutral by default.
+
+## Phase 8bl — the user was right: serving config was masking native interruptibility ⭐⭐ (2026-09-01)
+
+**User challenge:** "give me a stock MiniCPM demo with none of our
+mechanisms — I suspect your probe-off ≠ vanilla." Built demo_vanilla.py
+(bare prefill/generate loop, zero hooks, cfg=official|ours toggle)
+after diffing the official pytorch-simple-demo serving stack:
+top_k 20 vs our 100 (as_duplex class default), force_listen_count 3
+vs 0, assistant-style system prompt vs "Streaming Omni Conversation.".
+Duplex DECODE code is byte-identical (incl. the mid-turn listen
+suppression, official l.3100); official's length_penalty knob is
+turn-based-path only.
+
+**Scripted A/B (count-to-thirty + "stop" 2 s into the answer, n=3):**
+  official config: post-stop 2.2 / 2.0 / 2.0 s — clean mid-enumeration
+                   yields, three for three
+  our config:      12.9 / 4.0 / 1.0 s — one full count to thirty
+**The head CAN stop mid-answer ~2 s after a stop command.** top_k=100
+dilutes sampling enough that the rising turn_eos rarely gets picked;
+8bf's "stop 3/12" and 8bk's "turn-granular, latency bounded by answer
+length" were measured under our mis-configured serving and OVERSTATE
+the limitation. 8bk's mechanism half stands (listen is never sampled
+mid-turn; turn_eos is the only stop channel) — but that channel is
+RESPONSIVE under the official config.
+
+**Actions:** demo_duplex aligned to official (top_k 20, force_listen 3,
+assistant prompt) and redeployed; config change = another probe-regime
+micro-shift, so test-240 re-dumped under the aligned config (probe
+kept if AUC holds, else recalib); floor ans-arm rerunning under
+aligned config for corrected 8bf numbers; 8bk paper paragraph to be
+rewritten. Control demo stays deployed for side-by-side:
+rhe9527--vanilla-duplex.modal.run. Meta: the vanilla control arm
+should have existed from day one — config parity with the reference
+serving stack is part of "native".
+
+### 8bl continued — corrected floor numbers, probe verdict, threshold interim (2026-09-01)
+
+**Corrected floor-control (real ws loop, official config, n=6/stim):**
+  stop:        med 2.1 s post-stim (4/6 yield ≤2.6 s; 2/6 complete)
+  backchannel: med 11.7 s = natural completion; min 6.8 s; 0/6 false stop
+  question:    med 5.4 s (1.7–21.8)
+Native discrimination AND native responsiveness both present, zero
+harness. Replaces 8bf's stop numbers (measured under wrong config AND
+a low-fidelity in-process harness — floor2 rerun under official config
+still failed to yield, so the in-process no-TTS/GSM-carrier harness is
+NOT deployment-faithful for stop-latency claims; ws-loop measurements
+are canonical from here).
+
+**Probe under official config: weights survive, thresholds don't (4th
+time).** Old-config-trained probe on official-config test-240 features:
+AUC .846 (was .830 — better). Fire rates collapsed (balanced 11% vs
+nominal 30) — score distribution shifted down. Also: official config
+IMPROVES the local floor .371→.429 (top_k 20 helps answers, not just
+stops). Interim: thresholds re-quantiled on official-cfg test scores
+(cons .559 / bal .399 / agg .222), deployed. Proper: full calib mix
+(2310+fresh) re-dumping under official config overnight; refit check +
+final quantiles tomorrow; validity tables to be refreshed with the
+.429 floor and official-config scores.

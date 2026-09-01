@@ -129,7 +129,8 @@ FEAT_POOLS = {
 def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                  audio_dir: str = f"{DATA}/audio_pool",
                  temperature: float = 0.0,
-                 carrier: str = "") -> list:
+                 carrier: str = "",
+                 official_cfg: int = 0) -> list:
     """carrier: path to a question wav. If set, every query becomes the
     SECOND turn of a session: carrier question -> model answers to
     end_of_turn (capped) -> per-deployment sum/cnt reset -> target
@@ -157,6 +158,11 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
     ).eval().cuda()
     _ = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
     duplex = model.as_duplex(generate_audio=False)
+    if official_cfg:      # 8bl: official serving config
+        duplex.force_listen_count = 3
+    SYS = ("You are a friendly assistant." if official_cfg
+           else "Streaming Omni Conversation.")
+    GKW = {"top_k": 20} if official_cfg else {}
     ref, _sr = librosa.load(PROMPT_WAV, sr=16000, mono=True)
     print(f">>> native-dump shard{shard_id}: {len(shard)} queries",
           flush=True)
@@ -205,8 +211,9 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
             st3["accum"] = False
             if not ok.get("success"):
                 continue
-            rr = (duplex.streaming_generate(temperature=temperature)
-                  if temperature else duplex.streaming_generate())
+            rr = (duplex.streaming_generate(temperature=temperature,
+                                             **GKW)
+                  if temperature else duplex.streaming_generate(**GKW))
             if not rr["is_listen"]:
                 onset = onset if onset is not None else ci
                 spoke += 1
@@ -230,7 +237,7 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                       if len(c) < 16000 else c for c in chunks]
 
             duplex.prepare(
-                prefix_system_prompt="Streaming Omni Conversation.",
+                prefix_system_prompt=SYS,
                 ref_audio=ref, prompt_wav_path=None)
             st3.update(tail=None, sum=None, cnt=0, accum=False)
             car_ended = run_carrier() if car_chunks else None
@@ -246,8 +253,9 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                 st3["accum"] = False
                 if not ok.get("success"):
                     continue
-                r = (duplex.streaming_generate(temperature=temperature)
-                     if temperature else duplex.streaming_generate())
+                r = (duplex.streaming_generate(temperature=temperature,
+                                                **GKW)
+                     if temperature else duplex.streaming_generate(**GKW))
                 if r["is_listen"]:
                     if onset_chunk is not None and eot_seen:
                         break
@@ -447,7 +455,7 @@ def _read_qfile(qfile: str, split: str = "") -> list:
 @app.local_entrypoint()
 def run_native(pool: str = "frozen", workers: int = 4, limit: int = 0,
                split: str = "", tag: str = "", temp: float = 0.0,
-               carrier: str = ""):
+               carrier: str = "", official: int = 0):
     assert tag, "pass --tag (calib/exp/exp2/test/<pool>)"
     qfile, audio_dir = FEAT_POOLS[pool]
     qs = _read_qfile.remote(qfile, split)
@@ -460,5 +468,5 @@ def run_native(pool: str = "frozen", workers: int = 4, limit: int = 0,
           f"{len(qs)} queries, {workers} workers")
     done = list(native_shard.starmap(
         [(shards[i], i if not limit else -1, tag, audio_dir, temp,
-          carrier) for i in range(workers)]))
+          carrier, official) for i in range(workers)]))
     print(f">>> complete: {sum(len(d) for d in done)} traces")

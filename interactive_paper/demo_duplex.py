@@ -49,6 +49,14 @@ weights = modal.Volume.from_name("minicpm-o45-weights")
 DATA = "/data"
 MODEL_DIR = "/workspace/models/MiniCPM-o-4_5"
 PROMPT_WAV = f"{MODEL_DIR}/assets/system_ref_audio.wav"
+# 8bl: serve with the OFFICIAL duplex config. The A/B control demo
+# showed post-stop yield 2.0s (official: top_k=20, force_listen=3,
+# assistant prompt) vs 1-13s high-variance under as_duplex defaults
+# (top_k=100) — our old config was masking the head's native
+# mid-answer turn_eos responsiveness.
+GEN_TOP_K = 20
+FORCE_LISTEN = 3
+SYS_PROMPT = "You are a friendly assistant."
 LAYER = 22
 TIERS = ("conservative", "balanced", "aggressive")
 
@@ -254,8 +262,9 @@ class DuplexVoice:
     def _session_reset(self):
         import librosa
         ref, _ = librosa.load(PROMPT_WAV, sr=16000, mono=True)
+        self.duplex.force_listen_count = FORCE_LISTEN
         self.duplex.prepare(
-            prefix_system_prompt="Streaming Omni Conversation.",
+            prefix_system_prompt=SYS_PROMPT,
             ref_audio=ref, prompt_wav_path=PROMPT_WAV)
         self.st3.update(tail=None, sum=None, cnt=0, accum=False)
 
@@ -391,7 +400,8 @@ class DuplexVoice:
                             self.duplex.streaming_prefill(
                                 text_list=[RELAY_TMPL.format(ans=ans)])
                             r = self.duplex.streaming_generate(
-                                prompt_wav_path=PROMPT_WAV)
+                                prompt_wav_path=PROMPT_WAV,
+                                top_k=GEN_TOP_K)
                             _emit_gen(r, relay=True)
                             if not r.get("text"):
                                 emit({"type": "log",
@@ -399,7 +409,8 @@ class DuplexVoice:
                                 self.duplex.streaming_prefill(
                                     text_list=[RELAY_NUDGE])
                                 r = self.duplex.streaming_generate(
-                                    prompt_wav_path=PROMPT_WAV)
+                                    prompt_wav_path=PROMPT_WAV,
+                                    top_k=GEN_TOP_K)
                                 _emit_gen(r, relay=True)
                             prev_listen = r["is_listen"]
 
@@ -417,7 +428,8 @@ class DuplexVoice:
                                          f"{ok.get('reason', '')[:80]}"})
                             continue
                         r = self.duplex.streaming_generate(
-                            prompt_wav_path=PROMPT_WAV)
+                            prompt_wav_path=PROMPT_WAV,
+                            top_k=GEN_TOP_K)
                         n_chunk += 1
 
                         score = self._score_now()
@@ -476,7 +488,8 @@ class DuplexVoice:
                             self.duplex.streaming_prefill(
                                 text_list=[STALL_NOTE])
                             r = self.duplex.streaming_generate(
-                                prompt_wav_path=PROMPT_WAV)
+                                prompt_wav_path=PROMPT_WAV,
+                                top_k=GEN_TOP_K)
                             _emit_gen(r)
                         if r.get("end_of_turn"):
                             # local turns: the talker's own answer carries

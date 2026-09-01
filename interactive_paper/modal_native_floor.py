@@ -42,7 +42,7 @@ PROMPT_WAV = f"{MODEL_DIR}/assets/system_ref_audio.wav"
 LAYER = 22
 K3 = 8
 STIM_DIR = f"{DATA}/floor_sweep/stim"
-OUT_DIR = f"{DATA}/native_floor"
+OUT_DIR = f"{DATA}/native_floor2"   # 8bl: official-config rerun
 ART = f"{DATA}/gate_native.json"     # written by scripts/22
 WAIT_CHUNKS = 6                      # fake-thinker wait (deterministic)
 YIELD_K = 6                          # yield window after stim onset
@@ -115,6 +115,7 @@ def floor_shard(trials: list, shard_id: int = -1) -> list:
     ).eval().cuda()
     _ = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True)
     duplex = model.as_duplex(generate_audio=False)
+    duplex.force_listen_count = 3          # 8bl official config
     ref, _sr = librosa.load(PROMPT_WAV, sr=16000, mono=True)
 
     art = json.load(open(ART))
@@ -159,7 +160,7 @@ def floor_shard(trials: list, shard_id: int = -1) -> list:
     def gen_unit(text=None):
         if text is not None:
             duplex.streaming_prefill(text_list=[text])
-        return duplex.streaming_generate()
+        return duplex.streaming_generate(top_k=20)
 
     results = []
     for ti, t in enumerate(trials):
@@ -169,7 +170,7 @@ def floor_shard(trials: list, shard_id: int = -1) -> list:
                          else load16(f"{DATA}/audio_pool/{t['stim']}.wav"))
 
         duplex.prepare(
-            prefix_system_prompt="Streaming Omni Conversation.",
+            prefix_system_prompt="You are a friendly assistant.",
             ref_audio=ref, prompt_wav_path=None)
         st3.update(tail=None, sum=None, cnt=0, accum=False)
 
@@ -192,7 +193,7 @@ def floor_shard(trials: list, shard_id: int = -1) -> list:
                 if not ok.get("success"):
                     rec["pattern"] += "x"
                     continue
-                r = duplex.streaming_generate()
+                r = duplex.streaming_generate(top_k=20)
                 rec["pattern"] += "L" if r["is_listen"] else "S"
                 if r.get("text"):
                     rec["texts"].append(r["text"])

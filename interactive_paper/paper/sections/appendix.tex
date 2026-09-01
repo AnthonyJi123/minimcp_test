@@ -1470,7 +1470,27 @@ median 8.5 post-stim); short burst commands (``Stop!'') mostly do not
 naturalness-for-reliability trade the old energy-VAD did not make.
 The escalation machinery is floor-transparent where it should be:
 relays complete under overlapping stims (26/30), and backchannels
-during the thinker wait leave the pending relay intact (8/10). The
+during the thinker wait leave the pending relay intact (8/10).
+The weak stop-command sensitivity decomposed into two causes, found
+in sequence. \emph{Mechanism}: instrumenting the serving loop shows
+the head never samples $\langle$listen$\rangle$ mid-turn --- zero
+attempts across 36 trials --- so its only stop channel is the
+turn-end token. \emph{Configuration}: a user-demanded vanilla control
+(the bare official serving stack, no gate machinery) revealed that
+our loop had inherited the checkpoint wrapper's sampling defaults
+($k{=}100$) rather than the official demo's serving config
+($k{=}20$, a 3-chunk startup listen guard, an assistant-style system
+prompt). Under the official config the turn-end channel is
+\emph{responsive}: a spoken ``stop'' two seconds into an enumeration
+answer ends the turn in 2.0--2.2\,s in 3/3 scripted sessions, versus
+1--13\,s (once running the answer to completion) under the inherited
+defaults --- wide-$k$ sampling dilutes away the rising turn-end
+probability. The deployed demo now serves the official config, and
+the earlier floor-control stop numbers measured under the inherited
+defaults should be read as a lower bound on native responsiveness.
+Two durable lessons: serving-parameter parity with the reference
+stack is part of ``native'', and a vanilla control arm belongs in the
+harness from day one. The
 one true interaction: a \emph{new question} during the wait derails
 the pending relay 7/10 times --- the head simply moves on --- which is
 the empirical case for aborting the in-flight expert call on user
