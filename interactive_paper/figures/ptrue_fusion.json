@@ -1,0 +1,89 @@
+{
+ "anchor_shipped": 0.818,
+ "C": 0.0003,
+ "probe": {
+  "oof_auc": 0.775,
+  "test_auc": 0.818
+ },
+ "solo": {
+  "p_yes_pre": {
+   "calib_auc": 0.807,
+   "test_auc": 0.805
+  },
+  "p_yes_post": {
+   "calib_auc": 0.899,
+   "test_auc": 0.76
+  }
+ },
+ "fusion": {
+  "probe+pre": {
+   "stacker_oof_auc": 0.824,
+   "test_auc": 0.845,
+   "delta_vs_probe": [
+    0.027,
+    -0.011,
+    0.065
+   ]
+  },
+  "probe+post": {
+   "stacker_oof_auc": 0.896,
+   "test_auc": 0.794,
+   "delta_vs_probe": [
+    -0.024,
+    -0.075,
+    0.027
+   ]
+  },
+  "probe+pre+post": {
+   "stacker_oof_auc": 0.908,
+   "test_auc": 0.814,
+   "delta_vs_probe": [
+    -0.004,
+    -0.057,
+    0.049
+   ]
+  }
+ },
+ "remix": {
+  "probe": {
+   "conservative": {
+    "esc_rate": 0.15,
+    "acc": 0.558,
+    "random_matched": 0.511,
+    "perm_p": 0.0
+   },
+   "balanced": {
+    "esc_rate": 0.329,
+    "acc": 0.617,
+    "random_matched": 0.543,
+    "perm_p": 0.0
+   },
+   "aggressive": {
+    "esc_rate": 0.525,
+    "acc": 0.675,
+    "random_matched": 0.579,
+    "perm_p": 0.0
+   }
+  },
+  "fusion_pre": {
+   "conservative": {
+    "esc_rate": 0.183,
+    "acc": 0.571,
+    "random_matched": 0.517,
+    "perm_p": 0.0005
+   },
+   "balanced": {
+    "esc_rate": 0.35,
+    "acc": 0.642,
+    "random_matched": 0.547,
+    "perm_p": 0.0
+   },
+   "aggressive": {
+    "esc_rate": 0.508,
+    "acc": 0.679,
+    "random_matched": 0.577,
+    "perm_p": 0.0
+   }
+  }
+ }
+}

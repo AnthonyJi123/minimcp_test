@@ -5052,3 +5052,53 @@ a lever.
   docstring: mixing exp3zh in makes sreason in-domain; report it as
   such or keep it out of the external-transfer probe. Est. ~$80–100
   all-in; NOT run this session (no Modal creds in the remote env).
+
+## Phase 8bl — probe ⊕ p(True) fusion, internal half: the 5b signal is additive ($0 local, 2026-09-01)
+
+User push: "I want probe accuracy UP — what have you actually run?"
+First actually-executed experiment of the margin worklist: the
+representation-layer lever (8bk item 3), run on in-repo data only
+(frozen_conc_{calib,test} feats + ptrue shards + v3 labels), no GPU.
+`scripts/28_ptrue_fusion.py` → `figures/ptrue_fusion.json`.
+
+**Sanity anchor reproduces exactly**: shipped conc-360 probe on local
+test-240 feats = AUC .818 (8bb's number to the third digit). 5b's calib
+AUCs also reproduce (.807 pre / .899 post).
+
+**AUC (internal test-240, logit-stacker trained on calib OOF):**
+
+| signal | calib | test | Δ vs probe [95% CI] |
+|---|---:|---:|---|
+| probe (12,288-d L22) | .775 OOF | .818 | — |
+| ptrue_pre SOLO (1 scalar) | .807 | .805 | — |
+| ptrue_post solo | .899 | .760 | (mis-calibrates calib→test) |
+| **probe ⊕ pre** | .824 | **.845** | +.027 [−.011, +.065] n.s. |
+| probe ⊕ post | .896 | .794 | −.024 (post drags) |
+
+**Margin translation (remix vs matched-random, calib-quantile thr):**
+balanced probe +.073 → fusion **+.095** (~+30% relative), aggressive
++.096 → +.102, conservative +.048 → +.053. All perm p ≤ .0005.
+
+Readings. (1) One pre-answer scalar ≈ the whole 12,288-d probe — and
+they are partially COMPLEMENTARY, not redundant: the stack gains on
+both AUC and margin. (2) n=240 cannot make +.027 significant; the
+powered test is EXTERNAL, which is also where the complementarity
+should peak (probe external mean .709; 5b: ptrue transfers per-pool
+with no inversion, hard-math pre .809 where probe LOPO sat at .377,
+trap pool pre .945 vs probe .328). (3) ptrue_post is out: it
+mis-calibrates calib→test here, consistent with 5b's trap degradation.
+
+**Deployability caveat (the reason the gate went probe-only, on
+record):** ptrue collapses under AUDIO input on the deployed backbone
+(app:audioptrue — trap p_yes .055→.556, "trap dead"), and the same
+appendix records the fix, confirmed twice: repeat-then-judge on the
+model's OWN transcript restores introspection. So the deployed shape
+is: at onset, L22 probe (free) ⊕ one short text prefill "Would you
+answer this correctly? <own transcript>" → P(Yes) → stacker. Cost per
+turn: one short prefill + 1-token decode (5b: "fits the streaming
+design").
+
+**GPU half (blocked on Modal creds in this env):** (a) collect
+repeat-then-judge ptrue_pre on the audio pools (calib/test + the five
+external, ~$2-3 by 5b costing); (b) external fusion eval — THE
+decisive number; (c) if it holds, wire the stacker into demo_duplex.
