@@ -5366,3 +5366,51 @@ recomputed). Their artifact preserved as data/gate_native_v2exp3.json.
 TODO for the exp3zh merge: re-dump exp3/exp3zh under the OFFICIAL
 config and refit via scripts/26, else the zh fix trains on the wrong
 serving distribution. Coordination needed on artifact ownership.
+
+## Phase 8bo — expansion3 lands (default config): the scaling curve pays out on schedule (~$75 GPU + ~$8 API, 2026-09-01)
+
+The 8bk' data lever, executed end-to-end this session: 2300 en (7
+families, seed 45, deduped) + 400 zh v2 (MGSM 250 + XCOPA 150) → TTS →
+turn-based answers → judge (en fail mix: longtail .838, multihop .762,
+trap .567, mmlu .295, commonsense .273, openbook .175, easymath .105;
+zh: mathword .284, causal .120) → native dump under the DEFAULT serving
+config (en 2300 traces / 1 no_speak; zh 400 / 0).
+
+**scripts/22 refit, 5009 rows (C=3e-4):** internal .834 — flat, as the
+8bb saturation predicted. External mean **.709 → .736** — the measured
++.02-per-doubling curve continues exactly on schedule
+(scaling_curve extended in figures/native_refit.json; scripts/22 now
+carries the curve forward instead of dropping it). Per-pool Δ vs
+conc-2310: sllama +.155 [+.085,+.228], **sreason +.169 [+.085,+.251] —
+the zh axis moves for the first time** (Reasoning-zh .606 → .659 vs the
+old native probe; 400 zh calib rows did what 4,600 en rows never
+touched).
+
+**scripts/25 (v2 recipe + exp3):** guards pass — internal .836, fresh
+fast-fire .36/.73/1.00 (stronger than 8be's .23/.57/.98), never-heldout
+.00/.00/.56. The 5,252-row artifact is preserved as
+`gate_native_v2exp3.json` (see collision note below).
+
+**scripts/26/27/29 rerun on the exp3 probe:** receipt external mean
+.709 → .733 across the board (n=5252 recipe); en global-threshold
+drift shrinks (aggressive realized .30–.71 vs .50–.90 before); sreason
+still fires 0% at global thresholds — per-pool/windowed quantiles
+remain the deployable fix (fires at nominal). Fusion still adds on top
+of the stronger probe: internal .836 → .862 (+.026 [+.004,+.048], still
+significant), striviaqa +.030 [+.000,+.062], swebq/sllama/sdqa positive
+n.s., sreason −.021. **Wire-into-demo criterion: HALF-met** —
+significant internally + 1/5 external, margin translation flat outside
+striviaqa, zh negative. Recommendation: stacker behind a default-off
+flag; decision deferred to the user (touches live latency).
+
+**Track collision, resolved in-flight:** this ran concurrently with the
+8bl official-config track, which deployed the 2542-row official gate
+and re-dumped externals under official serving (en-4 .760, zh .495 —
+"exp3zh is exactly the medicine"). My scripts/22+25 briefly overwrote
+data/gate_native.json; the other session caught it, restored the
+official gate, and preserved this track's probe as
+gate_native_v2exp3.json. Convergence step ALREADY IN FLIGHT: exp3 +
+exp3zh re-dumped under official config (tags exp3off / exp3zhoff,
+8×H100 + 2×H100) → official refit with the 5,409-row core → the merged
+probe (official serving ⊕ expanded en ⊕ zh axis) becomes the deployment
+candidate.

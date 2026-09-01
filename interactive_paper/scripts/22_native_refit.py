@@ -81,8 +81,8 @@ def main():
                           ("exp", "expansion_labels.parquet"),
                           ("exp2", "expansion2_labels.parquet"),
                           # optional expansion3 parts (modal_train3.py);
-                          # NB adding exp3zh makes sreason in-domain —
-                          # see the method note in modal_train3.py
+                          # exp3zh v2 = MGSM+XCOPA zh, source-disjoint
+                          # from sreason, which stays fully external
                           ("exp3", "expansion3_labels.parquet"),
                           ("exp3zh", "expansion3zh_labels.parquet")]:
         try:
@@ -184,7 +184,21 @@ def main():
            "train_n": int(len(y_tr)), "eot_thresholds": thr,
            "recipe": "scripts/22 native-duplex in-regime refit (8be)"}
     (D / "gate_native.json").write_text(json.dumps(art))
-    Path("figures/native_refit.json").write_text(json.dumps(out, indent=1))
+    # carry the scaling curve forward and append this run's full-mix
+    # point (the gallery figure reads it)
+    rf = Path("figures/native_refit.json")
+    curve = []
+    if rf.exists():
+        curve = json.loads(rf.read_text()).get("scaling_curve", [])
+    ext = [v["auc_native"][0] for k, v in out["pools"].items()
+           if k != "internal_test"]
+    curve = [p for p in curve if p["n"] != out["train_n"]]
+    curve.append({
+        "n": out["train_n"],
+        "auc_internal": out["pools"]["internal_test"]["auc_native"][0],
+        "auc_external_mean": round(sum(ext) / len(ext), 3)})
+    out["scaling_curve"] = sorted(curve, key=lambda p: p["n"])
+    rf.write_text(json.dumps(out, indent=1))
     print("\nwrote data/gate_native.json + figures/native_refit.json")
 
 

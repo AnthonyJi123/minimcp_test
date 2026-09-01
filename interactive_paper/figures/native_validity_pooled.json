@@ -16,33 +16,33 @@
     "random_matched": 0.415,
     "perm_p": 0.1105,
     "windowed": {
-     "esc_rate": 0.143,
-     "acc": 0.479,
-     "random_matched": 0.426,
-     "perm_p": 0.0015
+     "esc_rate": 0.114,
+     "acc": 0.45,
+     "random_matched": 0.417,
+     "perm_p": 0.029
     }
    },
    "balanced": {
     "esc_rate": 0.3,
-    "acc": 0.525,
+    "acc": 0.537,
     "random_matched": 0.459,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.293,
-     "acc": 0.536,
-     "random_matched": 0.47,
-     "perm_p": 0.003
+     "esc_rate": 0.286,
+     "acc": 0.543,
+     "random_matched": 0.451,
+     "perm_p": 0.0
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.613,
+    "acc": 0.608,
     "random_matched": 0.519,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.464,
+     "esc_rate": 0.479,
      "acc": 0.614,
-     "random_matched": 0.513,
+     "random_matched": 0.516,
      "perm_p": 0.0
     }
    },
@@ -67,14 +67,14 @@
    },
    "conservative": {
     "esc_rate": 0.152,
-    "acc": 0.712,
+    "acc": 0.7,
     "random_matched": 0.658,
-    "perm_p": 0.0,
+    "perm_p": 0.0005,
     "windowed": {
-     "esc_rate": 0.127,
-     "acc": 0.64,
-     "random_matched": 0.613,
-     "perm_p": 0.0455
+     "esc_rate": 0.187,
+     "acc": 0.693,
+     "random_matched": 0.652,
+     "perm_p": 0.011
     }
    },
    "balanced": {
@@ -83,22 +83,22 @@
     "random_matched": 0.703,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.26,
-     "acc": 0.767,
-     "random_matched": 0.688,
+     "esc_rate": 0.3,
+     "acc": 0.78,
+     "random_matched": 0.705,
      "perm_p": 0.0
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.844,
-    "random_matched": 0.763,
+    "acc": 0.852,
+    "random_matched": 0.764,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.54,
-     "acc": 0.86,
-     "random_matched": 0.768,
-     "perm_p": 0.0
+     "esc_rate": 0.527,
+     "acc": 0.833,
+     "random_matched": 0.782,
+     "perm_p": 0.0115
     }
    },
    "always": {
@@ -122,38 +122,38 @@
    },
    "conservative": {
     "esc_rate": 0.152,
-    "acc": 0.472,
+    "acc": 0.476,
     "random_matched": 0.456,
-    "perm_p": 0.1325,
+    "perm_p": 0.0815,
     "windowed": {
-     "esc_rate": 0.127,
-     "acc": 0.44,
-     "random_matched": 0.433,
-     "perm_p": 0.411
+     "esc_rate": 0.167,
+     "acc": 0.48,
+     "random_matched": 0.464,
+     "perm_p": 0.215
     }
    },
    "balanced": {
     "esc_rate": 0.3,
-    "acc": 0.552,
+    "acc": 0.56,
     "random_matched": 0.519,
-    "perm_p": 0.0225,
+    "perm_p": 0.0045,
     "windowed": {
-     "esc_rate": 0.28,
-     "acc": 0.553,
-     "random_matched": 0.504,
-     "perm_p": 0.009
+     "esc_rate": 0.313,
+     "acc": 0.607,
+     "random_matched": 0.558,
+     "perm_p": 0.0145
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.648,
+    "acc": 0.652,
     "random_matched": 0.604,
-    "perm_p": 0.004,
+    "perm_p": 0.0025,
     "windowed": {
-     "esc_rate": 0.433,
-     "acc": 0.62,
+     "esc_rate": 0.533,
+     "acc": 0.607,
      "random_matched": 0.582,
-     "perm_p": 0.0675
+     "perm_p": 0.159
     }
    },
    "always": {
@@ -177,38 +177,38 @@
    },
    "conservative": {
     "esc_rate": 0.152,
-    "acc": 0.824,
+    "acc": 0.82,
     "random_matched": 0.783,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.153,
-     "acc": 0.793,
-     "random_matched": 0.748,
-     "perm_p": 0.0
+     "esc_rate": 0.14,
+     "acc": 0.833,
+     "random_matched": 0.812,
+     "perm_p": 0.054
     }
    },
    "balanced": {
     "esc_rate": 0.3,
     "acc": 0.84,
-    "random_matched": 0.805,
-    "perm_p": 0.007,
+    "random_matched": 0.806,
+    "perm_p": 0.004,
     "windowed": {
-     "esc_rate": 0.28,
+     "esc_rate": 0.3,
      "acc": 0.84,
-     "random_matched": 0.823,
-     "perm_p": 0.151
+     "random_matched": 0.809,
+     "perm_p": 0.041
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.86,
+    "acc": 0.864,
     "random_matched": 0.836,
-    "perm_p": 0.0435,
+    "perm_p": 0.027,
     "windowed": {
-     "esc_rate": 0.513,
-     "acc": 0.847,
-     "random_matched": 0.805,
-     "perm_p": 0.017
+     "esc_rate": 0.5,
+     "acc": 0.867,
+     "random_matched": 0.833,
+     "perm_p": 0.0475
     }
    },
    "always": {
@@ -236,34 +236,34 @@
     "random_matched": 0.508,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.16,
-     "acc": 0.54,
-     "random_matched": 0.492,
-     "perm_p": 0.019
+     "esc_rate": 0.13,
+     "acc": 0.6,
+     "random_matched": 0.556,
+     "perm_p": 0.0205
     }
    },
    "balanced": {
     "esc_rate": 0.3,
-    "acc": 0.665,
-    "random_matched": 0.577,
+    "acc": 0.655,
+    "random_matched": 0.576,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.3,
-     "acc": 0.68,
-     "random_matched": 0.599,
-     "perm_p": 0.0005
+     "esc_rate": 0.28,
+     "acc": 0.65,
+     "random_matched": 0.582,
+     "perm_p": 0.0045
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.74,
+    "acc": 0.745,
     "random_matched": 0.668,
     "perm_p": 0.0,
     "windowed": {
-     "esc_rate": 0.51,
-     "acc": 0.77,
-     "random_matched": 0.682,
-     "perm_p": 0.002
+     "esc_rate": 0.48,
+     "acc": 0.75,
+     "random_matched": 0.657,
+     "perm_p": 0.001
     }
    },
    "always": {
@@ -287,38 +287,38 @@
    },
    "conservative": {
     "esc_rate": 0.153,
-    "acc": 0.634,
+    "acc": 0.624,
     "random_matched": 0.602,
-    "perm_p": 0.015,
+    "perm_p": 0.0885,
     "windowed": {
-     "esc_rate": 0.137,
-     "acc": 0.618,
-     "random_matched": 0.586,
-     "perm_p": 0.0835
+     "esc_rate": 0.147,
+     "acc": 0.608,
+     "random_matched": 0.577,
+     "perm_p": 0.1005
     }
    },
    "balanced": {
     "esc_rate": 0.302,
-    "acc": 0.658,
-    "random_matched": 0.638,
-    "perm_p": 0.164,
+    "acc": 0.678,
+    "random_matched": 0.637,
+    "perm_p": 0.0175,
     "windowed": {
-     "esc_rate": 0.304,
-     "acc": 0.618,
+     "esc_rate": 0.343,
+     "acc": 0.637,
      "random_matched": 0.606,
-     "perm_p": 0.396
+     "perm_p": 0.1645
     }
    },
    "aggressive": {
     "esc_rate": 0.5,
-    "acc": 0.713,
+    "acc": 0.723,
     "random_matched": 0.686,
-    "perm_p": 0.106,
+    "perm_p": 0.036,
     "windowed": {
-     "esc_rate": 0.52,
-     "acc": 0.745,
-     "random_matched": 0.725,
-     "perm_p": 0.279
+     "esc_rate": 0.431,
+     "acc": 0.716,
+     "random_matched": 0.667,
+     "perm_p": 0.0495
     }
    },
    "always": {

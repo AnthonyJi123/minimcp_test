@@ -6,40 +6,40 @@
  },
  "window": 100,
  "global": {
-  "conservative": 0.5589111608882317,
-  "balanced": 0.3991298032000041,
-  "aggressive": 0.22221239569904194
+  "conservative": 0.8548804521560669,
+  "balanced": 0.6791319847106934,
+  "aggressive": 0.37655630707740784
  },
  "pools": {
   "frozen": {
-   "conservative": 0.74113055610558,
-   "balanced": 0.557861419311236,
-   "aggressive": 0.3400630848426923
+   "conservative": 0.8017407645761895,
+   "balanced": 0.6283220414632439,
+   "aggressive": 0.3533251335600664
   },
   "striviaqa": {
-   "conservative": 0.7025664902474628,
-   "balanced": 0.6164942830571188,
-   "aggressive": 0.459300031527004
+   "conservative": 0.7677568789750832,
+   "balanced": 0.6553043362771481,
+   "aggressive": 0.49758490940570516
   },
   "swebq": {
-   "conservative": 0.7789379156807755,
-   "balanced": 0.6729835146390484,
-   "aggressive": 0.53366213137147
+   "conservative": 0.8143068529744111,
+   "balanced": 0.7115630108134456,
+   "aggressive": 0.54890184303061
   },
   "sllama": {
-   "conservative": 0.5103893592464195,
-   "balanced": 0.37048910400124113,
-   "aggressive": 0.2245849580707237
+   "conservative": 0.5170417651352803,
+   "balanced": 0.37157938293544535,
+   "aggressive": 0.2377533270311175
   },
   "sdqa": {
-   "conservative": 0.7608146746964609,
-   "balanced": 0.6489709064593578,
-   "aggressive": 0.4670059701352788
+   "conservative": 0.7918235446844762,
+   "balanced": 0.6876962228728494,
+   "aggressive": 0.5136768447676132
   },
   "sreason": {
-   "conservative": 0.25752686740717107,
-   "balanced": 0.19492656005382666,
-   "aggressive": 0.13678399117611217
+   "conservative": 0.29314542199908933,
+   "balanced": 0.22863681759298238,
+   "aggressive": 0.16326700452988707
   }
  }
 }
