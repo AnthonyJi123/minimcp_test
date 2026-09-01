@@ -5330,3 +5330,39 @@ expert cost. The official config improved every layer at once: local
 floor (+6 pts), stop responsiveness (2.1 s), AND gate margin over
 random (aggressive +12.1 pts vs +9.6 under the old config). External
 pools re-dumping under official config for the full refreshed table.
+
+### 8bl external AUC under official config (2026-09-02)
+
+Official probe on official-config external features (labels: conclive
+never-arm, as before):
+  TriviaQA .759 (was .711)   WebQ .754 (.736)   Llama-QA .789 (.757)
+  SD-QA .737 (.736)          Reasoning-zh .495 (.606 — COLLAPSED)
+**En-4 mean .760 — within .011 of turn-based (.771). The English
+regime cost is essentially eliminated** by official-config serving +
+in-regime calibration. The language axis got WORSE: the all-English
+assistant prompt + all-English calib pushes zh to chance. The
+collaborator's exp3zh track is exactly the medicine; until it lands,
+Reasoning-zh is reported as a config-sensitive honest negative.
+
+### 8bl closing — official validity full table (verified) + an artifact-collision note (2026-09-02)
+
+Official probe × official features, all seven pools
+(figures/native_validity_official.json; paper tables updated):
+  frozen    .431→.544@22%/.661@46% (both p<.0001; ceiling .669)
+  TriviaQA  .568→.740@26%/.848@60% (p<.0001)
+  WebQ      .411→.556@29% (p=.056)/.705@61% (p=.0045)
+  Llama-QA  .767→.808@7%/.865@26% (p≤.0005)
+  SD-QA     .455→.660@33%/.820@69% (p<.0001)
+  sreason   no fire (language axis); AlpacaEval clean negative
+  (agg 4.07 vs 4.04, p=.24 — the old-config weak signal did not
+  replicate; VB local 3.65).
+External AUC re-verified: En-4 .760 (turn-based .771), zh .495.
+
+**Collision note:** data/gate_native.json was overwritten locally by a
+collaborator scripts/25 run (train_n 5252 = +exp3/exp3zh, OLD-config
+features) while the volume carried the scripts/26 official artifact —
+one scripts/23 pass silently mixed the two (numbers discarded,
+recomputed). Their artifact preserved as data/gate_native_v2exp3.json.
+TODO for the exp3zh merge: re-dump exp3/exp3zh under the OFFICIAL
+config and refit via scripts/26, else the zh fix trains on the wrong
+serving distribution. Coordination needed on artifact ownership.

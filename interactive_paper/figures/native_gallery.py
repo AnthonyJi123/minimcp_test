@@ -25,8 +25,8 @@ fig, axes = plt.subplots(1, 2, figsize=(11.5, 3.8))
 ax = axes[0]
 regimes = ["turn-based\n(ideal)", "native duplex\n(deployed)",
            "concurrent\n(harness)"]
-internal = [0.877, 0.830, 0.760]
-external = [0.771, 0.709, 0.689]
+internal = [0.877, 0.846, 0.760]   # native = official config (8bl)
+external = [0.771, 0.760, 0.689]   # native = En-4 (zh collapsed, see text)
 x = np.arange(3)
 ax.bar(x - 0.18, internal, 0.34, color=BLUE, label="internal test")
 ax.bar(x + 0.18, external, 0.34, color=ORANGE, label="external mean")
@@ -37,7 +37,7 @@ ax.set_xticks(x, regimes)
 ax.set_ylim(.6, .95)
 ax.set_ylabel("probe AUC (in-regime)")
 ax.legend(frameon=False, loc="upper right")
-ax.set_title("Read-point regimes: the deployed native read is nearly free", fontsize=12)
+ax.set_title("Read-point regimes (official config): En regime cost ~eliminated", fontsize=12)
 
 ax = axes[1]
 c = refit["scaling_curve"]

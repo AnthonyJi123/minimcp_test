@@ -11,6 +11,7 @@ pools / frozen_v3 escalated arm for frozen test). Matched-random control
 Usage: .venv_boot\\Scripts\\python.exe scripts\\23_native_validity.py
 """
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -18,13 +19,14 @@ import pandas as pd
 
 D = Path("data")
 RNG = np.random.default_rng(42)
+SFX = sys.argv[1] if len(sys.argv) > 1 else ""
 POOLS = [
-    ("frozen", "test", None),          # expert col resolved specially
-    ("striviaqa", "striviaqa", "oab_ok"),
-    ("swebq", "swebq", "oab_ok"),
-    ("sllama", "sllama", "oab_ok"),
-    ("sdqa", "sdqa", "heard_ok"),
-    ("sreason", "sreason", "heard_ok"),
+    ("frozen", "test" + ("off" if SFX else ""), None),          # expert col resolved specially
+    ("striviaqa", "striviaqa" + SFX, "oab_ok"),
+    ("swebq", "swebq" + SFX, "oab_ok"),
+    ("sllama", "sllama" + SFX, "oab_ok"),
+    ("sdqa", "sdqa" + SFX, "heard_ok"),
+    ("sreason", "sreason" + SFX, "heard_ok"),
 ]
 TIERS = ["never", "conservative", "balanced", "aggressive", "always"]
 
@@ -109,7 +111,7 @@ def main():
                   + (f"  p={p:.4f}" if p is not None else ""))
         out[pool] = pool_out
 
-    Path("figures/native_validity.json").write_text(
+    Path("figures/native_validity" + ("_official" if SFX else "") + ".json").write_text(
         json.dumps(out, indent=1))
     print("\nwrote figures/native_validity.json")
 
