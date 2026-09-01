@@ -1424,6 +1424,30 @@ $\mathrm{act}\ge\tau_a \wedge P(\mathrm{fail})\ge\tau$. The deployed
 demo answers floor turns naturally and reports the act score per
 commit; the failure probe's calibration is untouched.
 
+Live use then sharpened both heads within minutes --- scripted pools
+miss what ten minutes of real conversation finds. (a) Live mic speech
+shifts both act distributions into the calibration gap (real
+request-phrased questions score $\sim$.93, live floor turns $\sim$.37
+vs.\ a standalone-stim maximum of .05): a percentile-anchored
+$\tau_a$ rejected a real question and the talker delivered an empty
+promise. The fix is a gap-center threshold plus \emph{in-context}
+calibration stims --- each utterance dumped as the second turn of a
+carrier conversation, matching how floor acts actually arrive; the
+act read stays perfectly separable (AUC 1.000) under both conditions,
+and in-context stop commands false-fire the \emph{failure} probe on
+57\% at the aggressive tier, so the act term is not optional. (b) The
+native refit had silently dropped the FreshQA real-time extension
+(``the stock price of NVDA today'' scored $P(\mathrm{fail}){=}.29$
+and stayed local); replaying that recipe in-regime restores
+fast-changing heldout fire to .45/.75/1.00 across tiers at zero
+internal-AUC cost (.830$\to$.833), with budgets still quantiled on
+the core mix. (c) A relay's own speak-onset must not re-enter the
+gate (re-fire with an empty uplink); deliveries are guarded to their
+end of turn. The pattern across all three: the mid-layer signals
+separate cleanly every time, and what re-opens at each regime or
+domain shift is calibration coverage and thresholds --- interactive
+use is itself an evaluation modality.
+
 \paragraph{Multi-turn grounding.} A stateless expert uplink breaks on
 follow-ups: ``what is NVDA trading at'' then ``what about Apple'' sends
 only the second utterance, unresolvable in isolation. The probe itself

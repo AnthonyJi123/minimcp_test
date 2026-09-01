@@ -29,7 +29,7 @@ BASE = "https://rhe9527--gate-duplex-voice.modal.run/62dc5cd9"
 
 
 @app.function(image=img, secrets=[OPENAI], timeout=60 * 20)
-async def run():
+async def run(q1: str = "", q2: str = ""):
     import asyncio
     import time as _t
     import urllib.request
@@ -42,7 +42,8 @@ async def run():
     sys.path.insert(0, "/workspace/gate")
     import escalate
 
-    turns = ["What is Nvidia's stock price today?", "What about Apple?"]
+    turns = [q1 or "What is Nvidia's stock price today?",
+             q2 or "What about Apple?"]
     cli = escalate._client()
     wavs = []
     for i, txt in enumerate(turns):

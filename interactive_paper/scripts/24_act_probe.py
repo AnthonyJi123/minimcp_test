@@ -32,6 +32,8 @@ def load_feats(tag):
         z = np.load(p, allow_pickle=True)
         ids += list(z["ids"])
         X.append(z["X"])
+    if not X:
+        raise FileNotFoundError(f"no native feats for tag {tag}")
     X = np.concatenate(X)
     df = pd.DataFrame({"id": ids}).assign(row=range(len(ids)))
     df = df.drop_duplicates("id", keep="last")
@@ -39,13 +41,31 @@ def load_feats(tag):
 
 
 def main():
-    Xq = np.concatenate([load_feats(t)[1]
-                         for t in ("calib", "exp", "exp2")])
-    fa_ids, Xf = load_feats("flooract")
+    parts = [load_feats(t)[1] for t in ("calib", "exp", "exp2")]
+    for t in ("reqq", "reqqx"):     # 8bj: request-phrased positives,
+        try:                        # standalone + in-context 2nd turn
+            Xr = load_feats(t)[1]
+            parts.append(Xr)
+            print(f"{t} positives: {len(Xr)}")
+        except FileNotFoundError:
+            print(f"{t} positives: none yet")
+    Xq = np.concatenate(parts)
+    neg_parts, neg_cats = [], []
     qs = {json.loads(l)["id"]: json.loads(l)
           for l in open(D / "queries_flooract.jsonl", encoding="utf-8")
           if l.strip()}
-    cats = np.array([qs[i]["pool"].split("-")[1] for i in fa_ids])
+    for t, sfx in (("flooract", ""), ("flooractx", "+ctx")):
+        try:
+            ids_t, Xt = load_feats(t)
+            neg_parts.append(Xt)
+            neg_cats += [qs[i]["pool"].split("-")[1] + sfx
+                         for i in ids_t]
+            print(f"{t} negatives: {len(Xt)}")
+        except FileNotFoundError:
+            print(f"{t} negatives: none yet")
+    Xf = np.concatenate(neg_parts)
+    fa_ids = None
+    cats = np.array(neg_cats)
     print(f"positives (questions): {len(Xq)}  negatives (floor): "
           f"{len(Xf)}  cats: "
           + ", ".join(f"{c}:{(cats == c).sum()}"
@@ -82,7 +102,16 @@ def main():
                              class_weight="balanced").fit(X, y)
 
     q_oof = oof[:len(Xq)]
-    act_thr = float(np.percentile(q_oof, 0.5))
+    f_oof_all = oof[len(Xq):]
+    # 8bj: NOT the q0.5-percentile (that broke on live mic speech —
+    # both distributions shift into the calibration gap once real
+    # context enters the tail). With in-context negatives in the mix,
+    # take the center of the JOINT gap, clipped to [0.3, 0.7].
+    lo = float(np.percentile(f_oof_all, 99.5))
+    hi = float(np.percentile(q_oof, 0.5))
+    act_thr = float(np.clip((lo + hi) / 2, 0.3, 0.7))
+    print(f"joint gap: neg p99.5={lo:.4f}  pos p0.5={hi:.4f}  "
+          f"-> act_thr={act_thr:.4f}")
     lost_q = float((q_oof < act_thr).mean())
     f_oof = oof[len(Xq):]
     passed_floor = f_oof >= act_thr

@@ -4949,3 +4949,50 @@ history. Bug fixed. Files: demo_duplex.py, _ws_context_smoke.py.
 Paper note: the measured eval pools are single-turn, so no table
 changes; this is a deployment/demo capability. Recorded in
 Limitations as multi-turn grounding via a stateful uplink.
+
+## Phase 8bj — live hardening round: three regressions the user caught in ten minutes of use (2026-09-01)
+
+Live use immediately surfaced what scripted pools cannot. Three fixes,
+one theme: the fitted components' calibration distributions missed
+corners of the deployment distribution.
+
+**(a) Act threshold broke on live speech.** A real request-phrased
+question scored P(info)=.9267 — below the q0.5-percentile threshold
+(.9565) — was ruled a floor turn, gate bypassed, and the talker
+delivered an empty promise ("Sure, I'll check that for you right
+away." + turn_eos). Live mic speech shifts BOTH distributions into the
+calibration gap (real questions ~.93↓, live floor turns ~.37↑ vs
+calib floor max .052). Fix: gap-center threshold + two data
+extensions — request-phrased positives (40 TTS stims, en+zh) and
+IN-CONTEXT negatives/positives (new dump mode: each stim arrives as
+the SECOND turn after a carrier Q&A, mirroring how "thanks" actually
+shows up mid-conversation; the standalone-calibrated "Thanks, that's
+all I needed" had escalated when it arrived in-context). Joint refit:
+OOF AUC still 1.000, gap [.154,.871], thr=.5124; in-context stop
+commands false-fire the FAILURE probe at .57 aggressive — the act
+gate is not optional. Ops: git-bash MSYS path conversion silently
+rewrote --carrier /data/... to C:/Program Files/Git/data/... —
+MSYS_NO_PATHCONV=1 for modal args with absolute paths.
+
+**(b) FreshQA awareness had regressed.** "Could you tell me the stock
+price of nvidia today" scored P(fail)=.2888 (< .38) → stayed local →
+empty promise again. The 8be native refit reused the v3-era 2310
+labels; v4's FreshQA real-time extension never carried over. Fix:
+scripts/25 = refit4 transplanted (243 fresh train rows, a-priori
+labels; budgets quantiled on the core mix only). Guards: internal
+test AUC .830→.833 (free); fresh-heldout fast fire .18→.45 (cons),
+.52→.75 (bal), .98→1.00 (agg); never-controls 0/.06. Deployed; the
+user's exact sentence now fires and relays "Nvidia is trading $220.78
+USD today, up 1.52%. The intraday range … $216.33–$221.25."
+
+**(c) Relay re-entrancy.** The relay's own speak-onset passed through
+the gate branch and re-fired (empty uplink, spurious second stall
+mid-relay). Fix: relay_guard — no gate fire from relay injection
+until that delivery's end_of_turn.
+
+Escalation condition now: P(info)≥.5124 ∧ P(fail)≥tier ∧ ¬thinking ∧
+¬relay_guard. Meta-lesson for the paper: every regime OR DOMAIN
+change re-opens calibration — the L22 signals separate perfectly each
+time (act AUC 1.000 twice), but thresholds and coverage must follow
+deployment. Ten minutes of live use found what 3,000 scripted rows
+did not; interactive evaluation is not optional (the venue's point).

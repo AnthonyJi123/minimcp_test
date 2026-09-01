@@ -71,6 +71,65 @@ CATS = [("stopcmd", STOPS), ("backch", BCS), ("ack", ACKS),
         ("filler", FILLS)]
 VOICES = ["alloy", "echo"]
 
+# 8bj: REQUEST-phrased questions — live speech phrases queries as
+# requests ("can you check…") and the benchmark-question-trained act
+# probe scores them lower; these are POSITIVES for the act refit.
+REQQ = ["Can you check for me what Nvidia is trading at right now?",
+        "Could you look up the capital of Mongolia?",
+        "Can you tell me how tall Mount Everest is?",
+        "I want to know who wrote The Old Man and the Sea.",
+        "Help me figure out what 15 percent of 260 is.",
+        "Would you mind checking when the Eiffel Tower was built?",
+        "Look up the boiling point of ethanol for me.",
+        "I need to know the population of Brazil.",
+        "Tell me the speed of light, please.",
+        "Do you happen to know who won the World Cup in 2018?",
+        "Can you find out what the largest moon of Saturn is?",
+        "Please check how many ounces are in a kilogram.",
+        "帮我查一下英伟达现在的股价。",
+        "帮我看看明天上海的天气怎么样。",
+        "你能告诉我珠穆朗玛峰有多高吗？",
+        "帮我算算二百六的百分之十五是多少。",
+        "麻烦查一下巴西有多少人口。",
+        "你知道二〇一八年世界杯是谁夺冠吗？",
+        "帮我查查乙醇的沸点。",
+        "我想知道《老人与海》是谁写的。"]
+
+
+@app.function(image=img, volumes={DATA: gate_data}, secrets=[OPENAI],
+              timeout=60 * 40)
+def make_reqq():
+    import sys
+    import librosa
+    import numpy as np
+    import soundfile as sf
+    sys.path.insert(0, "/workspace/gate")
+    import escalate
+
+    os.makedirs(f"{DATA}/reqq_audio", exist_ok=True)
+    rows, n = [], 0
+    cli = escalate._client()
+    for txt in REQQ:
+        for voice in VOICES:
+            qid = f"rq{len(rows):04d}"
+            wav_p = f"{DATA}/reqq_audio/{qid}.wav"
+            if not os.path.exists(wav_p):
+                r = cli.audio.speech.create(
+                    model="tts-1", voice=voice, input=txt,
+                    response_format="wav")
+                open("/tmp/rq.wav", "wb").write(r.content)
+                au, _ = librosa.load("/tmp/rq.wav", sr=16000, mono=True)
+                sf.write(wav_p, au.astype(np.float32), 16000)
+                n += 1
+            rows.append({"id": qid, "pool": "reqq", "query": txt,
+                         "reference_answer": None, "split": ""})
+    with open(f"{DATA}/queries_reqq.jsonl", "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    gate_data.commit()
+    print(f">>> {len(rows)} request-phrased stims ({n} new)")
+    return len(rows)
+
 
 @app.function(image=img, volumes={DATA: gate_data}, secrets=[OPENAI],
               timeout=60 * 40)

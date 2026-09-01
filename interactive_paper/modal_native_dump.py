@@ -118,6 +118,8 @@ FEAT_POOLS = {
     "sreason":    (f"{DATA}/queries_sreason.jsonl",    f"{DATA}/bench_audio"),
     "valpaca":    (f"{DATA}/queries_valpaca.jsonl",    f"{DATA}/bench_audio"),
     "flooract":   (f"{DATA}/queries_flooract.jsonl",   f"{DATA}/flooract_audio"),
+    "reqq":       (f"{DATA}/queries_reqq.jsonl",       f"{DATA}/reqq_audio"),
+    "fresh":      (f"{DATA}/queries_fresh.jsonl",      f"{DATA}/audio_fresh"),
 }
 
 
@@ -126,7 +128,14 @@ FEAT_POOLS = {
               secrets=[OPENAI], timeout=60 * 60 * 4)
 def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                  audio_dir: str = f"{DATA}/audio_pool",
-                 temperature: float = 0.0) -> list:
+                 temperature: float = 0.0,
+                 carrier: str = "") -> list:
+    """carrier: path to a question wav. If set, every query becomes the
+    SECOND turn of a session: carrier question -> model answers to
+    end_of_turn (capped) -> per-deployment sum/cnt reset -> target
+    utterance -> features at ITS onset. This matches how live floor
+    turns and follow-ups actually arrive (8bj: standalone-calibrated
+    act scores shift once conversational context enters the tail)."""
     import glob as _glob
     import shutil
 
@@ -176,6 +185,39 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
     def sil():
         return rng.normal(0, 0.003, 16000).astype(np.float32)
 
+    car_chunks = None
+    if carrier:
+        cau, _cs = librosa.load(carrier, sr=16000, mono=True)
+        car_chunks = [cau[i:i + 16000] for i in range(0, len(cau), 16000)]
+        car_chunks = [np.pad(c, (0, 16000 - len(c)))
+                      if len(c) < 16000 else c for c in car_chunks]
+
+    def run_carrier():
+        """First turn: carrier question, model answers to eot (capped),
+        then the deployment-mirroring sum/cnt reset."""
+        onset, spoke, ended = None, 0, False
+        feed = list(car_chunks) + [None] * 30
+        for ci, ch in enumerate(feed):
+            st3["accum"] = True
+            ok = duplex.streaming_prefill(
+                audio_waveform=(sil() if ch is None
+                                else ch.astype(np.float32)))
+            st3["accum"] = False
+            if not ok.get("success"):
+                continue
+            rr = (duplex.streaming_generate(temperature=temperature)
+                  if temperature else duplex.streaming_generate())
+            if not rr["is_listen"]:
+                onset = onset if onset is not None else ci
+                spoke += 1
+            if rr.get("end_of_turn"):
+                ended = True
+                break
+            if spoke >= 25:
+                break
+        st3.update(sum=None, cnt=0)      # demo resets at end_of_turn
+        return ended
+
     traces, feat_ids, feat_X = [], [], []
     try:
         for qi, q in enumerate(shard):
@@ -191,6 +233,7 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                 prefix_system_prompt="Streaming Omni Conversation.",
                 ref_audio=ref, prompt_wav_path=None)
             st3.update(tail=None, sum=None, cnt=0, accum=False)
+            car_ended = run_carrier() if car_chunks else None
 
             onset_chunk, onset_vec, onset_score = None, None, None
             texts, eot_seen, n_ans = [], False, 0
@@ -235,7 +278,8 @@ def native_shard(shard: list, shard_id: int = -1, tag: str = "",
                 "n_q_chunks": len(chunks),
                 "onset_chunk": onset_chunk, "no_speak": no_speak,
                 "answer_text": "".join(texts).strip(),
-                "eot_seen": eot_seen, "n_ans_chunks": n_ans})
+                "eot_seen": eot_seen, "n_ans_chunks": n_ans,
+                "carrier_ended": car_ended})
             print(f"  [{qi}] {q['id']} onset={onset_chunk}"
                   f"/{len(chunks)}q no_speak={no_speak} eot={eot_seen} "
                   f"ans={''.join(texts).strip()[:60]!r}", flush=True)
@@ -402,7 +446,8 @@ def _read_qfile(qfile: str, split: str = "") -> list:
 
 @app.local_entrypoint()
 def run_native(pool: str = "frozen", workers: int = 4, limit: int = 0,
-               split: str = "", tag: str = "", temp: float = 0.0):
+               split: str = "", tag: str = "", temp: float = 0.0,
+               carrier: str = ""):
     assert tag, "pass --tag (calib/exp/exp2/test/<pool>)"
     qfile, audio_dir = FEAT_POOLS[pool]
     qs = _read_qfile.remote(qfile, split)
@@ -411,9 +456,9 @@ def run_native(pool: str = "frozen", workers: int = 4, limit: int = 0,
         workers = 1
     shards = [qs[i::workers] for i in range(workers)]
     print(f">>> native dump [{pool}/{split or 'all'}] tag={tag} "
-          f"temp={temp or 'default'}: {len(qs)} queries, "
-          f"{workers} workers")
+          f"temp={temp or 'default'} carrier={carrier or '-'}: "
+          f"{len(qs)} queries, {workers} workers")
     done = list(native_shard.starmap(
-        [(shards[i], i if not limit else -1, tag, audio_dir, temp)
-         for i in range(workers)]))
+        [(shards[i], i if not limit else -1, tag, audio_dir, temp,
+          carrier) for i in range(workers)]))
     print(f">>> complete: {sum(len(d) for d in done)} traces")

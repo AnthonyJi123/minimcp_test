@@ -313,6 +313,7 @@ class DuplexVoice:
                 history = []                      # rolling dialogue text
                 turn_text = []                    # this turn's spoken text
                 turn_fired = False                # did this turn escalate
+                relay_guard = False               # relay being delivered
                 prev_listen = True
                 thinking = _th.Event()           # thinker in flight
                 n_chunk = 0
@@ -384,6 +385,8 @@ class DuplexVoice:
                         # stays interruptible (native, chunk 3 below)
                         if relay_box:
                             ans = relay_box.pop(0)
+                            relay_guard = True   # no gate fire until
+                            #                      this delivery's eot
                             emit({"type": "phase", "v": "relaying"})
                             self.duplex.streaming_prefill(
                                 text_list=[RELAY_TMPL.format(ans=ans)])
@@ -435,7 +438,8 @@ class DuplexVoice:
                                            "act_threshold"])
                             fired = bool(probe_on and score is not None
                                          and score >= thr and is_info
-                                         and not thinking.is_set())
+                                         and not thinking.is_set()
+                                         and not relay_guard)
                             fired_now = fired
                             emit({"type": "gate",
                                   "score": (None if score is None
@@ -485,6 +489,7 @@ class DuplexVoice:
                                 del history[:-8]
                             user_win = []
                             turn_text, turn_fired = [], False
+                            relay_guard = False
                             self.st3.update(sum=None, cnt=0)
                         prev_listen = r["is_listen"]
                 except Exception as e:
