@@ -1,0 +1,196 @@
+{"id": "fa0000", "pool": "flooract-stopcmd", "query": "Stop.", "reference_answer": null, "split": ""}
+{"id": "fa0001", "pool": "flooract-stopcmd", "query": "Stop.", "reference_answer": null, "split": ""}
+{"id": "fa0002", "pool": "flooract-stopcmd", "query": "Stop!", "reference_answer": null, "split": ""}
+{"id": "fa0003", "pool": "flooract-stopcmd", "query": "Stop!", "reference_answer": null, "split": ""}
+{"id": "fa0004", "pool": "flooract-stopcmd", "query": "Wait, stop.", "reference_answer": null, "split": ""}
+{"id": "fa0005", "pool": "flooract-stopcmd", "query": "Wait, stop.", "reference_answer": null, "split": ""}
+{"id": "fa0006", "pool": "flooract-stopcmd", "query": "Okay stop.", "reference_answer": null, "split": ""}
+{"id": "fa0007", "pool": "flooract-stopcmd", "query": "Okay stop.", "reference_answer": null, "split": ""}
+{"id": "fa0008", "pool": "flooract-stopcmd", "query": "Please stop.", "reference_answer": null, "split": ""}
+{"id": "fa0009", "pool": "flooract-stopcmd", "query": "Please stop.", "reference_answer": null, "split": ""}
+{"id": "fa0010", "pool": "flooract-stopcmd", "query": "Stop talking.", "reference_answer": null, "split": ""}
+{"id": "fa0011", "pool": "flooract-stopcmd", "query": "Stop talking.", "reference_answer": null, "split": ""}
+{"id": "fa0012", "pool": "flooract-stopcmd", "query": "Hold on.", "reference_answer": null, "split": ""}
+{"id": "fa0013", "pool": "flooract-stopcmd", "query": "Hold on.", "reference_answer": null, "split": ""}
+{"id": "fa0014", "pool": "flooract-stopcmd", "query": "Hold on a second.", "reference_answer": null, "split": ""}
+{"id": "fa0015", "pool": "flooract-stopcmd", "query": "Hold on a second.", "reference_answer": null, "split": ""}
+{"id": "fa0016", "pool": "flooract-stopcmd", "query": "Wait.", "reference_answer": null, "split": ""}
+{"id": "fa0017", "pool": "flooract-stopcmd", "query": "Wait.", "reference_answer": null, "split": ""}
+{"id": "fa0018", "pool": "flooract-stopcmd", "query": "Wait a moment.", "reference_answer": null, "split": ""}
+{"id": "fa0019", "pool": "flooract-stopcmd", "query": "Wait a moment.", "reference_answer": null, "split": ""}
+{"id": "fa0020", "pool": "flooract-stopcmd", "query": "Hang on.", "reference_answer": null, "split": ""}
+{"id": "fa0021", "pool": "flooract-stopcmd", "query": "Hang on.", "reference_answer": null, "split": ""}
+{"id": "fa0022", "pool": "flooract-stopcmd", "query": "One second.", "reference_answer": null, "split": ""}
+{"id": "fa0023", "pool": "flooract-stopcmd", "query": "One second.", "reference_answer": null, "split": ""}
+{"id": "fa0024", "pool": "flooract-stopcmd", "query": "Just a second.", "reference_answer": null, "split": ""}
+{"id": "fa0025", "pool": "flooract-stopcmd", "query": "Just a second.", "reference_answer": null, "split": ""}
+{"id": "fa0026", "pool": "flooract-stopcmd", "query": "Shush.", "reference_answer": null, "split": ""}
+{"id": "fa0027", "pool": "flooract-stopcmd", "query": "Shush.", "reference_answer": null, "split": ""}
+{"id": "fa0028", "pool": "flooract-stopcmd", "query": "Quiet please.", "reference_answer": null, "split": ""}
+{"id": "fa0029", "pool": "flooract-stopcmd", "query": "Quiet please.", "reference_answer": null, "split": ""}
+{"id": "fa0030", "pool": "flooract-stopcmd", "query": "That's enough.", "reference_answer": null, "split": ""}
+{"id": "fa0031", "pool": "flooract-stopcmd", "query": "That's enough.", "reference_answer": null, "split": ""}
+{"id": "fa0032", "pool": "flooract-stopcmd", "query": "Enough.", "reference_answer": null, "split": ""}
+{"id": "fa0033", "pool": "flooract-stopcmd", "query": "Enough.", "reference_answer": null, "split": ""}
+{"id": "fa0034", "pool": "flooract-stopcmd", "query": "Never mind.", "reference_answer": null, "split": ""}
+{"id": "fa0035", "pool": "flooract-stopcmd", "query": "Never mind.", "reference_answer": null, "split": ""}
+{"id": "fa0036", "pool": "flooract-stopcmd", "query": "Forget it.", "reference_answer": null, "split": ""}
+{"id": "fa0037", "pool": "flooract-stopcmd", "query": "Forget it.", "reference_answer": null, "split": ""}
+{"id": "fa0038", "pool": "flooract-stopcmd", "query": "Cancel that.", "reference_answer": null, "split": ""}
+{"id": "fa0039", "pool": "flooract-stopcmd", "query": "Cancel that.", "reference_answer": null, "split": ""}
+{"id": "fa0040", "pool": "flooract-stopcmd", "query": "停。", "reference_answer": null, "split": ""}
+{"id": "fa0041", "pool": "flooract-stopcmd", "query": "停。", "reference_answer": null, "split": ""}
+{"id": "fa0042", "pool": "flooract-stopcmd", "query": "停下。", "reference_answer": null, "split": ""}
+{"id": "fa0043", "pool": "flooract-stopcmd", "query": "停下。", "reference_answer": null, "split": ""}
+{"id": "fa0044", "pool": "flooract-stopcmd", "query": "别说了。", "reference_answer": null, "split": ""}
+{"id": "fa0045", "pool": "flooract-stopcmd", "query": "别说了。", "reference_answer": null, "split": ""}
+{"id": "fa0046", "pool": "flooract-stopcmd", "query": "别讲了。", "reference_answer": null, "split": ""}
+{"id": "fa0047", "pool": "flooract-stopcmd", "query": "别讲了。", "reference_answer": null, "split": ""}
+{"id": "fa0048", "pool": "flooract-stopcmd", "query": "先别说。", "reference_answer": null, "split": ""}
+{"id": "fa0049", "pool": "flooract-stopcmd", "query": "先别说。", "reference_answer": null, "split": ""}
+{"id": "fa0050", "pool": "flooract-stopcmd", "query": "等等。", "reference_answer": null, "split": ""}
+{"id": "fa0051", "pool": "flooract-stopcmd", "query": "等等。", "reference_answer": null, "split": ""}
+{"id": "fa0052", "pool": "flooract-stopcmd", "query": "等一下。", "reference_answer": null, "split": ""}
+{"id": "fa0053", "pool": "flooract-stopcmd", "query": "等一下。", "reference_answer": null, "split": ""}
+{"id": "fa0054", "pool": "flooract-stopcmd", "query": "稍等。", "reference_answer": null, "split": ""}
+{"id": "fa0055", "pool": "flooract-stopcmd", "query": "稍等。", "reference_answer": null, "split": ""}
+{"id": "fa0056", "pool": "flooract-stopcmd", "query": "打住。", "reference_answer": null, "split": ""}
+{"id": "fa0057", "pool": "flooract-stopcmd", "query": "打住。", "reference_answer": null, "split": ""}
+{"id": "fa0058", "pool": "flooract-stopcmd", "query": "够了。", "reference_answer": null, "split": ""}
+{"id": "fa0059", "pool": "flooract-stopcmd", "query": "够了。", "reference_answer": null, "split": ""}
+{"id": "fa0060", "pool": "flooract-stopcmd", "query": "算了。", "reference_answer": null, "split": ""}
+{"id": "fa0061", "pool": "flooract-stopcmd", "query": "算了。", "reference_answer": null, "split": ""}
+{"id": "fa0062", "pool": "flooract-stopcmd", "query": "行了行了。", "reference_answer": null, "split": ""}
+{"id": "fa0063", "pool": "flooract-stopcmd", "query": "行了行了。", "reference_answer": null, "split": ""}
+{"id": "fa0064", "pool": "flooract-stopcmd", "query": "先停一下。", "reference_answer": null, "split": ""}
+{"id": "fa0065", "pool": "flooract-stopcmd", "query": "先停一下。", "reference_answer": null, "split": ""}
+{"id": "fa0066", "pool": "flooract-stopcmd", "query": "你先别说话。", "reference_answer": null, "split": ""}
+{"id": "fa0067", "pool": "flooract-stopcmd", "query": "你先别说话。", "reference_answer": null, "split": ""}
+{"id": "fa0068", "pool": "flooract-stopcmd", "query": "安静。", "reference_answer": null, "split": ""}
+{"id": "fa0069", "pool": "flooract-stopcmd", "query": "安静。", "reference_answer": null, "split": ""}
+{"id": "fa0070", "pool": "flooract-stopcmd", "query": "别念了。", "reference_answer": null, "split": ""}
+{"id": "fa0071", "pool": "flooract-stopcmd", "query": "别念了。", "reference_answer": null, "split": ""}
+{"id": "fa0072", "pool": "flooract-backch", "query": "Mm-hm.", "reference_answer": null, "split": ""}
+{"id": "fa0073", "pool": "flooract-backch", "query": "Mm-hm.", "reference_answer": null, "split": ""}
+{"id": "fa0074", "pool": "flooract-backch", "query": "Uh-huh.", "reference_answer": null, "split": ""}
+{"id": "fa0075", "pool": "flooract-backch", "query": "Uh-huh.", "reference_answer": null, "split": ""}
+{"id": "fa0076", "pool": "flooract-backch", "query": "Yeah.", "reference_answer": null, "split": ""}
+{"id": "fa0077", "pool": "flooract-backch", "query": "Yeah.", "reference_answer": null, "split": ""}
+{"id": "fa0078", "pool": "flooract-backch", "query": "Yeah yeah.", "reference_answer": null, "split": ""}
+{"id": "fa0079", "pool": "flooract-backch", "query": "Yeah yeah.", "reference_answer": null, "split": ""}
+{"id": "fa0080", "pool": "flooract-backch", "query": "Okay.", "reference_answer": null, "split": ""}
+{"id": "fa0081", "pool": "flooract-backch", "query": "Okay.", "reference_answer": null, "split": ""}
+{"id": "fa0082", "pool": "flooract-backch", "query": "Oh okay.", "reference_answer": null, "split": ""}
+{"id": "fa0083", "pool": "flooract-backch", "query": "Oh okay.", "reference_answer": null, "split": ""}
+{"id": "fa0084", "pool": "flooract-backch", "query": "Right.", "reference_answer": null, "split": ""}
+{"id": "fa0085", "pool": "flooract-backch", "query": "Right.", "reference_answer": null, "split": ""}
+{"id": "fa0086", "pool": "flooract-backch", "query": "Sure.", "reference_answer": null, "split": ""}
+{"id": "fa0087", "pool": "flooract-backch", "query": "Sure.", "reference_answer": null, "split": ""}
+{"id": "fa0088", "pool": "flooract-backch", "query": "I see.", "reference_answer": null, "split": ""}
+{"id": "fa0089", "pool": "flooract-backch", "query": "I see.", "reference_answer": null, "split": ""}
+{"id": "fa0090", "pool": "flooract-backch", "query": "Got it.", "reference_answer": null, "split": ""}
+{"id": "fa0091", "pool": "flooract-backch", "query": "Got it.", "reference_answer": null, "split": ""}
+{"id": "fa0092", "pool": "flooract-backch", "query": "Go on.", "reference_answer": null, "split": ""}
+{"id": "fa0093", "pool": "flooract-backch", "query": "Go on.", "reference_answer": null, "split": ""}
+{"id": "fa0094", "pool": "flooract-backch", "query": "Keep going.", "reference_answer": null, "split": ""}
+{"id": "fa0095", "pool": "flooract-backch", "query": "Keep going.", "reference_answer": null, "split": ""}
+{"id": "fa0096", "pool": "flooract-backch", "query": "Interesting.", "reference_answer": null, "split": ""}
+{"id": "fa0097", "pool": "flooract-backch", "query": "Interesting.", "reference_answer": null, "split": ""}
+{"id": "fa0098", "pool": "flooract-backch", "query": "Oh wow.", "reference_answer": null, "split": ""}
+{"id": "fa0099", "pool": "flooract-backch", "query": "Oh wow.", "reference_answer": null, "split": ""}
+{"id": "fa0100", "pool": "flooract-backch", "query": "Really?", "reference_answer": null, "split": ""}
+{"id": "fa0101", "pool": "flooract-backch", "query": "Really?", "reference_answer": null, "split": ""}
+{"id": "fa0102", "pool": "flooract-backch", "query": "Makes sense.", "reference_answer": null, "split": ""}
+{"id": "fa0103", "pool": "flooract-backch", "query": "Makes sense.", "reference_answer": null, "split": ""}
+{"id": "fa0104", "pool": "flooract-backch", "query": "Mm.", "reference_answer": null, "split": ""}
+{"id": "fa0105", "pool": "flooract-backch", "query": "Mm.", "reference_answer": null, "split": ""}
+{"id": "fa0106", "pool": "flooract-backch", "query": "嗯。", "reference_answer": null, "split": ""}
+{"id": "fa0107", "pool": "flooract-backch", "query": "嗯。", "reference_answer": null, "split": ""}
+{"id": "fa0108", "pool": "flooract-backch", "query": "嗯嗯。", "reference_answer": null, "split": ""}
+{"id": "fa0109", "pool": "flooract-backch", "query": "嗯嗯。", "reference_answer": null, "split": ""}
+{"id": "fa0110", "pool": "flooract-backch", "query": "哦。", "reference_answer": null, "split": ""}
+{"id": "fa0111", "pool": "flooract-backch", "query": "哦。", "reference_answer": null, "split": ""}
+{"id": "fa0112", "pool": "flooract-backch", "query": "好的。", "reference_answer": null, "split": ""}
+{"id": "fa0113", "pool": "flooract-backch", "query": "好的。", "reference_answer": null, "split": ""}
+{"id": "fa0114", "pool": "flooract-backch", "query": "对。", "reference_answer": null, "split": ""}
+{"id": "fa0115", "pool": "flooract-backch", "query": "对。", "reference_answer": null, "split": ""}
+{"id": "fa0116", "pool": "flooract-backch", "query": "对对对。", "reference_answer": null, "split": ""}
+{"id": "fa0117", "pool": "flooract-backch", "query": "对对对。", "reference_answer": null, "split": ""}
+{"id": "fa0118", "pool": "flooract-backch", "query": "是的。", "reference_answer": null, "split": ""}
+{"id": "fa0119", "pool": "flooract-backch", "query": "是的。", "reference_answer": null, "split": ""}
+{"id": "fa0120", "pool": "flooract-backch", "query": "继续。", "reference_answer": null, "split": ""}
+{"id": "fa0121", "pool": "flooract-backch", "query": "继续。", "reference_answer": null, "split": ""}
+{"id": "fa0122", "pool": "flooract-backch", "query": "接着说。", "reference_answer": null, "split": ""}
+{"id": "fa0123", "pool": "flooract-backch", "query": "接着说。", "reference_answer": null, "split": ""}
+{"id": "fa0124", "pool": "flooract-backch", "query": "有道理。", "reference_answer": null, "split": ""}
+{"id": "fa0125", "pool": "flooract-backch", "query": "有道理。", "reference_answer": null, "split": ""}
+{"id": "fa0126", "pool": "flooract-backch", "query": "原来如此。", "reference_answer": null, "split": ""}
+{"id": "fa0127", "pool": "flooract-backch", "query": "原来如此。", "reference_answer": null, "split": ""}
+{"id": "fa0128", "pool": "flooract-backch", "query": "哦这样啊。", "reference_answer": null, "split": ""}
+{"id": "fa0129", "pool": "flooract-backch", "query": "哦这样啊。", "reference_answer": null, "split": ""}
+{"id": "fa0130", "pool": "flooract-backch", "query": "行。", "reference_answer": null, "split": ""}
+{"id": "fa0131", "pool": "flooract-backch", "query": "行。", "reference_answer": null, "split": ""}
+{"id": "fa0132", "pool": "flooract-ack", "query": "Thanks.", "reference_answer": null, "split": ""}
+{"id": "fa0133", "pool": "flooract-ack", "query": "Thanks.", "reference_answer": null, "split": ""}
+{"id": "fa0134", "pool": "flooract-ack", "query": "Thank you.", "reference_answer": null, "split": ""}
+{"id": "fa0135", "pool": "flooract-ack", "query": "Thank you.", "reference_answer": null, "split": ""}
+{"id": "fa0136", "pool": "flooract-ack", "query": "Thanks a lot.", "reference_answer": null, "split": ""}
+{"id": "fa0137", "pool": "flooract-ack", "query": "Thanks a lot.", "reference_answer": null, "split": ""}
+{"id": "fa0138", "pool": "flooract-ack", "query": "Great, thanks.", "reference_answer": null, "split": ""}
+{"id": "fa0139", "pool": "flooract-ack", "query": "Great, thanks.", "reference_answer": null, "split": ""}
+{"id": "fa0140", "pool": "flooract-ack", "query": "That's all.", "reference_answer": null, "split": ""}
+{"id": "fa0141", "pool": "flooract-ack", "query": "That's all.", "reference_answer": null, "split": ""}
+{"id": "fa0142", "pool": "flooract-ack", "query": "That's all I needed.", "reference_answer": null, "split": ""}
+{"id": "fa0143", "pool": "flooract-ack", "query": "That's all I needed.", "reference_answer": null, "split": ""}
+{"id": "fa0144", "pool": "flooract-ack", "query": "Perfect.", "reference_answer": null, "split": ""}
+{"id": "fa0145", "pool": "flooract-ack", "query": "Perfect.", "reference_answer": null, "split": ""}
+{"id": "fa0146", "pool": "flooract-ack", "query": "Sounds good.", "reference_answer": null, "split": ""}
+{"id": "fa0147", "pool": "flooract-ack", "query": "Sounds good.", "reference_answer": null, "split": ""}
+{"id": "fa0148", "pool": "flooract-ack", "query": "Alright then.", "reference_answer": null, "split": ""}
+{"id": "fa0149", "pool": "flooract-ack", "query": "Alright then.", "reference_answer": null, "split": ""}
+{"id": "fa0150", "pool": "flooract-ack", "query": "Okay bye.", "reference_answer": null, "split": ""}
+{"id": "fa0151", "pool": "flooract-ack", "query": "Okay bye.", "reference_answer": null, "split": ""}
+{"id": "fa0152", "pool": "flooract-ack", "query": "Goodbye.", "reference_answer": null, "split": ""}
+{"id": "fa0153", "pool": "flooract-ack", "query": "Goodbye.", "reference_answer": null, "split": ""}
+{"id": "fa0154", "pool": "flooract-ack", "query": "See you.", "reference_answer": null, "split": ""}
+{"id": "fa0155", "pool": "flooract-ack", "query": "See you.", "reference_answer": null, "split": ""}
+{"id": "fa0156", "pool": "flooract-ack", "query": "谢谢。", "reference_answer": null, "split": ""}
+{"id": "fa0157", "pool": "flooract-ack", "query": "谢谢。", "reference_answer": null, "split": ""}
+{"id": "fa0158", "pool": "flooract-ack", "query": "多谢。", "reference_answer": null, "split": ""}
+{"id": "fa0159", "pool": "flooract-ack", "query": "多谢。", "reference_answer": null, "split": ""}
+{"id": "fa0160", "pool": "flooract-ack", "query": "好的谢谢。", "reference_answer": null, "split": ""}
+{"id": "fa0161", "pool": "flooract-ack", "query": "好的谢谢。", "reference_answer": null, "split": ""}
+{"id": "fa0162", "pool": "flooract-ack", "query": "没事了。", "reference_answer": null, "split": ""}
+{"id": "fa0163", "pool": "flooract-ack", "query": "没事了。", "reference_answer": null, "split": ""}
+{"id": "fa0164", "pool": "flooract-ack", "query": "就这样吧。", "reference_answer": null, "split": ""}
+{"id": "fa0165", "pool": "flooract-ack", "query": "就这样吧。", "reference_answer": null, "split": ""}
+{"id": "fa0166", "pool": "flooract-ack", "query": "可以了。", "reference_answer": null, "split": ""}
+{"id": "fa0167", "pool": "flooract-ack", "query": "可以了。", "reference_answer": null, "split": ""}
+{"id": "fa0168", "pool": "flooract-ack", "query": "明白了。", "reference_answer": null, "split": ""}
+{"id": "fa0169", "pool": "flooract-ack", "query": "明白了。", "reference_answer": null, "split": ""}
+{"id": "fa0170", "pool": "flooract-ack", "query": "再见。", "reference_answer": null, "split": ""}
+{"id": "fa0171", "pool": "flooract-ack", "query": "再见。", "reference_answer": null, "split": ""}
+{"id": "fa0172", "pool": "flooract-ack", "query": "拜拜。", "reference_answer": null, "split": ""}
+{"id": "fa0173", "pool": "flooract-ack", "query": "拜拜。", "reference_answer": null, "split": ""}
+{"id": "fa0174", "pool": "flooract-ack", "query": "辛苦了。", "reference_answer": null, "split": ""}
+{"id": "fa0175", "pool": "flooract-ack", "query": "辛苦了。", "reference_answer": null, "split": ""}
+{"id": "fa0176", "pool": "flooract-filler", "query": "Um...", "reference_answer": null, "split": ""}
+{"id": "fa0177", "pool": "flooract-filler", "query": "Um...", "reference_answer": null, "split": ""}
+{"id": "fa0178", "pool": "flooract-filler", "query": "Uh...", "reference_answer": null, "split": ""}
+{"id": "fa0179", "pool": "flooract-filler", "query": "Uh...", "reference_answer": null, "split": ""}
+{"id": "fa0180", "pool": "flooract-filler", "query": "Hmm, let me think.", "reference_answer": null, "split": ""}
+{"id": "fa0181", "pool": "flooract-filler", "query": "Hmm, let me think.", "reference_answer": null, "split": ""}
+{"id": "fa0182", "pool": "flooract-filler", "query": "Well...", "reference_answer": null, "split": ""}
+{"id": "fa0183", "pool": "flooract-filler", "query": "Well...", "reference_answer": null, "split": ""}
+{"id": "fa0184", "pool": "flooract-filler", "query": "How do I put this...", "reference_answer": null, "split": ""}
+{"id": "fa0185", "pool": "flooract-filler", "query": "How do I put this...", "reference_answer": null, "split": ""}
+{"id": "fa0186", "pool": "flooract-filler", "query": "Let me see...", "reference_answer": null, "split": ""}
+{"id": "fa0187", "pool": "flooract-filler", "query": "Let me see...", "reference_answer": null, "split": ""}
+{"id": "fa0188", "pool": "flooract-filler", "query": "呃……", "reference_answer": null, "split": ""}
+{"id": "fa0189", "pool": "flooract-filler", "query": "呃……", "reference_answer": null, "split": ""}
+{"id": "fa0190", "pool": "flooract-filler", "query": "嗯……让我想想。", "reference_answer": null, "split": ""}
+{"id": "fa0191", "pool": "flooract-filler", "query": "嗯……让我想想。", "reference_answer": null, "split": ""}
+{"id": "fa0192", "pool": "flooract-filler", "query": "怎么说呢……", "reference_answer": null, "split": ""}
+{"id": "fa0193", "pool": "flooract-filler", "query": "怎么说呢……", "reference_answer": null, "split": ""}
+{"id": "fa0194", "pool": "flooract-filler", "query": "我想想啊。", "reference_answer": null, "split": ""}
+{"id": "fa0195", "pool": "flooract-filler", "query": "我想想啊。", "reference_answer": null, "split": ""}

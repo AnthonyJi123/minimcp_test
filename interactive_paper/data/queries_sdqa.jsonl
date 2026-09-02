@@ -1,0 +1,200 @@
+{"id": "sdqa0000", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was quantum field theory developed?", "reference_answer": "1920s", "split": "calib"}
+{"id": "sdqa0001", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the first Nobel prize winner for Literature?", "reference_answer": "Sully Prudhomme", "split": "calib"}
+{"id": "sdqa0002", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who invented Hangul?", "reference_answer": "Sejong the Great", "split": "calib"}
+{"id": "sdqa0003", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What do Grasshoppers eat?", "reference_answer": "Grasshoppers are plant-eaters, with a few species at times becoming serious pests of cereals, vegetables and pasture, especially when they swarm in their millions as locusts and destroy crops over wide areas", "split": "calib"}
+{"id": "sdqa0004", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How large is the Kerman province of southeastern Iran?", "reference_answer": "183,285km", "split": "calib"}
+{"id": "sdqa0005", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Guitar Hero Live first released?", "reference_answer": "October 2015", "split": "calib"}
+{"id": "sdqa0006", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When were bluebonnets named the state flower of Texas?", "reference_answer": "March 7, 1901", "split": "calib"}
+{"id": "sdqa0007", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What's the difference between man-slaughter and homicide?", "reference_answer": "In most U.S. jurisdictions there is a hierarchy of acts, known collectively as homicide, of which first degree murder and felony murder are the most serious, followed by second degree murder, followed by voluntary manslaughter and involuntary manslaughter which are not as serious, and ending finally in justifiable homicide, which is not a crime at all", "split": "calib"}
+{"id": "sdqa0008", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did DC comics first introduce the Guardians of the Universe?", "reference_answer": "July 1960", "split": "calib"}
+{"id": "sdqa0009", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the largest parrot in New Zealand?", "reference_answer": "Kakapo", "split": "calib"}
+{"id": "sdqa0010", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first Assassin's Creed released?", "reference_answer": "2007", "split": "calib"}
+{"id": "sdqa0011", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What percentage of the Earth's atmosphere is oxygen?", "reference_answer": "20.95%", "split": "calib"}
+{"id": "sdqa0012", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the X-Men cartoon television series first aired?", "reference_answer": "October 31, 1992", "split": "calib"}
+{"id": "sdqa0013", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Battle of Suoi Chau Pha fought?", "reference_answer": "6 August 1967", "split": "calib"}
+{"id": "sdqa0014", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the Navy's military mascot?", "reference_answer": "Bill the Goat", "split": "calib"}
+{"id": "sdqa0015", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many permanent members of the United Nations Security Council are there?", "reference_answer": "five", "split": "calib"}
+{"id": "sdqa0016", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was special relativity developed?", "reference_answer": "1905", "split": "calib"}
+{"id": "sdqa0017", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Marxism develop?", "reference_answer": "19th-century", "split": "calib"}
+{"id": "sdqa0018", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What was the first film directed by Andrei Tarkovsky?", "reference_answer": "Ivan's Childhood", "split": "calib"}
+{"id": "sdqa0019", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the last Han Dynasty Emperor?", "reference_answer": "Emperor Xian of Han", "split": "calib"}
+{"id": "sdqa0020", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who wrote the song \"Happy Days\"?", "reference_answer": "Norman Gimbel and Charles Fox", "split": "calib"}
+{"id": "sdqa0021", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the first ruler of the Tang dynasty?", "reference_answer": "Emperor Gaozu of Tang", "split": "calib"}
+{"id": "sdqa0022", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first web page released?", "reference_answer": "1991", "split": "calib"}
+{"id": "sdqa0023", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What was the first Atlantic hurricane in 2000?", "reference_answer": "Alberto", "split": "calib"}
+{"id": "sdqa0024", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the main version of Islam practiced in Iraq?", "reference_answer": "Shia", "split": "calib"}
+{"id": "sdqa0025", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is within a nucleus of a cell?", "reference_answer": "genetic material", "split": "calib"}
+{"id": "sdqa0026", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the population of emperor penguins in Antarctica?", "reference_answer": "595,000", "split": "calib"}
+{"id": "sdqa0027", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How long is the England–Wales border?", "reference_answer": "160 miles", "split": "calib"}
+{"id": "sdqa0028", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first Spanish Grand Prix?", "reference_answer": "1913", "split": "calib"}
+{"id": "sdqa0029", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is the Mayor of San Francisco?", "reference_answer": "London Breed", "split": "calib"}
+{"id": "sdqa0030", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Alfred die?", "reference_answer": "26 October 899", "split": "calib"}
+{"id": "sdqa0031", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What language do Chechens speak?", "reference_answer": "Chechen", "split": "calib"}
+{"id": "sdqa0032", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When were the Gallic Wars?", "reference_answer": "from 58 BC to 50 BC", "split": "calib"}
+{"id": "sdqa0033", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the oldest overseas U.S. military base?", "reference_answer": "Guantanamo Bay Naval Base", "split": "calib"}
+{"id": "sdqa0034", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Michelangelo create the David?", "reference_answer": "1501 to 1504", "split": "calib"}
+{"id": "sdqa0035", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Nazi party founded?", "reference_answer": "24 February 1920", "split": "calib"}
+{"id": "sdqa0036", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Justin Morgan first appear as a character on Home and Away?", "reference_answer": "7 June 2016", "split": "calib"}
+{"id": "sdqa0037", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Prohibition Era in the US?", "reference_answer": "1920 to 1933", "split": "calib"}
+{"id": "sdqa0038", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who invented air conditioning?", "reference_answer": "Willis Carrier", "split": "calib"}
+{"id": "sdqa0039", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does GDP stand for?", "reference_answer": "Gross domestic product", "split": "calib"}
+{"id": "sdqa0040", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Argentine Basketball Federation formed?", "reference_answer": "August 30, 1929", "split": "calib"}
+{"id": "sdqa0041", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Sony Pictures Television established?", "reference_answer": "2002", "split": "calib"}
+{"id": "sdqa0042", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where are Porsches manufactured?", "reference_answer": "Germany", "split": "calib"}
+{"id": "sdqa0043", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who wrote Frankenstein?", "reference_answer": "Mary Shelley", "split": "calib"}
+{"id": "sdqa0044", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who led the writing of the Universal Declaration of Human Rights?", "reference_answer": "Eleanor Roosevelt", "split": "calib"}
+{"id": "sdqa0045", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Andy Richter leave Late Night with Conan O'Brien?", "reference_answer": "May 26, 2000", "split": "calib"}
+{"id": "sdqa0046", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was King Zhaoxiang of Qin's mother?", "reference_answer": "Queen Dowager Xuan", "split": "calib"}
+{"id": "sdqa0047", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did The Prizefighter series begin?", "reference_answer": "April 2008", "split": "calib"}
+{"id": "sdqa0048", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What's the biggest wasp?", "reference_answer": "Asian giant hornet", "split": "calib"}
+{"id": "sdqa0049", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the University of Maryland football team established?", "reference_answer": "1892", "split": "calib"}
+{"id": "sdqa0050", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who wrote the Federalist papers?", "reference_answer": "Alexander Hamilton, James Madison, and John Jay", "split": "calib"}
+{"id": "sdqa0051", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where is the Sanjay Gandhi National Park?", "reference_answer": "near Mumbai in Maharashtra State in India", "split": "calib"}
+{"id": "sdqa0052", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the biggest cricket competition?", "reference_answer": "Cricket World Cup", "split": "calib"}
+{"id": "sdqa0053", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "In what city did Abel Posse grow up?", "reference_answer": "Buenos Aires", "split": "calib"}
+{"id": "sdqa0054", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where did John Bruce Thompson go to law school?", "reference_answer": "Vanderbilt University Law School", "split": "calib"}
+{"id": "sdqa0055", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How long is the Omo River?", "reference_answer": "760 kilometers", "split": "calib"}
+{"id": "sdqa0056", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is Pike's Peak named for?", "reference_answer": "Zebulon Pike", "split": "calib"}
+{"id": "sdqa0057", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the oldest grave at Arlington National Cemetery?", "reference_answer": "The first military burial at Arlington, for William Henry Christman, was made on May 13, 1864,[14] close to what is now the northeast gate in Section 27", "split": "calib"}
+{"id": "sdqa0058", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the Isle of Man Railway start running?", "reference_answer": "1 July 1873", "split": "calib"}
+{"id": "sdqa0059", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Annapolis Naval Academy founded?", "reference_answer": "10 October 1845", "split": "calib"}
+{"id": "sdqa0060", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is an organophosphate?", "reference_answer": "a class of organophosphorus compounds with the general structure O=P(OR)3", "split": "calib"}
+{"id": "sdqa0061", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What are the stages of grief?", "reference_answer": "denial, anger, bargaining, depression and acceptance", "split": "calib"}
+{"id": "sdqa0062", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Mansfield Town Football Club first founded?", "reference_answer": "1897", "split": "calib"}
+{"id": "sdqa0063", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is the current political leader of Indonesia?", "reference_answer": "Joko Widodo", "split": "calib"}
+{"id": "sdqa0064", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What country has the most tornados?", "reference_answer": "United States", "split": "calib"}
+{"id": "sdqa0065", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How large is Cougar Mountain Regional Wildland Park?", "reference_answer": "3,115 acres", "split": "calib"}
+{"id": "sdqa0066", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the TV show ER first air?", "reference_answer": "September 19, 1994", "split": "calib"}
+{"id": "sdqa0067", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What year was the Universal Declaration of Human Rights published?", "reference_answer": "1948", "split": "calib"}
+{"id": "sdqa0068", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the cartoon DuckTales first air?", "reference_answer": "September 18, 1987", "split": "calib"}
+{"id": "sdqa0069", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the World Wide Web invented?", "reference_answer": "1989", "split": "calib"}
+{"id": "sdqa0070", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who launched the first satellite?", "reference_answer": "Soviet Union", "split": "calib"}
+{"id": "sdqa0071", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many members does the National Labor Relations Board have?", "reference_answer": "five", "split": "calib"}
+{"id": "sdqa0072", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Institutional Revolutionary Party established in Mexico?", "reference_answer": "1929", "split": "calib"}
+{"id": "sdqa0073", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What language do they speak in Buenos Aires?", "reference_answer": "Spanish", "split": "calib"}
+{"id": "sdqa0074", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Royal Observer Corps established?", "reference_answer": "29 October 1925", "split": "calib"}
+{"id": "sdqa0075", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where is the Caraga Administrative Region located?", "reference_answer": "Philippines", "split": "calib"}
+{"id": "sdqa0076", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the biggest diamond?", "reference_answer": "Cullinan Diamond", "split": "calib"}
+{"id": "sdqa0077", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the difference between speed and velocity?", "reference_answer": "Speed describes only how fast an object is moving, whereas velocity gives both how fast it is and in which direction the object is moving", "split": "calib"}
+{"id": "sdqa0078", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was ʿAbd al-Malik ibn Marwān ibn al-Ḥakam born?", "reference_answer": "646", "split": "calib"}
+{"id": "sdqa0079", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where was Christian von Ehrenfels born?", "reference_answer": "Rodaun", "split": "calib"}
+{"id": "sdqa0080", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is the main character of Fate/Zero?", "reference_answer": "Kiritsugu Emiya", "split": "calib"}
+{"id": "sdqa0081", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How is henna made?", "reference_answer": "prepared from the plant Lawsonia inermis", "split": "calib"}
+{"id": "sdqa0082", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What currency is used in Romania?", "reference_answer": "Romanian leu", "split": "calib"}
+{"id": "sdqa0083", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Iliad first written down?", "reference_answer": "8th century BC", "split": "calib"}
+{"id": "sdqa0084", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What did Augustus become Roman Emperor?", "reference_answer": "27 BC", "split": "calib"}
+{"id": "sdqa0085", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the difference between a telenovela and a soap opera?", "reference_answer": "run length", "split": "calib"}
+{"id": "sdqa0086", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many provinces are in Mongolia?", "reference_answer": "21 Provinces", "split": "calib"}
+{"id": "sdqa0087", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many lanes does the autobahn have?", "reference_answer": "containing two or three, sometimes four lanes in addition to an emergency lane", "split": "calib"}
+{"id": "sdqa0088", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the pink tax?", "reference_answer": "a phenomenon often attributed as a form of gender-based price discrimination", "split": "calib"}
+{"id": "sdqa0089", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the last King of Bosnia?", "reference_answer": "Stephen Tomašević or Stephen II", "split": "calib"}
+{"id": "sdqa0090", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the hottest day on record in Adelaide?", "reference_answer": "24 January 2019", "split": "calib"}
+{"id": "sdqa0091", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Buffy the Vampire Slayer aired?", "reference_answer": "March 10, 1997", "split": "calib"}
+{"id": "sdqa0092", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the case Pacific Gas & Electric Co. v. State Energy Resources Conservation & Development Commission go to the Supreme Court?", "reference_answer": "1983", "split": "calib"}
+{"id": "sdqa0093", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Lateran Treaty?", "reference_answer": "1929", "split": "calib"}
+{"id": "sdqa0094", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the Vandal War end?", "reference_answer": "533–4", "split": "calib"}
+{"id": "sdqa0095", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where is the Meyer lemon from?", "reference_answer": "China", "split": "calib"}
+{"id": "sdqa0096", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Fontamara first translated to English?", "reference_answer": "September 1934", "split": "calib"}
+{"id": "sdqa0097", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who won the 2015 Vuelta a España?", "reference_answer": "Fabio Aru (Astana Pro Team)", "split": "calib"}
+{"id": "sdqa0098", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Julia Child write her book Mastering the Art of French Cooking?", "reference_answer": "1961", "split": "calib"}
+{"id": "sdqa0099", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where in Ireland was Skeffington born?", "reference_answer": "Bailieborough, County Cavan", "split": "calib"}
+{"id": "sdqa0100", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How do thermostats work?", "reference_answer": "exerts control by switching heating or cooling devices on or off, or by regulating the flow of a heat transfer fluid as needed, to maintain the correct temperature", "split": "calib"}
+{"id": "sdqa0101", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What was the first book written by Sara Shepard?", "reference_answer": "Pretty Little Liars", "split": "calib"}
+{"id": "sdqa0102", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What was the world champion rugby team in 2018?", "reference_answer": "New Zealand", "split": "calib"}
+{"id": "sdqa0103", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does VHF stand for in VHF-band radar?", "reference_answer": "very high frequency", "split": "calib"}
+{"id": "sdqa0104", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is a motor tic?", "reference_answer": "Motor tics are movement-based tics affecting discrete muscle groups", "split": "calib"}
+{"id": "sdqa0105", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Sardinia become part of Italy?", "reference_answer": "1861", "split": "calib"}
+{"id": "sdqa0106", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where was the DreamHack Open Cluj-Napoca 2015 held?", "reference_answer": "Sala Polivalentă in Cluj-Napoca, Romania", "split": "calib"}
+{"id": "sdqa0107", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the dominate language in Pristina?", "reference_answer": "Albanian", "split": "calib"}
+{"id": "sdqa0108", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Tylenol introduced?", "reference_answer": "1955", "split": "calib"}
+{"id": "sdqa0109", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is Emmanouil Pappas known for?", "reference_answer": "leader of the Greek War of Independence in Macedonia", "split": "calib"}
+{"id": "sdqa0110", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who old is the Angel Oak in South Carolina?", "reference_answer": "400-500", "split": "calib"}
+{"id": "sdqa0111", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the United States officially pull out of Vietnam?", "reference_answer": "1973", "split": "calib"}
+{"id": "sdqa0112", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Epic of Gilgamesh discovered?", "reference_answer": "1853", "split": "calib"}
+{"id": "sdqa0113", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Frontier Martial-Arts Wrestling established?", "reference_answer": "July 28, 1989", "split": "calib"}
+{"id": "sdqa0114", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where was Albert Neisser born?", "reference_answer": "town of Schweidnitz (now Świdnica, in Poland)", "split": "calib"}
+{"id": "sdqa0115", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Roman Republic formed?", "reference_answer": "509 BC", "split": "calib"}
+{"id": "sdqa0116", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the youngest WWE Champion?", "reference_answer": "Brock Lesnar", "split": "calib"}
+{"id": "sdqa0117", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When were the North American time zones established?", "reference_answer": "November 18, 1883", "split": "calib"}
+{"id": "sdqa0118", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Randy Pausch join the faculty of Carnegie Mellon?", "reference_answer": "1997", "split": "calib"}
+{"id": "sdqa0119", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How old were the West Memphis Three when they were convicted in 1994?", "reference_answer": "Jessie Misskelley, Jr. was 17 years old, Jason Baldwin was 16 years old, and Damien Echols was 18 years old", "split": "calib"}
+{"id": "sdqa0120", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What language was spoken in Punjab?", "reference_answer": "Punjabi", "split": "calib"}
+{"id": "sdqa0121", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is exponentiation?", "reference_answer": "n. When n is a positive integer, exponentiation corresponds to repeated multiplication of the base: that is, bn is the product of multiplying n bas", "split": "calib"}
+{"id": "sdqa0122", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How big can a thresher get?", "reference_answer": "6.1 metres", "split": "calib"}
+{"id": "sdqa0123", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the British Empire end?", "reference_answer": "1997", "split": "calib"}
+{"id": "sdqa0124", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does sui generis mean?", "reference_answer": "is a Latin phrase that means \"of its (his, her, their) own kind; in a class by itself; unique", "split": "calib"}
+{"id": "sdqa0125", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Albany, NY established?", "reference_answer": "1686", "split": "calib"}
+{"id": "sdqa0126", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is encryption?", "reference_answer": "the process of encoding a message or information in such a way that only authorized parties can access it and those who are not authorized cannot", "split": "calib"}
+{"id": "sdqa0127", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is the publisher of Cyberpunk 2077?", "reference_answer": "CD Projekt", "split": "calib"}
+{"id": "sdqa0128", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Vasco Núñez de Balboa born?", "reference_answer": "c. 1475", "split": "calib"}
+{"id": "sdqa0129", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What bird lays the smallest egg?", "reference_answer": "bee hummingbird", "split": "calib"}
+{"id": "sdqa0130", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the CBS-affiliated TV station for Green Bay, WI?", "reference_answer": "WFRV-TV", "split": "calib"}
+{"id": "sdqa0131", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How far does I75 go?", "reference_answer": "southern Florida to the northern tip of Michigan", "split": "calib"}
+{"id": "sdqa0132", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What company first sold the microwave oven?", "reference_answer": "Raytheon", "split": "calib"}
+{"id": "sdqa0133", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Stirling Smith Art Gallery and Museum first opened?", "reference_answer": "1874", "split": "calib"}
+{"id": "sdqa0134", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How did Joseph Stalin died?", "reference_answer": "suffering a stroke", "split": "calib"}
+{"id": "sdqa0135", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Gus Dur born?", "reference_answer": "7 September 1940", "split": "calib"}
+{"id": "sdqa0136", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who developed Recaptcha?", "reference_answer": "Luis von Ahn, David Abraham, Manuel Blum, Michael Crawford, Ben Maurer, Colin McMillen, and Edison Tan", "split": "calib"}
+{"id": "sdqa0137", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What years did Sorley MacLean live?", "reference_answer": "1911 – 24 November 1996", "split": "calib"}
+{"id": "sdqa0138", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How large is the region of Macedonia?", "reference_answer": "67,000 square kilometres", "split": "calib"}
+{"id": "sdqa0139", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where was the first sex change operation performed?", "reference_answer": "Germany", "split": "calib"}
+{"id": "sdqa0140", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does \"IMSI\" stand for in IMSI-catcher?", "reference_answer": "international mobile subscriber identity-catcher", "split": "calib"}
+{"id": "sdqa0141", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is Jormungand's mother?", "reference_answer": "Angrboða", "split": "calib"}
+{"id": "sdqa0142", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the population of Rio, Brazil?", "reference_answer": "more than 6million people", "split": "calib"}
+{"id": "sdqa0143", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the biggest event in the Australian Football League?", "reference_answer": "the AFL Grand Final", "split": "calib"}
+{"id": "sdqa0144", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Rocketdyne founded?", "reference_answer": "1955", "split": "calib"}
+{"id": "sdqa0145", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the official language of the Ivory Coast?", "reference_answer": "French", "split": "calib"}
+{"id": "sdqa0146", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the KHON-TV station established?", "reference_answer": "December 15, 1952", "split": "calib"}
+{"id": "sdqa0147", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where was Saxony?", "reference_answer": "Germany", "split": "calib"}
+{"id": "sdqa0148", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who invented the first audio recording device?", "reference_answer": "Thomas Edison", "split": "calib"}
+{"id": "sdqa0149", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who founded Ashton-Tate?", "reference_answer": "George Tate and Hal Lashlee", "split": "calib"}
+{"id": "sdqa0150", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the first film written by Diablo Cody?", "reference_answer": "Juno", "split": "calib"}
+{"id": "sdqa0151", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the largest type of mosquito?", "reference_answer": "Toxorhynchites", "split": "calib"}
+{"id": "sdqa0152", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Why is heavy metal called heavy metal?", "reference_answer": "in the May 1971 Creem, Saunders wrote, \"Sir Lord Baltimore seems to have down pat most all the best heavy metal tricks in the book\".[99] Creem critic Lester Bangs is credited with popularizing the term via his early 1970s essays on bands such as Led Zeppelin and Black Sabbath", "split": "calib"}
+{"id": "sdqa0153", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How long did The Yuma War go on for?", "reference_answer": "1850 to 1853", "split": "calib"}
+{"id": "sdqa0154", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the Brooklyn Nets move to Brooklyn?", "reference_answer": "2012", "split": "calib"}
+{"id": "sdqa0155", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where is Flanders?", "reference_answer": "northern portion of Belgium", "split": "calib"}
+{"id": "sdqa0156", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many people did Lyudmila Mikhailovna Pavlichenko snipe?", "reference_answer": "309", "split": "calib"}
+{"id": "sdqa0157", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Michelangelo sculpt the David?", "reference_answer": "between 1501 and 1504", "split": "calib"}
+{"id": "sdqa0158", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What was the lingua franca of the Ottoman Empire?", "reference_answer": "Ottoman Turkish", "split": "calib"}
+{"id": "sdqa0159", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What's the meaning of NBC?", "reference_answer": "National Broadcasting Company", "split": "calib"}
+{"id": "sdqa0160", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who is Taiwan's president?", "reference_answer": "Tsai Ing-wen", "split": "calib"}
+{"id": "sdqa0161", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Commonwealth of Independent States formed?", "reference_answer": "8 December 1991", "split": "calib"}
+{"id": "sdqa0162", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first Gameboy released by Nintendo?", "reference_answer": "April21,1989", "split": "calib"}
+{"id": "sdqa0163", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who was the first executive producer of EastEnders?", "reference_answer": "Julia Smith", "split": "calib"}
+{"id": "sdqa0164", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was François Lay born?", "reference_answer": "14 February 1758", "split": "calib"}
+{"id": "sdqa0165", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does ductile mean?", "reference_answer": "a measure of a material's ability to undergo significant plastic deformation before rupture, which may be expressed as percent elongation or percent area reduction from a tensile test", "split": "calib"}
+{"id": "sdqa0166", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the first American Pie movie come out?", "reference_answer": "1999", "split": "calib"}
+{"id": "sdqa0167", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Disney introduce Mickey Mouse?", "reference_answer": "1928", "split": "calib"}
+{"id": "sdqa0168", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many teams are in the TT Pro League?", "reference_answer": "ten", "split": "calib"}
+{"id": "sdqa0169", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the dollar bill introduced?", "reference_answer": "1862", "split": "calib"}
+{"id": "sdqa0170", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Ontario get founded?", "reference_answer": "July 1, 1867", "split": "calib"}
+{"id": "sdqa0171", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first opera written?", "reference_answer": "1597", "split": "calib"}
+{"id": "sdqa0172", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the capital of Angola?", "reference_answer": "Luanda", "split": "calib"}
+{"id": "sdqa0173", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Susan B. Anthony live?", "reference_answer": "February 15, 1820– March 13, 1906", "split": "calib"}
+{"id": "sdqa0174", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How large is Antarctica?", "reference_answer": "5,400,000 square miles", "split": "calib"}
+{"id": "sdqa0175", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the DS released?", "reference_answer": "November 21, 2004", "split": "calib"}
+{"id": "sdqa0176", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the first Tomb Raider published?", "reference_answer": "1996", "split": "calib"}
+{"id": "sdqa0177", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What other species belong to the Equidae?", "reference_answer": "donkeys, and zebras", "split": "calib"}
+{"id": "sdqa0178", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the highest pitch audible to humans?", "reference_answer": "20,000Hz", "split": "calib"}
+{"id": "sdqa0179", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What is the origin of dialectics?", "reference_answer": "Greek", "split": "calib"}
+{"id": "sdqa0180", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was Southern Illinois University Edwardsville founded?", "reference_answer": "1957", "split": "calib"}
+{"id": "sdqa0181", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where were the Moors from?", "reference_answer": "Maghreb", "split": "calib"}
+{"id": "sdqa0182", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who plays Leslie Knope in the Parks and Recreation?", "reference_answer": "Amy Poehler", "split": "calib"}
+{"id": "sdqa0183", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many species of turtle are there?", "reference_answer": "356 known", "split": "calib"}
+{"id": "sdqa0184", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What's the largest recorded squid?", "reference_answer": "colossal squid", "split": "calib"}
+{"id": "sdqa0185", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where is the Rhineland?", "reference_answer": "Western Germany along the Rhine", "split": "calib"}
+{"id": "sdqa0186", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the The Ronettes break up?", "reference_answer": "early 1967", "split": "calib"}
+{"id": "sdqa0187", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How provinces are there in China?", "reference_answer": "23", "split": "calib"}
+{"id": "sdqa0188", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "What does Zabbaleen refer to?", "reference_answer": "\"garbage collectors\"", "split": "calib"}
+{"id": "sdqa0189", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How long has the Xeon processor been in use for?", "reference_answer": "June 1998", "split": "calib"}
+{"id": "sdqa0190", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How long did it take Michelangelo to paint the Sistine Chapel?", "reference_answer": "1508 and 1512", "split": "calib"}
+{"id": "sdqa0191", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did South Korea become a republic?", "reference_answer": "August 15, 1948", "split": "calib"}
+{"id": "sdqa0192", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Who plays the character Zelena on Once Upon a Time?", "reference_answer": "Rebecca Mader", "split": "calib"}
+{"id": "sdqa0193", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many seasons does Breaking Bad have?", "reference_answer": "five", "split": "calib"}
+{"id": "sdqa0194", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did the the Great Revolt start?", "reference_answer": "66 CE", "split": "calib"}
+{"id": "sdqa0195", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When did Sheila James Kuehl join the Los Angeles County Board of Supervisors?", "reference_answer": "December 1, 2014", "split": "calib"}
+{"id": "sdqa0196", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where did ballet begin?", "reference_answer": "Italy", "split": "calib"}
+{"id": "sdqa0197", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "Where do box jellyfish live?", "reference_answer": "Although the notoriously dangerous species of box jellyfish are largely restricted to the tropical Indo-Pacific region, various species of box jellyfish can be found widely in tropical and subtropical oceans, including the Atlantic Ocean and the east Pacific Ocean, with species as far north as California (Carybdea confusa), the Mediterranean Sea (Carybdea marsupialis)[15] and Japan (such as Chironex yamaguchii),[3] and as far south as South Africa (for example, Carybdea branchi)[4] and New Zealand (such as Copula sivickisi)", "split": "calib"}
+{"id": "sdqa0198", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "When was the Castle Bravo test performed?", "reference_answer": "March 1, 1954", "split": "calib"}
+{"id": "sdqa0199", "pool": "sdqa", "source": "voicebench/sd-qa/usa", "query": "How many died in the Columbia crash?", "reference_answer": "seven", "split": "calib"}

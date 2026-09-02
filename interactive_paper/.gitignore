@@ -1,2 +1,5 @@
 figures/_voldata/
 data/gate_pull/
+
+# issue #8 export bundle (246MB zip; published on HF dyyfk/minicpm-o45-native-gate-data)
+export/

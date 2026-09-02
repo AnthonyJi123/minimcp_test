@@ -1,0 +1,40 @@
+{"id": "rq0000", "pool": "reqq", "query": "Can you check for me what Nvidia is trading at right now?", "reference_answer": null, "split": ""}
+{"id": "rq0001", "pool": "reqq", "query": "Can you check for me what Nvidia is trading at right now?", "reference_answer": null, "split": ""}
+{"id": "rq0002", "pool": "reqq", "query": "Could you look up the capital of Mongolia?", "reference_answer": null, "split": ""}
+{"id": "rq0003", "pool": "reqq", "query": "Could you look up the capital of Mongolia?", "reference_answer": null, "split": ""}
+{"id": "rq0004", "pool": "reqq", "query": "Can you tell me how tall Mount Everest is?", "reference_answer": null, "split": ""}
+{"id": "rq0005", "pool": "reqq", "query": "Can you tell me how tall Mount Everest is?", "reference_answer": null, "split": ""}
+{"id": "rq0006", "pool": "reqq", "query": "I want to know who wrote The Old Man and the Sea.", "reference_answer": null, "split": ""}
+{"id": "rq0007", "pool": "reqq", "query": "I want to know who wrote The Old Man and the Sea.", "reference_answer": null, "split": ""}
+{"id": "rq0008", "pool": "reqq", "query": "Help me figure out what 15 percent of 260 is.", "reference_answer": null, "split": ""}
+{"id": "rq0009", "pool": "reqq", "query": "Help me figure out what 15 percent of 260 is.", "reference_answer": null, "split": ""}
+{"id": "rq0010", "pool": "reqq", "query": "Would you mind checking when the Eiffel Tower was built?", "reference_answer": null, "split": ""}
+{"id": "rq0011", "pool": "reqq", "query": "Would you mind checking when the Eiffel Tower was built?", "reference_answer": null, "split": ""}
+{"id": "rq0012", "pool": "reqq", "query": "Look up the boiling point of ethanol for me.", "reference_answer": null, "split": ""}
+{"id": "rq0013", "pool": "reqq", "query": "Look up the boiling point of ethanol for me.", "reference_answer": null, "split": ""}
+{"id": "rq0014", "pool": "reqq", "query": "I need to know the population of Brazil.", "reference_answer": null, "split": ""}
+{"id": "rq0015", "pool": "reqq", "query": "I need to know the population of Brazil.", "reference_answer": null, "split": ""}
+{"id": "rq0016", "pool": "reqq", "query": "Tell me the speed of light, please.", "reference_answer": null, "split": ""}
+{"id": "rq0017", "pool": "reqq", "query": "Tell me the speed of light, please.", "reference_answer": null, "split": ""}
+{"id": "rq0018", "pool": "reqq", "query": "Do you happen to know who won the World Cup in 2018?", "reference_answer": null, "split": ""}
+{"id": "rq0019", "pool": "reqq", "query": "Do you happen to know who won the World Cup in 2018?", "reference_answer": null, "split": ""}
+{"id": "rq0020", "pool": "reqq", "query": "Can you find out what the largest moon of Saturn is?", "reference_answer": null, "split": ""}
+{"id": "rq0021", "pool": "reqq", "query": "Can you find out what the largest moon of Saturn is?", "reference_answer": null, "split": ""}
+{"id": "rq0022", "pool": "reqq", "query": "Please check how many ounces are in a kilogram.", "reference_answer": null, "split": ""}
+{"id": "rq0023", "pool": "reqq", "query": "Please check how many ounces are in a kilogram.", "reference_answer": null, "split": ""}
+{"id": "rq0024", "pool": "reqq", "query": "帮我查一下英伟达现在的股价。", "reference_answer": null, "split": ""}
+{"id": "rq0025", "pool": "reqq", "query": "帮我查一下英伟达现在的股价。", "reference_answer": null, "split": ""}
+{"id": "rq0026", "pool": "reqq", "query": "帮我看看明天上海的天气怎么样。", "reference_answer": null, "split": ""}
+{"id": "rq0027", "pool": "reqq", "query": "帮我看看明天上海的天气怎么样。", "reference_answer": null, "split": ""}
+{"id": "rq0028", "pool": "reqq", "query": "你能告诉我珠穆朗玛峰有多高吗？", "reference_answer": null, "split": ""}
+{"id": "rq0029", "pool": "reqq", "query": "你能告诉我珠穆朗玛峰有多高吗？", "reference_answer": null, "split": ""}
+{"id": "rq0030", "pool": "reqq", "query": "帮我算算二百六的百分之十五是多少。", "reference_answer": null, "split": ""}
+{"id": "rq0031", "pool": "reqq", "query": "帮我算算二百六的百分之十五是多少。", "reference_answer": null, "split": ""}
+{"id": "rq0032", "pool": "reqq", "query": "麻烦查一下巴西有多少人口。", "reference_answer": null, "split": ""}
+{"id": "rq0033", "pool": "reqq", "query": "麻烦查一下巴西有多少人口。", "reference_answer": null, "split": ""}
+{"id": "rq0034", "pool": "reqq", "query": "你知道二〇一八年世界杯是谁夺冠吗？", "reference_answer": null, "split": ""}
+{"id": "rq0035", "pool": "reqq", "query": "你知道二〇一八年世界杯是谁夺冠吗？", "reference_answer": null, "split": ""}
+{"id": "rq0036", "pool": "reqq", "query": "帮我查查乙醇的沸点。", "reference_answer": null, "split": ""}
+{"id": "rq0037", "pool": "reqq", "query": "帮我查查乙醇的沸点。", "reference_answer": null, "split": ""}
+{"id": "rq0038", "pool": "reqq", "query": "我想知道《老人与海》是谁写的。", "reference_answer": null, "split": ""}
+{"id": "rq0039", "pool": "reqq", "query": "我想知道《老人与海》是谁写的。", "reference_answer": null, "split": ""}
