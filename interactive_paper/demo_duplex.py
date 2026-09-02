@@ -122,10 +122,10 @@ def _call_def(fn, /, **kw):
     return fn(**{k: v for k, v in kw.items() if k in p})
 
 
-@app.cls(image=gpu_image, gpu="H100",
+@app.cls(image=gpu_image, gpu="H100", max_containers=4,
          volumes={"/workspace/models": weights, DATA: gate_data},
          secrets=[OPENAI], timeout=60 * 60, scaledown_window=420)
-@modal.concurrent(max_inputs=4)
+@modal.concurrent(max_inputs=1)
 class DuplexVoice:
 
     @modal.enter()
@@ -315,6 +315,7 @@ class DuplexVoice:
                 sys.path.insert(0, "/workspace/gate")
                 import escalate
                 import soundfile as sf
+                import base64 as _b64
 
                 CH = 16000                       # 1 s @ 16 kHz
                 pend = np.zeros(0, dtype=np.float32)
@@ -322,33 +323,125 @@ class DuplexVoice:
                 history = []                      # rolling dialogue text
                 turn_text = []                    # this turn's spoken text
                 turn_fired = False                # did this turn escalate
+                active_turn = None                # structured telemetry state
+                relay_turn = None                 # expert relay being voiced
+                turn_index = 0
+                turn_scores = []
                 relay_guard = False               # relay being delivered
                 muted = 0                         # 8bm: suppressed chunks
                 prev_listen = True
                 thinking = _th.Event()           # thinker in flight
                 n_chunk = 0
+                history_lock = _th.Lock()
+                resolved_history = {}
+                next_history_index = 1
 
-                def thinker(snapshot, context):
+                def transcribe_turn(state):
+                    """ASR every committed user turn without blocking audio."""
+                    path = f"/tmp/duplex_up_{state['index']}.wav"
+                    t0 = time.time()
+                    try:
+                        sf.write(path, state["snapshot"], 16000)
+                        with open(path, "rb") as fh:
+                            tr = (escalate._client().audio.transcriptions
+                                  .create(model="gpt-transcribe", file=fh,
+                                          response_format="text"))
+                        state["uplink_text"] = (
+                            tr if isinstance(tr, str)
+                            else getattr(tr, "text", str(tr)))
+                        state["asr_s"] = round(time.time() - t0, 2)
+                        emit({"type": "log",
+                              "msg": f"turn {state['index']} ASR heard: "
+                                     f"“{state['uplink_text'][:120]}” "
+                                     f"({state['asr_s']:.1f}s)"})
+                    except Exception as e:
+                        state["asr_error"] = str(e)[:160]
+                        emit({"type": "log",
+                              "msg": f"turn {state['index']} ASR failed: "
+                                     f"{state['asr_error']}"})
+                    finally:
+                        try:
+                            os.remove(path)
+                        except OSError:
+                            pass
+                        state["asr_done"].set()
+
+                def add_history(state):
+                    """Append completed turns in conversation order."""
+                    nonlocal next_history_index
+                    answer = (state.get("expert_answer")
+                              if state["fired"] else state.get("answer"))
+                    with history_lock:
+                        resolved_history[state["index"]] = (
+                            state.get("uplink_text"), answer)
+                        while next_history_index in resolved_history:
+                            user, assistant = resolved_history.pop(
+                                next_history_index)
+                            if user:
+                                history.append(f"User: {str(user).strip()}")
+                            if assistant:
+                                history.append(
+                                    f"Assistant: {str(assistant).strip()}")
+                            del history[:-8]
+                            next_history_index += 1
+
+                def finish_turn(state):
+                    """Emit one analysis-ready event after ASR and speech end."""
+                    if not state["asr_done"].wait(timeout=90):
+                        state["asr_error"] = "timeout"
+                    state["answer"] = "".join(
+                        state.get("assistant_parts", [])).strip()
+                    add_history(state)
+                    snapshot = state["snapshot"]
+                    pcm16 = (np.clip(snapshot, -1, 1) * 32767).astype("<i2")
+                    emit({
+                        "type": "turn",
+                        "protocol": "duplex_v1",
+                        "turn_index": state["index"],
+                        "mode": "escalated" if state["fired"] else "local",
+                        "fired": state["fired"],
+                        "probe_on": probe_on,
+                        "eot_score": state.get("score"),
+                        "threshold": state.get("threshold"),
+                        "scores": state.get("scores", []),
+                        "act_score": state.get("act_score"),
+                        "is_info": state.get("is_info"),
+                        "uplink_text": state.get("uplink_text"),
+                        "asr_error": state.get("asr_error"),
+                        "answer": state.get("answer", ""),
+                        "expert_answer": state.get("expert_answer"),
+                        "expert_error": state.get("expert_error"),
+                        "asr_s": state.get("asr_s"),
+                        "expert_latency_s": state.get("expert_latency_s"),
+                        "relay_ms": state.get("relay_ms"),
+                        "total_ms": int((time.time() - state["started_at"])
+                                        * 1000),
+                        "audio_s": round(len(snapshot) / 16000, 2),
+                        # 30 seconds of PCM16 is ~960 KB, below Modal's
+                        # 2 MiB WebSocket-message limit after base64 encoding.
+                        "user_pcm16": _b64.b64encode(
+                            pcm16.tobytes()).decode(),
+                    })
+
+                def finish_turn_async(state):
+                    _th.Thread(target=finish_turn, args=(state,),
+                               daemon=True).start()
+
+                def thinker(state):
                     # context: the resolved dialogue so far. The probe
                     # reads L22 WITH this context (it is in the model's
                     # KV cache), but the expert is stateless — a
                     # follow-up like "what about apple" is unanswerable
                     # in isolation, so we uplink the history too and ask
                     # the expert to resolve references against it.
-                    exp = {}
                     try:
-                        sf.write("/tmp/duplex_up.wav", snapshot, 16000)
-                        t0 = time.time()
-                        with open("/tmp/duplex_up.wav", "rb") as fh:
-                            tr = (escalate._client().audio.transcriptions
-                                  .create(model="gpt-transcribe", file=fh,
-                                          response_format="text"))
-                        up = (tr if isinstance(tr, str)
-                              else getattr(tr, "text", str(tr)))
-                        emit({"type": "log",
-                              "msg": f"thinker uplink heard: "
-                                     f"“{str(up)[:120]}” "
-                                     f"({time.time() - t0:.1f}s ASR)"})
+                        transcribe_turn(state)
+                        up = state.get("uplink_text")
+                        if not up:
+                            raise RuntimeError(
+                                state.get("asr_error") or "empty ASR transcript")
+                        with history_lock:
+                            context = "\n".join(history[-6:])
                         if context:
                             q = ("Conversation so far:\n" + context
                                  + "\n\nThe user now asks (resolve any "
@@ -357,21 +450,23 @@ class DuplexVoice:
                                    "conversation above): " + str(up))
                         else:
                             q = str(up)
+                        t0 = time.time()
                         r = escalate.ask_expert_web(q, effort="low")
                         if r.get("error"):
                             r = escalate.ask_expert(q, effort="low")
-                        exp["answer"] = (r.get("answer")
-                                         or f"[error: {r.get('error')}]")
+                        state["expert_answer"] = (
+                            r.get("answer") or f"[error: {r.get('error')}]")
+                        state["expert_latency_s"] = round(
+                            time.time() - t0, 2)
                         emit({"type": "log",
                               "msg": f"thinker answered in "
-                                     f"{time.time() - t0:.1f}s"})
-                        history.append(f"User: {str(up).strip()}")
-                        history.append(f"Assistant: {exp['answer']}")
-                        del history[:-8]
-                        relay_box.append(exp["answer"])
+                                     f"{state['expert_latency_s']:.1f}s"})
+                        relay_box.append(state)
                     except Exception as e:
+                        state["expert_error"] = str(e)[:160]
                         emit({"type": "log",
                               "msg": f"thinker failed: {str(e)[:120]}"})
+                        finish_turn_async(state)
                     finally:
                         thinking.clear()
 
@@ -395,7 +490,9 @@ class DuplexVoice:
                             # SAME stream; the talker voices it in-band and
                             # stays interruptible (native, chunk 3 below)
                             if relay_box:
-                                ans = relay_box.pop(0)
+                                relay_turn = relay_box.pop(0)
+                                ans = relay_turn.get("expert_answer", "")
+                                relay_turn["relay_started_at"] = time.time()
                                 if muted:
                                     emit({"type": "log",
                                           "msg": f"muted {muted - 1} chunks "
@@ -410,6 +507,9 @@ class DuplexVoice:
                                     prompt_wav_path=PROMPT_WAV,
                                     top_k=GEN_TOP_K)
                                 _emit_gen(r, relay=True)
+                                if r.get("text"):
+                                    relay_turn["assistant_parts"].append(
+                                        r["text"])
                                 if not r.get("text"):
                                     emit({"type": "log",
                                           "msg": "relay swallowed — nudging"})
@@ -419,6 +519,9 @@ class DuplexVoice:
                                         prompt_wav_path=PROMPT_WAV,
                                         top_k=GEN_TOP_K)
                                     _emit_gen(r, relay=True)
+                                    if r.get("text"):
+                                        relay_turn["assistant_parts"].append(
+                                            r["text"])
                                 prev_listen = r["is_listen"]
 
                             user_win.append(ch)
@@ -441,6 +544,7 @@ class DuplexVoice:
 
                             score = self._score_now()
                             if score is not None:
+                                turn_scores.append(round(score, 4))
                                 emit({"type": "score", "i": n_chunk,
                                       "v": round(score, 4),
                                       "listen": bool(r["is_listen"])})
@@ -461,6 +565,26 @@ class DuplexVoice:
                                              and not relay_guard
                                              and len(user_win) > 0)
                                 fired_now = fired
+                                turn_index += 1
+                                snap = (np.concatenate(user_win)
+                                        if user_win else
+                                        np.zeros(1600,
+                                                 np.float32))[-30 * 16000:]
+                                active_turn = {
+                                    "index": turn_index,
+                                    "started_at": time.time(),
+                                    "snapshot": snap.copy(),
+                                    "fired": fired,
+                                    "score": (None if score is None
+                                              else round(score, 4)),
+                                    "threshold": round(thr, 4),
+                                    "scores": list(turn_scores),
+                                    "act_score": (None if act is None
+                                                  else round(act, 4)),
+                                    "is_info": bool(is_info),
+                                    "assistant_parts": [],
+                                    "asr_done": _th.Event(),
+                                }
                                 emit({"type": "gate",
                                       "score": (None if score is None
                                                 else round(score, 4)),
@@ -471,14 +595,13 @@ class DuplexVoice:
                                       "probe_on": probe_on})
                                 if fired:
                                     thinking.set()
-                                    snap = (np.concatenate(user_win)
-                                            if user_win else
-                                            np.zeros(1600,
-                                                     np.float32))[-30 * 16000:]
-                                    ctx = "\n".join(history[-6:])
                                     emit({"type": "phase", "v": "escalating"})
                                     _th.Thread(target=thinker,
-                                               args=(snap, ctx),
+                                               args=(active_turn,),
+                                               daemon=True).start()
+                                else:
+                                    _th.Thread(target=transcribe_turn,
+                                               args=(active_turn,),
                                                daemon=True).start()
 
                             _emit_gen(r, mute=muted > 0)
@@ -486,6 +609,12 @@ class DuplexVoice:
                                 muted += 1
                             if r.get("text") and not muted:
                                 turn_text.append(r["text"])
+                                target_turn = (relay_turn if relay_guard
+                                               and relay_turn is not None
+                                               else active_turn)
+                                if target_turn is not None:
+                                    target_turn["assistant_parts"].append(
+                                        r["text"])
                             if fired_now:
                                 turn_fired = True
                                 if self.stall_pcm is not None:
@@ -495,6 +624,8 @@ class DuplexVoice:
                                           "pcm": base64.b64encode(
                                               i16s.tobytes()).decode()})
                                     emit({"type": "text", "v": " " + STALL})
+                                    active_turn["assistant_parts"].append(
+                                        " " + STALL)
                                 emit({"type": "log",
                                       "msg": "canned stall + context note; "
                                              "local continuation muted "
@@ -512,16 +643,27 @@ class DuplexVoice:
                                           "msg": f"muted {muted - 1} chunks "
                                                  "of local continuation"})
                                     muted = 0
-                                # local turns: the talker's own answer carries
-                                # the topic into history (escalated turns are
-                                # recorded inside thinker with the resolved
-                                # question). audio window stays per-turn clean.
                                 ans = "".join(turn_text).strip()
-                                if ans and not turn_fired:
-                                    history.append(f"Assistant: {ans}")
-                                    del history[:-8]
+                                if relay_guard and relay_turn is not None:
+                                    relay_turn["relay_ms"] = int(
+                                        (time.time() - relay_turn.get(
+                                            "relay_started_at", time.time()))
+                                        * 1000)
+                                    finish_turn_async(relay_turn)
+                                    relay_turn = None
+                                elif active_turn is not None:
+                                    if not active_turn["fired"]:
+                                        if ans and not active_turn[
+                                                "assistant_parts"]:
+                                            active_turn["assistant_parts"].append(
+                                                ans)
+                                        finish_turn_async(active_turn)
+                                    # Fired local continuation is intentionally
+                                    # muted; its state is owned by thinker/relay.
+                                    active_turn = None
                                 user_win = []
                                 turn_text, turn_fired = [], False
+                                turn_scores = []
                                 relay_guard = False
                                 self.st3.update(sum=None, cnt=0)
                             prev_listen = r["is_listen"]
@@ -576,7 +718,8 @@ class DuplexVoice:
 
             try:
                 await sock.send_json(
-                    {"type": "hello", "thr": round(thr, 4), "tier": tier,
+                    {"type": "hello", "protocol": "duplex_v1",
+                     "thr": round(thr, 4), "tier": tier,
                      "probe_on": probe_on,
                      "mode": "NATIVE full duplex — the model itself "
                              "decides listen/speak every second; no VAD, "
