@@ -35,7 +35,8 @@ probe by replay and re-mix through the model's native frame protocol
 Both probe-AUC rows use OAB labels on its three pools and the
 reference-anchored judge on SD-QA/Reasoning.
 AlpacaEval, reported separately on its 1--5 scale, changes from 3.99
-to 4.35 on MiniCPM but does not beat matched-rate random. Full random
+to 4.35 on MiniCPM but does not beat matched-rate random; the pass-3
+NVDA ranking changes 3.55 to 4.51 versus 4.23 for random. Full random
 references and gold-input ceilings are in
 Appendices~\ref{app:fixedthr}--\ref{app:transferdetail}.}
 \label{tab:transfer}
@@ -103,8 +104,11 @@ missed by the expert
 open-ended failures do not present the retrieval-failure pattern the
 probe reads. On NVDA, the pass-3 probe beats matched-rate random on all
 four binary QA pools at 30\% and 50\% escalation ($p\le.0008$); at
-15\%, SD-QA is inconclusive ($p{=}0.063$). Thus external utility
-depends on both the quality of the competence ranking and whether the
-selected failures are repairable by the expert
+15\%, SD-QA is inconclusive ($p{=}0.063$). On AlpacaEval, the same
+pass-3 ranking reaches 4.51 versus 4.23 for random at 50\%
+($p<.001$). Thus the three MiniCPM negatives all separate at the
+30\% and 50\% budgets on the second family: external utility depends
+on both the competence ranking and whether the selected failures are
+repairable by the expert
 (Appendices~\ref{app:nvda},~\ref{app:fixedthr},
 and~\ref{app:transferdetail}).
