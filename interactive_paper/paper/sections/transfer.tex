@@ -35,8 +35,9 @@ NemotronLabs-VoiceChat-11B in an offline re-mix
 always-local. AlpacaEval, reported separately on its 1--5 scale,
 changes from 3.99 to 4.35 on MiniCPM but does not beat matched-rate
 random; the second family changes from 3.55 to 4.46 versus 4.23 for
-random. Full random references and gold-input ceilings are in
-Appendices~\ref{app:fixedthr}--\ref{app:transferdetail}.}
+random. The final AUC row reports our latest pass-3 probe; the accuracy
+re-mix above is unchanged. Full random references and gold-input
+ceilings are in Appendices~\ref{app:fixedthr}--\ref{app:transferdetail}.}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
 \toprule
@@ -60,6 +61,7 @@ always-expert (ceiling) & 95.5 & 82.8 & 93.2 & 89.0 & --- & 90.1 & +46.4 \\
 \midrule
 probe AUC (frozen)    & 0.789 & 0.785 & 0.806 & 0.792 & 0.683 & 0.771 & --- \\
 probe AUC (2nd family) & 0.775 & 0.771 & 0.720 & 0.754 & --- & 0.755 & --- \\
+\textbf{latest 2nd-family probe} & \textbf{0.827} & \textbf{0.862} & \textbf{0.790} & \textbf{0.775} & --- & \textbf{0.813} & --- \\
 official offline      & 75.5 & 70.2 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}
@@ -73,6 +75,11 @@ benchmark and at every budget; at 50\% escalation, mean accuracy rises
 from 63.6\% to 82.1\%. These gains establish system utility but do not
 by themselves establish selectivity, because random escalation also
 adds expert answers.
+
+Our latest second-family probe reaches 0.818 OOF AUC and 0.813 mean
+cold external AUC. It averages linear heads at L26/L30/L34 on the
+pass-3 answer-onset capture. The full training protocol and read-point
+ablations are in Appendix~\ref{app:nvda}.
 
 Llama Questions provides the cleanest fixed-budget test. It contains a
 single query type, the kept-local subset scores 97.6\% while the

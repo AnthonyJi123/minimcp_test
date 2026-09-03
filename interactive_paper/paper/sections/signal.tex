@@ -70,10 +70,9 @@ do not identify a training objective or causal mechanism; the full
 audit is in Appendix~\ref{app:mech}.
 
 The mid-network pattern also appears outside the MiniCPM family. On
-NemotronLabs-VoiceChat-11B, a hybrid-Mamba duplex model, the same
-recipe peaks at L30--34 of 56 and transfers to the external pools at
-AUC 0.70--0.79 with one quarter of the deployed probe's calibration
-data (Appendix~\ref{app:nvda}).
+NemotronLabs-VoiceChat-11B, a hybrid-Mamba duplex model, our latest
+three-layer probe reads L26/L30/L34 and reaches 0.818 OOF AUC and
+0.813 mean cold external AUC (Appendix~\ref{app:nvda}).
 
 \begin{figure}[t]
   \centering

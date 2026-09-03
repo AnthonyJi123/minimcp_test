@@ -256,7 +256,22 @@ LOPO robustness, which an in-mix test cannot show.
 \section{Second duplex family: NemotronLabs-VoiceChat-11B}
 \label{app:nvda}
 
-
+\paragraph{Probe training protocol.}
+Our latest probe uses the pass-3 replay through NVIDIA's NeMo
+\texttt{offline\_voicechat} path with the VoiceChat checkpoint frozen.
+Of 2{,}550 English calibration queries, 2{,}481 produce a commit frame
+and enter the fit. At each of L26/L30/L34, we concatenate the commit
+state, the eighth post-commit state, the mean of the first eight
+post-commit states, and the running mean before commit (17{,}920
+dimensions per layer). Each layer has a
+\texttt{StandardScaler}$\to L_2$-logistic head ($C{=}10^{-4}$);
+we normalize the three training logits by their standard deviations
+and average them. A GPT-5.4-mini judge supplies pass/fail labels
+against reference answers. We select the recipe on calibration-only
+LOPO metrics, report five-fold stratified OOF AUC, and score the four
+external pools cold. The 15/30/50\% thresholds are OOF-score
+quantiles. Because the feature window ends 640\,ms after commit, this
+is an answer-onset read rather than a strictly causal pre-answer read.
 
 The pre-registered prediction test: with the identical recipe (same
 audio, same judge, 600-query calibration), the layer sweep on this
