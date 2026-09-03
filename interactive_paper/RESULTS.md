@@ -5965,3 +5965,192 @@ gallery_app.py (harness figures retired; 26 entries). Demo:
 demo_duplex.py RELAY_MODE=tts + clean_expert + `_synth_pcm`, deployed
 15:20. Old-cleaner WebQ always run archived on the volume as
 `old_cleaner_*`.
+
+## Phase 8bv — probe lift by failure type: the gate sees "confident wrong", it does not see "execution" ($2 API, 2026-09-03)
+
+`modal_failure_taxonomy.py` classified all 600 never-arm failures on the
+six native QA pools (1,392 rows) with gpt-5.4-mini (structured output;
+inputs: question text, gpt-transcribe transcript of the same audio,
+reference, local answer, judge note) into perception / knowledge_gap /
+confident_wrong / execution / quality_other; `scripts/37_failure_taxonomy_lift.py`
+scores each class with the never-arm onset score at the deployed
+per-language thresholds and the always-arm (TTS relay) expert outcome.
+
+| type | n (share) | AUC vs correct | recall @cons/bal/agg | expert fixes | pts recovered @bal/@agg | recoverable |
+|---|---:|---:|---:|---:|---:|---:|
+| perception (misheard) | 36 (6%) | **.889** | .28/.56/.86 | .39 | 0.65/0.86 | 1.0 |
+| knowledge gap (hedges) | 17 (3%) | .829 | .24/.65/.82 | .71 | 0.57/0.72 | 0.9 |
+| confident wrong | 418 (70%) | .813 | .10/.37/.79 | .76 | **8.3/18.6** | 22.9 |
+| execution (working slips) | 44 (7%) | **.469** | .18/.32/.57 | .59 | 0.65/1.15 | 1.9 |
+| quality / other | 81 (14%) | .631 | .22/.35/.52 | .68 | 1.1/1.8 | 4.0 |
+
+False-fire on correct rows: .02 / .08 / .31 at cons/bal/agg. Execution
+failures are 35/44 from Reasoning-zh; perception 14/36 from our pool,
+7 from SD-QA.
+
+**Reading.** (1) 70% of native failures are specific wrong answers that
+read as confident; the pre-answer state still ranks them at AUC .81 and
+the aggressive tier catches 79% of them at a 31% false-fire — the hidden
+state knows more than the surface text (cf. Orgad et al. 2024). 81% of
+the routing gain (18.6 of 22.9 recoverable points at aggressive) comes
+from this class. (2) Execution failures are invisible at the commit
+point: AUC .47. Their 57% escalation at aggressive is the zh threshold
+firing at its nominal rate, not discrimination. This is the one class a
+later read point (after the first answer tokens) could move; it caps at
+~1.9 points per 100 questions on these pools. (3) Perception failures
+are the best-ranked (.89) but least fixable (.39): the expert gets the
+raw audio through gpt-transcribe, which also mishears some of them.
+(4) Caveat: the classifier cannot see the model's internal state, so a
+misheard question answered fluently lands in "confident wrong"; class
+labels carry judge noise; knowledge_gap has n=17.
+Files: modal_failure_taxonomy.py, scripts/37_failure_taxonomy_lift.py,
+data/native_bench/failure_types.parquet, figures/failure_taxonomy_lift.{png,json};
+gallery 图N7.
+
+## Phase 8bw — failure-type explainer page + headroom accounting ($0, 2026-09-03)
+
+`scripts/38_taxonomy_examples.py` pulls per-type real examples out of the 8bv
+taxonomy (each carrying the deployed gate's never-arm score on that exact row,
+which tiers it fires at under the per-language thresholds, and whether the
+always-arm expert fixed it) and adds a net-points ledger over the same 1,392
+rows: gain = failure escalated and expert fixed it, loss = correct row
+escalated and expert got it wrong.
+
+| tier | fire rate | gain | loss | net (pts/100q) |
+|---|---:|---:|---:|---:|
+| conservative | 7% | +3.9 | −0.1 | **+3.7** |
+| balanced | 21% | +11.2 | −0.4 | **+10.8** |
+| aggressive | 49% | +23.1 | −1.2 | **+22.0** |
+| always escalate | 100% | +30.8 | −2.9 | **+27.9** |
+
+**Reading.** The aggressive tier buys 79% of the always-escalate net gain at
+49% of the cost; the entire remaining headroom on these pools is 5.9 net
+points, and it costs double to reach. Split by type (gross), the 7.6-point
+gap is confident-wrong 4.3, quality/other 2.2, execution 0.7 — i.e. the
+cheapest unclaimed block is quality/other, most of which is empty or
+MAX_ANS-truncated answers that a *rule* (empty/truncated → escalate) catches
+without any probe. Rows with an empty answer have no onset score at all.
+
+Explainer page (五类定义/判定/真实例子 + 训练成果 + 剩余空间, reads both JSONs
+at build): `taxonomy_app.py` →
+https://rhe9527--failure-taxonomy-page-web.modal.run/7f31ac0d
+Files: taxonomy_app.py, scripts/38_taxonomy_examples.py,
+figures/failure_examples.json.
+
+## Phase 8bw — read-point timeline: uncertainty unfolds with the answer (~$45 GPU + ~$12 API, 2026-09-03)
+
+`modal_native_dump.py` now saves, per query, the same 12,288-d L22 read at
+five moments of ONE generation: `X_pre` (before the onset chunk's
+generate; no answer token), `X` (deployed: after it), `X_k1/2/3` (after the
+1st/2nd/3rd answer chunk; padded with the last available read — 0.2 / 2.8
+/ 10.6% of rows end earlier). Fresh official-config dumps of the whole
+8bq training merge (`calibk expk exp2k exp3k exp3zhk freshk`, 5,236 rows
+after judge) and the six eval pools (`testk …`), labels judged on the
+same generation. `scripts/38_readpoint_refit.py`: one 8bq-recipe probe
+per read point (L2 LR, C=3e-4, row-random 5-fold OOF).
+
+| read | OOF | test | TriviaQA | WebQ | Llama | SD-QA | Reasoning-zh | En-4 | ext-5 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| pre | .848 | .832 | .820 | .721 | .779 | .736 | .711 | .764 | .753 |
+| onset (deployed) | .850 | .852 | .819 | .782 | .785 | .738 | .648 | .781 | .755 |
+| k1 | .852 | .854 | .793 | .777 | .810 | .747 | .681 | .782 | .762 |
+| k2 | .855 | .846 | .823 | .786 | .809 | .766 | **.769** | .796 | .791 |
+| k3 | .857 | .858 | **.857** | .791 | .824 | .790 | .744 | **.815** | **.801** |
+| onset+k1 (logit mean) | .856 | .859 | .814 | .786 | .801 | .752 | .674 | .788 | .765 |
+
+Cascade at an exact 30% budget (local from this dump, expert from the
+TTS-relay always arm): k2 vs onset — Reasoning-zh .668→.713, TriviaQA
+.780→.784, others within ±1 pt. Preliminary leave-one-pool-out on the
+eval pools alone (1,150 train rows) showed the same ordering (onset .714
+→ k3 .765).
+
+**Interpretation.** (1) The commit-point state encodes *retrieval*
+confidence (did I hear it, do I have it, is this the right entity);
+*execution* confidence does not exist yet — the slip has not happened.
+After two answer chunks the trajectory is in the state and Reasoning-zh
+rises .648→.769; internal test (recall-dominated) does not move. Same
+pattern as text-side P(IK) < P(True) and answer-token probes (Kadavath
+2022, Orgad 2024), here resolved on the streaming time axis. (2) The
+"probe ceiling" of 8bq-3 is the pre-answer-read ceiling (.76–.78); k3
+reaches .80 with +3 s and a partially voiced wrong answer — a product
+trade, not a deployment change; the paper's pre-commitment claim
+stands. (3) `pre` vs `onset`: onset includes the first spoken unit;
+for English facts that unit is often the entity (WebQ +.06 for onset),
+for zh / real speech it is a discourse marker (Reasoning-zh +.06 for
+pre). Read-point value tracks *when the answer content enters the
+token stream*. Per-language read-point choice would be eval-pool
+tuning; not adopted. (4) Ranking gains still convert weakly at fixed
+budgets except on zh (same lesson as 8bt / issue #8).
+Files: modal_native_dump.py (X_k1..3, n_post), `_run_postread.sh`,
+scripts/pull_postread.sh, scripts/38_readpoint_refit.py,
+figures/readpoint_refit.{json,png}, data/frozen_native_*k_judged.parquet
+(feature shards stay on the volume, ~1.2 GB). Gallery 图N8.
+
+## Phase 8bx — two-stage gate (commit-point probe + k2 re-score on a gray band): not worth it ($0, 2026-09-03)
+
+`scripts/39_two_stage.py` on the 8bw dumps. Policy P(r, d, f): fire the
+top r(1-f)N rows by onset score at the commit; defer the next dN rows
+(gray band) to the k2 probe and fire the top r·f·N - |A| of them; the
+rest answer locally. d=0 is the deployed gate, d=1 is k2-only. Delivered
+accuracy at exact per-pool budgets, expert = TTS-relay always arm.
+
+| budget | one-stage | band .2 / half at k2 | band .5 / half at k2 | k2-only (all deferred) |
+|---|---:|---:|---:|---:|
+| 15% | .638 | .642 | .646 | .637 |
+| 30% | .711 | .716 | .718 | .720 |
+| 50% | .770 | — | .784 | .783 |
+
+Per pool @30%: only Reasoning-zh moves (.668 → .708 band-half / .713
+k2-only); the other five are within ±.005.
+
+**Reading.** The k2 read's AUC advantage (+.04 ext-5) buys under one
+point of mean delivered accuracy at a fixed budget, for two reasons:
+(1) at a fixed budget only the ranking near the threshold matters, and
+there onset and k2 agree on most rows — the k2 probe re-orders the
+middle of the ranking, not the boundary; (2) the rows it does flip are
+concentrated in execution failures (Reasoning-zh, +4.5 pts), which are a
+small share of failures elsewhere (8bv: 7% overall). Combined with
+the latency cost (20–50% of turns hear ~2 s of a possibly wrong answer
+before the decision) the two-stage gate is not a deployment candidate;
+the commit-point single decision stands. It is a real lever only for
+reasoning-heavy traffic. Consistent with 8bt/8bw and issue #8: ranking
+gains convert weakly into routing gains at fixed budgets.
+Files: scripts/39_two_stage.py, figures/two_stage.{png,json}; gallery 图N9.
+
+## Phase 8by — the last three probe levers, closed on the live rows ($0, 2026-09-03)
+
+Three routes were still listed as "not yet refuted" after 8bq-3. All
+three are now measured on the native live rows (never-arm local
+outcome, TTS-relay always-arm expert outcome, exact per-pool budgets).
+
+1. **Later read point** (8bw/8bx): ranking +.036 ext-5 AUC at k2,
+   Reasoning-zh +.12; delivered accuracy at a fixed budget +0.7-0.9 pt
+   mean, +4.5 on zh only; two-stage gray band no better. Analysis
+   result, not a deployment lever.
+2. **Second-signal fusion (P9 / P16 shadow scores)** logged on every
+   live row by the bench runner. AUC on the live never arms: frozen
+   .858 -> .864/.865, WebQ .732 -> .742/.749, SD-QA .784 -> .809/.815,
+   Llama .703 -> .700/.691, zh .685 -> .680/.671. Delivered accuracy,
+   external-4 mean: 15% .657 -> .661/.657, 30% .717 -> .717/.719,
+   50% .770 -> .766/.772. Within +-.005 everywhere. Same verdict as
+   8bt and as ChangyiYang's P32: ranking moves, routing does not.
+3. **Empty / truncated-answer rule.** Empty answers: 8 rows in 1,392
+   (7 wrong, expert fixes 6). Truncation (60-chunk cap without
+   end-of-turn): frozen 29 (90% wrong, expert fixes 45%), Reasoning-zh
+   26 (92% / 77%), none elsewhere. Forcing those rows to the front of
+   the budget: external-5 mean +.004/+.007/+.005 at 15/30/50%; zh
+   +.015; frozen -.016 at the two lower budgets because the displaced
+   probe picks were more expert-fixable than the truncated rows.
+   Detection is also late (the cap is reached after ~60 s of speech),
+   and answer length is not an early proxy: frozen answers >=800 chars
+   are 86% wrong but the expert fixes only 50% of them (formula-heavy
+   problems the expert also misses). Worth ~0.5 pt, not the 2.2 pt
+   the taxonomy ceiling suggested; not deployed.
+
+**Net.** The probe-side ledger is closed: every remaining route buys
+ranking, none buys more than a point of delivered accuracy at a fixed
+budget. Recoverable headroom is 7.5 pt/100 at aggressive (8bv), and it
+is spread across confident-wrong rows the probe already ranks near
+the boundary. Gains from here come from the channel (relay, done:
++23 pt on TriviaQA always), the expert (fixable rate .39 on misheard
+turns), and the judge/label floor, not the read.
