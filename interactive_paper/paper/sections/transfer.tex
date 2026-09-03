@@ -29,15 +29,14 @@ are on the published scale.
 \caption{Transfer to five public speech-QA benchmarks. The top block is
 measured post-relay answer accuracy (\%) from the audio-input/text-output
 live loop; the probe is fixed and thresholds use label-free per-pool
-quantiles. The bottom block applies the same recipe to
-NemotronLabs-VoiceChat-11B in an offline re-mix
-(Appendix~\ref{app:nvda}). $\Delta$ is the average gain over
-always-local. AlpacaEval, reported separately on its 1--5 scale,
-changes from 3.99 to 4.35 on MiniCPM but does not beat matched-rate
-random; the second family changes from 3.55 to 4.46 versus 4.23 for
-random. The final AUC row reports our latest pass-3 probe; the accuracy
-re-mix above is unchanged. Full random references and gold-input
-ceilings are in Appendices~\ref{app:fixedthr}--\ref{app:transferdetail}.}
+quantiles. The bottom block evaluates our latest three-layer NVDA
+probe by offline native-protocol replay and re-mix
+(Appendix~\ref{app:nvda}); it tests method transfer, not real-time
+full-duplex serving. $\Delta$ is the average gain over always-local.
+AlpacaEval, reported separately on its 1--5 scale, changes from 3.99
+to 4.35 on MiniCPM but does not beat matched-rate random. Full random
+references and gold-input ceilings are in
+Appendices~\ref{app:fixedthr}--\ref{app:transferdetail}.}
 \label{tab:transfer}
 \begin{tabular}{lccccccc}
 \toprule
@@ -51,17 +50,16 @@ always-local          & 66.4 & 57.2 & 84.0 & 51.5 & 58.9 & 63.6 & --- \\
 always-escalate (measured) & 88.0 & 80.8 & 93.6 & 88.5 & 83.7 & 86.9 & +23.3 \\
 always-expert (gold-text ceiling) & 96.8 & 86.4 & 92.8 & 93.0 & 87.1 & 91.2 & +27.6 \\
 \midrule
-\multicolumn{8}{l}{\emph{second family: NemotronLabs-VoiceChat-11B (offline re-mix, official judges)}} \\
-always-local          & 35.6 & 37.6 & 70.5 & 31.0 & --- & 43.7 & --- \\
-\;+ gate @15\%        & 49.8 & 48.0 & 78.6 & 42.5 & --- & 54.7 & +11.0 \\
-\;+ gate @30\%        & 61.5 & 58.8 & 83.8 & 54.5 & --- & 64.6 & +21.0 \\
-\;\textbf{+ gate @50\%} & \textbf{74.1} & \textbf{69.6} & \textbf{87.6} & \textbf{67.5} & --- & \textbf{74.7} & \textbf{+31.0} \\
-\;matched random @50\% & 65.6 & 60.2 & 81.8 & 60.0 & --- & 66.9 & +23.2 \\
-always-expert (ceiling) & 95.5 & 82.8 & 93.2 & 89.0 & --- & 90.1 & +46.4 \\
+\multicolumn{8}{l}{\emph{NVDA three-layer answer-onset probe (pass-3 offline native-protocol replay)}} \\
+always-local          & 35.8 & 37.6 & 70.8 & 31.0 & --- & 43.8 & --- \\
+\;+ gate @15\%        & 48.4 & 48.8 & 80.7 & 42.0 & --- & 55.0 & +11.2 \\
+\;+ gate @30\%        & 61.0 & 59.2 & 85.8 & 54.0 & --- & 65.0 & +21.2 \\
+\;+ gate @50\%        & 76.8 & 69.6 & 89.7 & 66.5 & --- & 75.7 & +31.9 \\
+\;matched random @50\% & 65.7 & 60.2 & 82.0 & 60.0 & --- & 67.0 & +23.2 \\
+always-expert (ceiling) & 95.5 & 82.8 & 93.1 & 89.0 & --- & 90.1 & +46.3 \\
 \midrule
 probe AUC (frozen)    & 0.789 & 0.785 & 0.806 & 0.792 & 0.683 & 0.771 & --- \\
-probe AUC (2nd family) & 0.775 & 0.771 & 0.720 & 0.754 & --- & 0.755 & --- \\
-latest 2nd-family probe & 0.827 & 0.862 & 0.790 & 0.775 & --- & 0.813 & --- \\
+NVDA probe AUC (pass-3) & 0.827 & 0.862 & 0.790 & 0.775 & --- & 0.813 & --- \\
 official offline      & 75.5 & 70.2 & ---  & ---  & ---  & ---  & --- \\
 \bottomrule
 \end{tabular}
@@ -76,10 +74,12 @@ from 63.6\% to 82.1\%. These gains establish system utility but do not
 by themselves establish selectivity, because random escalation also
 adds expert answers.
 
-Our latest second-family probe reaches 0.818 OOF AUC and 0.813 mean
-cold external AUC. It averages linear heads at L26/L30/L34 on the
-pass-3 answer-onset capture. The full training protocol and read-point
-ablations are in Appendix~\ref{app:nvda}.
+The NVDA probe reaches 0.818 OOF AUC and 0.813 mean external AUC.
+It averages linear heads at L26/L30/L34 on a pass-3 answer-onset
+capture from the model's native frame protocol. This is an offline
+method-transfer result, not a real-time serving result. The full
+training protocol and read-point ablations are in
+Appendix~\ref{app:nvda}.
 
 Llama Questions provides the cleanest fixed-budget test. It contains a
 single query type, the kept-local subset scores 97.6\% while the
@@ -100,10 +100,10 @@ high budgets; in its top-scoring 15\%, many local failures are also
 missed by the expert
 (Appendix~\ref{app:fixedthr}). AlpacaEval is a clearer negative: its
 open-ended failures do not present the retrieval-failure pattern the
-probe reads. On the second duplex family, which has more expert
-headroom on these pools, the same recipe beats matched-rate random on
-all five evaluated pools, including AlpacaEval ($p\le.0004$). Thus
-external utility depends on both the quality of the competence ranking
-and whether the selected failures are repairable by the expert
+probe reads. On NVDA, the pass-3 probe beats matched-rate random on all
+four binary QA pools at 30\% and 50\% escalation ($p\le.0008$); at
+15\%, SD-QA is inconclusive ($p{=}0.063$). Thus external utility
+depends on both the quality of the competence ranking and whether the
+selected failures are repairable by the expert
 (Appendices~\ref{app:nvda},~\ref{app:fixedthr},
 and~\ref{app:transferdetail}).
