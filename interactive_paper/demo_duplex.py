@@ -47,6 +47,7 @@ app = modal.App("gate-demo-duplex")
 gate_data = modal.Volume.from_name("gate-data")
 weights = modal.Volume.from_name("minicpm-o45-weights")
 DATA = "/data"
+TRACK_WARMUP = 20   # onset scores before the windowed quantile takes over
 MODEL_DIR = "/workspace/models/MiniCPM-o-4_5"
 PROMPT_WAV = f"{MODEL_DIR}/assets/system_ref_audio.wav"
 # 8bl: serve with the OFFICIAL duplex config. The A/B control demo
@@ -104,16 +105,43 @@ gpu_image = (
 RELAY_TMPL = ("A verified answer came back: {ans}\n"
               "Relay it to the user in one or two spoken sentences.")
 RELAY_NUDGE = "Say the verified answer aloud to the user now."
-STALL = "Hmm, let me double-check that — one moment."
-# fired => paper-parity canned stall: the STALL line is synthesized ONCE
-# at load via the turn-based teacher-forcing path (talker's own voice),
-# played to the user at fire time, and the context gets a factual note
-# that the line was said. The onset chunk's ~1 s of local attempt has
-# already been voiced when the gate reads — chunk granularity is the
-# regime's floor.
-STALL_NOTE = ("[SYSTEM NOTE] Your answer so far is likely wrong. You "
-              "just told the user: \"" + STALL + "\" A verified answer "
-              "will arrive in a moment.")
+# 8bu relay mode. "steer": prefill RELAY_TMPL and let the talker voice the
+# answer itself (loses ~20-27 pts of correct expert answers: truncation,
+# self-answering, 99% nudges). "tts": speak the cleaned expert text
+# verbatim in the talker's own voice via the same teacher-forcing path
+# that synthesizes the canned stall, then hand the context a note. The
+# chunk loop keeps running, so the relay stays interruptible.
+RELAY_MODE = os.environ.get("RELAY_MODE", "tts")
+RELAY_NOTE = "[SYSTEM NOTE] You just told the user: \"{ans}\" Do not repeat it."
+
+
+import re
+
+
+def clean_expert(txt, max_chars=400):
+    """Expert markdown -> one spoken paragraph: strip emphasis/links/
+    tables, flatten bullets into a comma list, keep whole sentences
+    (abbreviation-aware) up to max_chars."""
+    t = str(txt)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)          # [text](url)
+    t = re.sub(r"\(\s*https?://[^)]*\)", "", t)              # bare (url)
+    t = re.sub(r"^\s*\|.*\|\s*$", " ", t, flags=re.M)         # table rows
+    t = re.sub(r"^\s*#{1,6}\s*", "", t, flags=re.M)            # headings
+    t = re.sub(r"^\s*(?:[-*\u2022]|\d+[.)])\s+", ", ", t, flags=re.M)   # bullets
+    t = re.sub(r"[*_`>]+", "", t)
+    t = re.sub(r"\s*\n+\s*", " ", t)
+    t = re.sub(r"\s*,\s*,+", ", ", t)
+    t = re.sub(r":\s*,\s*", ": ", t)
+    t = re.sub(r"\s+", " ", t).strip(" ,")
+    sents = re.split(r"(?<!\b[A-Z])(?<!\b[A-Z][a-z])(?<!\bU\.S)(?<!\bDr)(?<!\bMr)(?<!\bMrs)(?<!\bSt)(?<!\bNo)(?<=[.!?])\s+(?=[A-Z0-9\u4e00-\u9fff])", t)
+    out = ""
+    for se in sents:
+        if out and len(out) + 1 + len(se) > max_chars:
+            break
+        out = (out + " " + se).strip()
+    if len(out) > max_chars + 80:
+        out = out[:max_chars].rsplit(" ", 1)[0] + "."
+    return out or t[:max_chars]
 
 
 def _call_def(fn, /, **kw):
@@ -163,6 +191,7 @@ class DuplexVoice:
         # in-regime probe: 8be native-duplex refit (2310 rows, same
         # speak-onset read point as this app; scripts/22)
         self.art = json.load(open(f"{DATA}/gate_native.json"))
+        self.score_wins = {}       # lang -> deque of recent onset scores
         # 8bh dialogue-act gate: stop words / backchannels hit the same
         # commit as questions and the failure probe is OOD on them —
         # escalate only when the SAME L22 read says "info-seeking"
@@ -193,34 +222,14 @@ class DuplexVoice:
         # canned stall in the talker's own voice (teacher-forced via the
         # turn-based path; the duplex wrapper reuses the same TTS)
         self.stall_pcm = None
+        self.tts_ok = False
         try:
-            import numpy as _np
             import librosa as _lb
             ref, _ = _lb.load(PROMPT_WAV, sr=16000, mono=True)
             self.model.init_token2wav_cache(ref)
-            self.model.reset_session(reset_token2wav_cache=False)
-            sys_msg = _call_def(self.model.get_sys_prompt, mode="omni",
-                                language="en")
-            _call_def(self.model.streaming_prefill, session_id="s1",
-                      msgs=[sys_msg], tokenizer=self.tok)
-            _call_def(self.model.streaming_prefill, session_id="s1",
-                      msgs=[{"role": "user",
-                             "content": [_np.zeros(16000,
-                                                   dtype="float32")]}],
-                      tokenizer=self.tok, is_last_chunk=True)
-            res = _call_def(self.model.streaming_generate,
-                            tokenizer=self.tok, temperature=0.1,
-                            generate_audio=True, use_tts_template=True,
-                            teacher_forcing=True,
-                            teacher_forcing_text=STALL,
-                            max_new_tokens=64, session_id="s1")
-            parts = []
-            for item in res:
-                wf = item[0] if isinstance(item, tuple) else None
-                if wf is not None:
-                    parts.append(wf.float().cpu().numpy().reshape(-1))
-            if parts:
-                self.stall_pcm = _np.concatenate(parts)
+            self.tts_ok = True
+            self.stall_pcm = self._synth_pcm(STALL, max_new_tokens=64)
+            if self.stall_pcm is not None:
                 print(f">>> canned stall: "
                       f"{len(self.stall_pcm) / 24000:.2f}s", flush=True)
         except Exception as e:
@@ -228,6 +237,31 @@ class DuplexVoice:
                   flush=True)
         self.load_s = round(time.time() - t0, 1)
         print(f">>> DuplexVoice ready in {self.load_s}s", flush=True)
+
+    def _synth_pcm(self, text, max_new_tokens=256):
+        """Talker's own voice, verbatim `text`, via the turn-based
+        teacher-forcing path (24 kHz float32 pcm or None)."""
+        import numpy as _np
+        self.model.reset_session(reset_token2wav_cache=False)
+        sys_msg = _call_def(self.model.get_sys_prompt, mode="omni",
+                            language="en")
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[sys_msg], tokenizer=self.tok)
+        _call_def(self.model.streaming_prefill, session_id="s1",
+                  msgs=[{"role": "user",
+                         "content": [_np.zeros(16000, dtype="float32")]}],
+                  tokenizer=self.tok, is_last_chunk=True)
+        res = _call_def(self.model.streaming_generate,
+                        tokenizer=self.tok, temperature=0.1,
+                        generate_audio=True, use_tts_template=True,
+                        teacher_forcing=True, teacher_forcing_text=text,
+                        max_new_tokens=max_new_tokens, session_id="s1")
+        parts = []
+        for item in res:
+            wf = item[0] if isinstance(item, tuple) else None
+            if wf is not None:
+                parts.append(wf.float().cpu().numpy().reshape(-1))
+        return _np.concatenate(parts) if parts else None
 
     def _feat_now(self):
         import torch
@@ -294,7 +328,34 @@ class DuplexVoice:
             await sock.accept()
             tier = sock.query_params.get("tier", "balanced")
             probe_on = sock.query_params.get("probe_on", "1") == "1"
-            thr = self.art["eot_thresholds"].get(tier, 1e9)
+            # per-language operating point (review item 3): zh scores
+            # sit below the en calib distribution, so the global tier
+            # quantile barely fires on zh. gate_native.json may carry
+            # eot_thresholds_lang = {en: {...}, zh: {...}} quantiled on
+            # the training OOF per language; fall back to global.
+            lang = sock.query_params.get("lang", "en")
+            thr = (self.art.get("eot_thresholds_lang", {})
+                   .get(lang, self.art["eot_thresholds"])
+                   .get(tier, 1e9))
+            # 8bq: online windowed quantile tracker (8bn simulation,
+            # WINDOW=100). The static per-language point depends on the
+            # calibration slice's family mix matching the stream; the
+            # tracker thresholds at the (1-rate) quantile of the last
+            # 100 onset scores THIS process has seen for the language
+            # (shared across sessions), no labels, no pool identity.
+            # Static threshold until TRACK_WARMUP scores exist.
+            tracker_on = sock.query_params.get("tracker", "1") == "1"
+            tier_rate = {"conservative": .15, "balanced": .30,
+                         "aggressive": .50}.get(tier)
+            score_win = self.score_wins.setdefault(
+                lang, __import__("collections").deque(maxlen=100))
+
+            def effective_thr():
+                if (tracker_on and tier_rate is not None
+                        and len(score_win) >= TRACK_WARMUP):
+                    return (float(np.quantile(np.array(score_win),
+                                              1 - tier_rate)), "window")
+                return (thr, "static")
             if not self.lock.acquire(timeout=3):
                 await sock.send_json({"type": "error",
                                       "msg": "model busy — try again"})
@@ -501,20 +562,47 @@ class DuplexVoice:
                                 relay_guard = True   # no gate fire until
                                 #                      this delivery's eot
                                 emit({"type": "phase", "v": "relaying"})
-                                self.duplex.streaming_prefill(
-                                    text_list=[RELAY_TMPL.format(ans=ans)])
-                                r = self.duplex.streaming_generate(
-                                    prompt_wav_path=PROMPT_WAV,
-                                    top_k=GEN_TOP_K)
-                                _emit_gen(r, relay=True)
-                                if r.get("text"):
+                                if RELAY_MODE == "tts" and self.tts_ok:
+                                    # 8bu: verbatim expert text in the
+                                    # talker's own voice; the duplex
+                                    # context only gets a note, and the
+                                    # local continuation stays muted to
+                                    # end_of_turn so nothing talks over it
+                                    spoken = clean_expert(ans)
+                                    t_s = time.time()
+                                    pcm = None
+                                    try:
+                                        pcm = self._synth_pcm(spoken)
+                                    except Exception as se:
+                                        emit({"type": "log",
+                                              "msg": "relay synth failed: "
+                                                     + str(se)[:100]})
+                                    if pcm is not None:
+                                        i16r = (np.clip(pcm, -1, 1)
+                                                * 32767).astype("<i2")
+                                        emit({"type": "audio", "sr": 24000,
+                                              "pcm": base64.b64encode(
+                                                  i16r.tobytes()).decode()})
+                                    emit({"type": "text", "v": " " + spoken,
+                                          "relay": True})
                                     relay_turn["assistant_parts"].append(
-                                        r["text"])
-                                if not r.get("text"):
+                                        " " + spoken)
                                     emit({"type": "log",
-                                          "msg": "relay swallowed — nudging"})
+                                          "msg": f"relay (tts) "
+                                                 f"{len(pcm) / 24000 if pcm is not None else 0:.1f}s "
+                                                 f"audio, synth "
+                                                 f"{time.time() - t_s:.1f}s"})
                                     self.duplex.streaming_prefill(
-                                        text_list=[RELAY_NUDGE])
+                                        text_list=[RELAY_NOTE.format(ans=spoken)])
+                                    r = self.duplex.streaming_generate(
+                                        prompt_wav_path=PROMPT_WAV,
+                                        top_k=GEN_TOP_K)
+                                    _emit_gen(r, mute=True)
+                                    muted = 1
+                                    prev_listen = r["is_listen"]
+                                else:
+                                    self.duplex.streaming_prefill(
+                                        text_list=[RELAY_TMPL.format(ans=ans)])
                                     r = self.duplex.streaming_generate(
                                         prompt_wav_path=PROMPT_WAV,
                                         top_k=GEN_TOP_K)
@@ -522,7 +610,19 @@ class DuplexVoice:
                                     if r.get("text"):
                                         relay_turn["assistant_parts"].append(
                                             r["text"])
-                                prev_listen = r["is_listen"]
+                                    if not r.get("text"):
+                                        emit({"type": "log",
+                                              "msg": "relay swallowed — nudging"})
+                                        self.duplex.streaming_prefill(
+                                            text_list=[RELAY_NUDGE])
+                                        r = self.duplex.streaming_generate(
+                                            prompt_wav_path=PROMPT_WAV,
+                                            top_k=GEN_TOP_K)
+                                        _emit_gen(r, relay=True)
+                                        if r.get("text"):
+                                            relay_turn["assistant_parts"].append(
+                                                r["text"])
+                                    prev_listen = r["is_listen"]
 
                             user_win.append(ch)
                             if len(user_win) > 45:
@@ -559,8 +659,11 @@ class DuplexVoice:
                                 is_info = (act is None
                                            or act >= self.act[
                                                "act_threshold"])
+                                thr_eff, thr_mode = effective_thr()
+                                if score is not None and is_info:
+                                    score_win.append(float(score))
                                 fired = bool(probe_on and score is not None
-                                             and score >= thr and is_info
+                                             and score >= thr_eff and is_info
                                              and not thinking.is_set()
                                              and not relay_guard
                                              and len(user_win) > 0)
@@ -588,7 +691,11 @@ class DuplexVoice:
                                 emit({"type": "gate",
                                       "score": (None if score is None
                                                 else round(score, 4)),
-                                      "thr": round(thr, 4), "fired": fired,
+                                      "thr": round(thr_eff, 4),
+                                      "thr_mode": thr_mode,
+                                      "thr_static": round(thr, 4),
+                                      "n_window": len(score_win),
+                                      "fired": fired,
                                       "act": (None if act is None
                                               else round(act, 4)),
                                       "is_info": bool(is_info),
@@ -720,7 +827,8 @@ class DuplexVoice:
                 await sock.send_json(
                     {"type": "hello", "protocol": "duplex_v1",
                      "thr": round(thr, 4), "tier": tier,
-                     "probe_on": probe_on,
+                     "lang": lang, "probe_on": probe_on,
+                     "tracker": tracker_on, "n_window": len(score_win),
                      "mode": "NATIVE full duplex — the model itself "
                              "decides listen/speak every second; no VAD, "
                              "no soft barge-in harness"})
@@ -806,6 +914,7 @@ harness, no kill switch. Browser AEC is the only echo control —
  <span class=pill id=swlab>PROBE ON</span>
  tier <select id=tier><option>conservative</option>
  <option selected>balanced</option><option>aggressive</option></select>
+ lang <select id=lang><option selected>en</option><option>zh</option></select>
  <button id=talk class=primary disabled>GPU starting…</button>
  <div style="margin-top:.6rem"><div id=vu></div></div>
  <div class=sub id=state>—</div>
@@ -871,7 +980,8 @@ async function startTalk(){
  proc=ac.createScriptProcessor(2048,1,1);
  const ratio=ac.sampleRate/16000;
  ws=new WebSocket(`${VOICE.replace("https","wss")}/${T}/ws`
-  +`?tier=${$("#tier").value}&probe_on=${probeOn?1:0}`);
+  +`?tier=${$("#tier").value}&lang=${$("#lang").value}`
+  +`&probe_on=${probeOn?1:0}`);
  ws.onmessage=ev=>handle(JSON.parse(ev.data));
  ws.onclose=()=>{if(talking){log("session closed","off");stopTalk();}};
  ws.onerror=()=>{log("websocket error","off");stopTalk();};
@@ -891,7 +1001,7 @@ async function startTalk(){
 $("#talk").onclick=()=>{talking?stopTalk():startTalk()};
 let turnText="";
 function handle(m){
- if(m.type==="hello")log(`session config: thr ${m.thr} (${m.tier}), `
+ if(m.type==="hello")log(`session config: thr ${m.thr} (${m.tier}/${m.lang}), `
   +`probe ${m.probe_on?"ON":"OFF"} — ${m.mode}`);
  else if(m.type==="phase")$("#phase").textContent=m.v;
  else if(m.type==="audio")playPCM(m.pcm,m.sr);
