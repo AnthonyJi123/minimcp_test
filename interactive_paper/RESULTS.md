@@ -6116,3 +6116,41 @@ the commit-point single decision stands. It is a real lever only for
 reasoning-heavy traffic. Consistent with 8bt/8bw and issue #8: ranking
 gains convert weakly into routing gains at fixed budgets.
 Files: scripts/39_two_stage.py, figures/two_stage.{png,json}; gallery 图N9.
+
+## Phase 8by — the last three probe levers, closed on the live rows ($0, 2026-09-03)
+
+Three routes were still listed as "not yet refuted" after 8bq-3. All
+three are now measured on the native live rows (never-arm local
+outcome, TTS-relay always-arm expert outcome, exact per-pool budgets).
+
+1. **Later read point** (8bw/8bx): ranking +.036 ext-5 AUC at k2,
+   Reasoning-zh +.12; delivered accuracy at a fixed budget +0.7-0.9 pt
+   mean, +4.5 on zh only; two-stage gray band no better. Analysis
+   result, not a deployment lever.
+2. **Second-signal fusion (P9 / P16 shadow scores)** logged on every
+   live row by the bench runner. AUC on the live never arms: frozen
+   .858 -> .864/.865, WebQ .732 -> .742/.749, SD-QA .784 -> .809/.815,
+   Llama .703 -> .700/.691, zh .685 -> .680/.671. Delivered accuracy,
+   external-4 mean: 15% .657 -> .661/.657, 30% .717 -> .717/.719,
+   50% .770 -> .766/.772. Within +-.005 everywhere. Same verdict as
+   8bt and as ChangyiYang's P32: ranking moves, routing does not.
+3. **Empty / truncated-answer rule.** Empty answers: 8 rows in 1,392
+   (7 wrong, expert fixes 6). Truncation (60-chunk cap without
+   end-of-turn): frozen 29 (90% wrong, expert fixes 45%), Reasoning-zh
+   26 (92% / 77%), none elsewhere. Forcing those rows to the front of
+   the budget: external-5 mean +.004/+.007/+.005 at 15/30/50%; zh
+   +.015; frozen -.016 at the two lower budgets because the displaced
+   probe picks were more expert-fixable than the truncated rows.
+   Detection is also late (the cap is reached after ~60 s of speech),
+   and answer length is not an early proxy: frozen answers >=800 chars
+   are 86% wrong but the expert fixes only 50% of them (formula-heavy
+   problems the expert also misses). Worth ~0.5 pt, not the 2.2 pt
+   the taxonomy ceiling suggested; not deployed.
+
+**Net.** The probe-side ledger is closed: every remaining route buys
+ranking, none buys more than a point of delivered accuracy at a fixed
+budget. Recoverable headroom is 7.5 pt/100 at aggressive (8bv), and it
+is spread across confident-wrong rows the probe already ranks near
+the boundary. Gains from here come from the channel (relay, done:
++23 pt on TriviaQA always), the expert (fixable rate .39 on misheard
+turns), and the judge/label floor, not the read.
