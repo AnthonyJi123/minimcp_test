@@ -98,3 +98,22 @@ tier against a 31\% false-fire rate on correct turns), misheard
 questions at 0.89, whereas execution slips in multi-step reasoning are
 at chance (0.47) --- the error has not happened yet when the gate
 reads, so only a later read point could recover them.
+
+\paragraph{When the signal arrives.}
+To measure that directly we re-dumped the full calibration merge and
+the six pools under the serving configuration and read the same
+layer-22 vector at five moments of one generation: one step before
+the commit, at the commit (deployed), and after the first, second, and
+third answer chunks, fitting one probe per moment with the deployed
+recipe. Across the five external pools the mean AUC is 0.753 before
+the commit, 0.755 at it, 0.762, 0.791, and 0.801 after one, two, and
+three answer chunks; the Mandarin reasoning pool moves from 0.648 to
+0.769 after two chunks while the internal test set stays at 0.85. The
+commit-point state carries retrieval confidence; execution confidence
+only exists once the answer is under way. The pre-commit ceiling we
+report is therefore a ceiling on the former, and the roughly 0.05 above
+it is available at the price of two to three seconds of a partly voiced
+wrong answer, a product trade rather than a probe improvement. Reading
+one step earlier, before the first spoken unit enters the state, helps
+Mandarin (+0.06) and costs Speech WebQ (--0.06): the first unit is
+often the answer entity in English and a discourse marker in Mandarin.

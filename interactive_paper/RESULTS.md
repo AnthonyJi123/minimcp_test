@@ -6006,3 +6006,82 @@ labels carry judge noise; knowledge_gap has n=17.
 Files: modal_failure_taxonomy.py, scripts/37_failure_taxonomy_lift.py,
 data/native_bench/failure_types.parquet, figures/failure_taxonomy_lift.{png,json};
 gallery 图N7.
+
+## Phase 8bw — failure-type explainer page + headroom accounting ($0, 2026-09-03)
+
+`scripts/38_taxonomy_examples.py` pulls per-type real examples out of the 8bv
+taxonomy (each carrying the deployed gate's never-arm score on that exact row,
+which tiers it fires at under the per-language thresholds, and whether the
+always-arm expert fixed it) and adds a net-points ledger over the same 1,392
+rows: gain = failure escalated and expert fixed it, loss = correct row
+escalated and expert got it wrong.
+
+| tier | fire rate | gain | loss | net (pts/100q) |
+|---|---:|---:|---:|---:|
+| conservative | 7% | +3.9 | −0.1 | **+3.7** |
+| balanced | 21% | +11.2 | −0.4 | **+10.8** |
+| aggressive | 49% | +23.1 | −1.2 | **+22.0** |
+| always escalate | 100% | +30.8 | −2.9 | **+27.9** |
+
+**Reading.** The aggressive tier buys 79% of the always-escalate net gain at
+49% of the cost; the entire remaining headroom on these pools is 5.9 net
+points, and it costs double to reach. Split by type (gross), the 7.6-point
+gap is confident-wrong 4.3, quality/other 2.2, execution 0.7 — i.e. the
+cheapest unclaimed block is quality/other, most of which is empty or
+MAX_ANS-truncated answers that a *rule* (empty/truncated → escalate) catches
+without any probe. Rows with an empty answer have no onset score at all.
+
+Explainer page (五类定义/判定/真实例子 + 训练成果 + 剩余空间, reads both JSONs
+at build): `taxonomy_app.py` →
+https://rhe9527--failure-taxonomy-page-web.modal.run/7f31ac0d
+Files: taxonomy_app.py, scripts/38_taxonomy_examples.py,
+figures/failure_examples.json.
+
+## Phase 8bw — read-point timeline: uncertainty unfolds with the answer (~$45 GPU + ~$12 API, 2026-09-03)
+
+`modal_native_dump.py` now saves, per query, the same 12,288-d L22 read at
+five moments of ONE generation: `X_pre` (before the onset chunk's
+generate; no answer token), `X` (deployed: after it), `X_k1/2/3` (after the
+1st/2nd/3rd answer chunk; padded with the last available read — 0.2 / 2.8
+/ 10.6% of rows end earlier). Fresh official-config dumps of the whole
+8bq training merge (`calibk expk exp2k exp3k exp3zhk freshk`, 5,236 rows
+after judge) and the six eval pools (`testk …`), labels judged on the
+same generation. `scripts/38_readpoint_refit.py`: one 8bq-recipe probe
+per read point (L2 LR, C=3e-4, row-random 5-fold OOF).
+
+| read | OOF | test | TriviaQA | WebQ | Llama | SD-QA | Reasoning-zh | En-4 | ext-5 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| pre | .848 | .832 | .820 | .721 | .779 | .736 | .711 | .764 | .753 |
+| onset (deployed) | .850 | .852 | .819 | .782 | .785 | .738 | .648 | .781 | .755 |
+| k1 | .852 | .854 | .793 | .777 | .810 | .747 | .681 | .782 | .762 |
+| k2 | .855 | .846 | .823 | .786 | .809 | .766 | **.769** | .796 | .791 |
+| k3 | .857 | .858 | **.857** | .791 | .824 | .790 | .744 | **.815** | **.801** |
+| onset+k1 (logit mean) | .856 | .859 | .814 | .786 | .801 | .752 | .674 | .788 | .765 |
+
+Cascade at an exact 30% budget (local from this dump, expert from the
+TTS-relay always arm): k2 vs onset — Reasoning-zh .668→.713, TriviaQA
+.780→.784, others within ±1 pt. Preliminary leave-one-pool-out on the
+eval pools alone (1,150 train rows) showed the same ordering (onset .714
+→ k3 .765).
+
+**Interpretation.** (1) The commit-point state encodes *retrieval*
+confidence (did I hear it, do I have it, is this the right entity);
+*execution* confidence does not exist yet — the slip has not happened.
+After two answer chunks the trajectory is in the state and Reasoning-zh
+rises .648→.769; internal test (recall-dominated) does not move. Same
+pattern as text-side P(IK) < P(True) and answer-token probes (Kadavath
+2022, Orgad 2024), here resolved on the streaming time axis. (2) The
+"probe ceiling" of 8bq-3 is the pre-answer-read ceiling (.76–.78); k3
+reaches .80 with +3 s and a partially voiced wrong answer — a product
+trade, not a deployment change; the paper's pre-commitment claim
+stands. (3) `pre` vs `onset`: onset includes the first spoken unit;
+for English facts that unit is often the entity (WebQ +.06 for onset),
+for zh / real speech it is a discourse marker (Reasoning-zh +.06 for
+pre). Read-point value tracks *when the answer content enters the
+token stream*. Per-language read-point choice would be eval-pool
+tuning; not adopted. (4) Ranking gains still convert weakly at fixed
+budgets except on zh (same lesson as 8bt / issue #8).
+Files: modal_native_dump.py (X_k1..3, n_post), `_run_postread.sh`,
+scripts/pull_postread.sh, scripts/38_readpoint_refit.py,
+figures/readpoint_refit.{json,png}, data/frozen_native_*k_judged.parquet
+(feature shards stay on the volume, ~1.2 GB). Gallery 图N8.
