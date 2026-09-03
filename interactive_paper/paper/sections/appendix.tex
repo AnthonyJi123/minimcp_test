@@ -276,6 +276,13 @@ thresholds are OOF-score quantiles. Because the feature window ends
 640\,ms after commit, this is an answer-onset read rather than a
 strictly causal pre-answer read.
 
+\paragraph{Layer location.}
+On the same expanded calibration cohort, the single-feature
+answer-onset sweep rises from 0.720 OOF AUC at L2 to 0.785 at L30,
+stays within 0.006 from L18 through L34, and falls to 0.761 at L54.
+Thus the readable band remains mid-network in this second model
+family; the reported L26/L30/L34 average spans its plateau.
+
 \paragraph{Scope of the transfer test.}
 The capture follows the model's native frame protocol, but it is
 offline: NeMo's released \texttt{offline\_voicechat} path re-runs the
@@ -288,13 +295,15 @@ end-to-end latency.
 \paragraph{Pass-3 results.}
 The three-layer answer-onset probe reaches OOF AUC 0.818, pooled LOPO
 0.792, and mean within-held-pool LOPO 0.691. With no external labels
-used for fitting, its AUC is 0.827/0.862/0.790/0.775 on
-TriviaQA/WebQ/Llama-Q/SD-QA (mean 0.813;
-Table~\ref{tab:nvda-reads}). At fixed 15/30/50\% per-pool escalation
-budgets, four-pool mean accuracy is 0.550/0.650/0.757 versus
-0.507/0.577/0.670 for matched-rate random. It beats random on every
-pool at 30\% and 50\% ($p\le0.0008$); SD-QA at 15\% is inconclusive
-($p{=}0.063$).
+used for fitting, its AUC under the GPT-5.4-mini training judge is
+0.827/0.862/0.790/0.775 on TriviaQA/WebQ/Llama-Q/SD-QA (mean 0.813;
+Table~\ref{tab:nvda-reads}). Under the pool-aligned judges used for
+the cross-family comparison, the same scores give
+0.845/0.845/0.803/0.770 (mean 0.816). At fixed 15/30/50\% per-pool
+escalation budgets, four-pool mean accuracy is 0.550/0.650/0.757
+versus 0.507/0.577/0.670 for matched-rate random. It beats random on
+every pool at 30\% and 50\% ($p\le0.0008$); SD-QA at 15\% is
+inconclusive ($p{=}0.063$).
 
 \paragraph{Read-point boundary.}
 The reported feature window covers the first 640\,ms after the model's
@@ -311,7 +320,8 @@ windowed quantiles are therefore required for budget control.
 \begin{table}[h]
 \centering\footnotesize
 \setlength{\tabcolsep}{4pt}
-\caption{Pass-3 NVDA probe read points ($L_2$-logistic
+\caption{Pass-3 NVDA probe read points under GPT-5.4-mini labels
+($L_2$-logistic
 $C{=}10^{-4}$ on standardized features; 2{,}481-row analysis fits;
 external labels excluded from fitting, $n=249/250/249/200$).
 LOPO$_\text{pool}$ is mean within-held-pool AUC over 13 eligible
@@ -337,8 +347,8 @@ reported 3-layer answer onset, L26/30/34 & $+$ commit frame, running mean & 0.81
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{nvda_probe_reads}
-  \caption{Pass-3 NVDA method-transfer results under offline
-  native-protocol replay. (a) External AUC by read point: the reported
+  \caption{Pass-3 NVDA method-transfer results under native-frame
+  replay. (a) External AUC under GPT-5.4-mini labels by read point: the reported
   three-layer answer-onset probe reaches 0.813 mean AUC, while removing
   post-commit states costs about 0.03. Dots are the four pools.
   (b) Accuracy at fixed escalation budgets under official judges: the
