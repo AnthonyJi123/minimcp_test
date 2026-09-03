@@ -6085,3 +6085,34 @@ Files: modal_native_dump.py (X_k1..3, n_post), `_run_postread.sh`,
 scripts/pull_postread.sh, scripts/38_readpoint_refit.py,
 figures/readpoint_refit.{json,png}, data/frozen_native_*k_judged.parquet
 (feature shards stay on the volume, ~1.2 GB). Gallery 图N8.
+
+## Phase 8bx — two-stage gate (commit-point probe + k2 re-score on a gray band): not worth it ($0, 2026-09-03)
+
+`scripts/39_two_stage.py` on the 8bw dumps. Policy P(r, d, f): fire the
+top r(1-f)N rows by onset score at the commit; defer the next dN rows
+(gray band) to the k2 probe and fire the top r·f·N - |A| of them; the
+rest answer locally. d=0 is the deployed gate, d=1 is k2-only. Delivered
+accuracy at exact per-pool budgets, expert = TTS-relay always arm.
+
+| budget | one-stage | band .2 / half at k2 | band .5 / half at k2 | k2-only (all deferred) |
+|---|---:|---:|---:|---:|
+| 15% | .638 | .642 | .646 | .637 |
+| 30% | .711 | .716 | .718 | .720 |
+| 50% | .770 | — | .784 | .783 |
+
+Per pool @30%: only Reasoning-zh moves (.668 → .708 band-half / .713
+k2-only); the other five are within ±.005.
+
+**Reading.** The k2 read's AUC advantage (+.04 ext-5) buys under one
+point of mean delivered accuracy at a fixed budget, for two reasons:
+(1) at a fixed budget only the ranking near the threshold matters, and
+there onset and k2 agree on most rows — the k2 probe re-orders the
+middle of the ranking, not the boundary; (2) the rows it does flip are
+concentrated in execution failures (Reasoning-zh, +4.5 pts), which are a
+small share of failures elsewhere (8bv: 7% overall). Combined with
+the latency cost (20–50% of turns hear ~2 s of a possibly wrong answer
+before the decision) the two-stage gate is not a deployment candidate;
+the commit-point single decision stands. It is a real lever only for
+reasoning-heavy traffic. Consistent with 8bt/8bw and issue #8: ranking
+gains convert weakly into routing gains at fixed budgets.
+Files: scripts/39_two_stage.py, figures/two_stage.{png,json}; gallery 图N9.
